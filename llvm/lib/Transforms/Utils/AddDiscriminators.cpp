@@ -70,9 +70,11 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils.h"
+#include "llvm/Transforms/Utils/SampleProfileLoaderBaseUtil.h"
 #include <utility>
 
 using namespace llvm;
+using namespace sampleprofutil;
 
 #define DEBUG_TYPE "add-discriminators"
 
@@ -172,6 +174,10 @@ static bool addDiscriminators(Function &F) {
   if (NoDiscriminators || !F.getSubprogram())
     return false;
 
+  // Create FSDiscriminatorVariable if flow sensitive discriminators are used.
+  if (EnableFSDiscriminator)
+    createFSDiscriminatorVariable(F.getParent());
+
   bool Changed = false;
 
   using Location = std::pair<StringRef, unsigned>;
@@ -187,7 +193,7 @@ static bool addDiscriminators(Function &F) {
   // of the instruction appears in other basic block, assign a new
   // discriminator for this instruction.
   for (BasicBlock &B : F) {
-    for (auto &I : B.getInstList()) {
+    for (auto &I : B) {
       // Not all intrinsic calls should have a discriminator.
       // We want to avoid a non-deterministic assignment of discriminators at
       // different debug levels. We still allow discriminators on memory
@@ -216,7 +222,7 @@ static bool addDiscriminators(Function &F) {
                           << DIL->getColumn() << ":" << Discriminator << " "
                           << I << "\n");
       } else {
-        I.setDebugLoc(NewDIL.getValue());
+        I.setDebugLoc(*NewDIL);
         LLVM_DEBUG(dbgs() << DIL->getFilename() << ":" << DIL->getLine() << ":"
                    << DIL->getColumn() << ":" << Discriminator << " " << I
                    << "\n");
@@ -231,7 +237,7 @@ static bool addDiscriminators(Function &F) {
   // a same source line for correct profile annotation.
   for (BasicBlock &B : F) {
     LocationSet CallLocations;
-    for (auto &I : B.getInstList()) {
+    for (auto &I : B) {
       // We bypass intrinsic calls for the following two reasons:
       //  1) We want to avoid a non-deterministic assignment of
       //     discriminators.
@@ -254,7 +260,7 @@ static bool addDiscriminators(Function &F) {
                      << CurrentDIL->getLine() << ":" << CurrentDIL->getColumn()
                      << ":" << Discriminator << " " << I << "\n");
         } else {
-          I.setDebugLoc(NewDIL.getValue());
+          I.setDebugLoc(*NewDIL);
           Changed = true;
         }
       }

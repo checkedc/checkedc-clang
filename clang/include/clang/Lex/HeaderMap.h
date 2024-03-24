@@ -15,10 +15,12 @@
 
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
-#include "llvm/ADT/Optional.h"
+#include "clang/Lex/HeaderMapTypes.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <memory>
+#include <optional>
 
 namespace clang {
 
@@ -29,6 +31,7 @@ struct HMapHeader;
 class HeaderMapImpl {
   std::unique_ptr<const llvm::MemoryBuffer> FileBuffer;
   bool NeedsBSwap;
+  mutable llvm::StringMap<StringRef> ReverseMap;
 
 public:
   HeaderMapImpl(std::unique_ptr<const llvm::MemoryBuffer> File, bool NeedsBSwap)
@@ -36,6 +39,19 @@ public:
 
   // Check for a valid header and extract the byte swap.
   static bool checkHeader(const llvm::MemoryBuffer &File, bool &NeedsByteSwap);
+
+  // Make a call for every Key in the map.
+  template <typename Func> void forEachKey(Func Callback) const {
+    const HMapHeader &Hdr = getHeader();
+    unsigned NumBuckets = getEndianAdjustedWord(Hdr.NumBuckets);
+
+    for (unsigned Bucket = 0; Bucket < NumBuckets; ++Bucket) {
+      HMapBucket B = getBucket(Bucket);
+      if (B.Key != HMAP_EmptyBucketKey)
+        if (std::optional<StringRef> Key = getString(B.Key))
+          Callback(*Key);
+    }
+  }
 
   /// If the specified relative filename is located in this HeaderMap return
   /// the filename it is mapped to, otherwise return an empty StringRef.
@@ -48,14 +64,17 @@ public:
   /// Print the contents of this headermap to stderr.
   void dump() const;
 
+  /// Return key for specifed path.
+  StringRef reverseLookupFilename(StringRef DestPath) const;
+
 private:
   unsigned getEndianAdjustedWord(unsigned X) const;
   const HMapHeader &getHeader() const;
   HMapBucket getBucket(unsigned BucketNo) const;
 
   /// Look up the specified string in the string table.  If the string index is
-  /// not valid, return None.
-  Optional<StringRef> getString(unsigned StrTabIdx) const;
+  /// not valid, return std::nullopt.
+  std::optional<StringRef> getString(unsigned StrTabIdx) const;
 };
 
 /// This class represents an Apple concept known as a 'header map'.  To the
@@ -72,16 +91,11 @@ public:
   static std::unique_ptr<HeaderMap> Create(const FileEntry *FE,
                                            FileManager &FM);
 
-  /// Check to see if the specified relative filename is located in this
-  /// HeaderMap.  If so, open it and return its FileEntry.  If RawPath is not
-  /// NULL and the file is found, RawPath will be set to the raw path at which
-  /// the file was found in the file system. For example, for a search path
-  /// ".." and a filename "../file.h" this would be "../../file.h".
-  Optional<FileEntryRef> LookupFile(StringRef Filename, FileManager &FM) const;
-
-  using HeaderMapImpl::lookupFilename;
-  using HeaderMapImpl::getFileName;
   using HeaderMapImpl::dump;
+  using HeaderMapImpl::forEachKey;
+  using HeaderMapImpl::getFileName;
+  using HeaderMapImpl::lookupFilename;
+  using HeaderMapImpl::reverseLookupFilename;
 };
 
 } // end namespace clang.

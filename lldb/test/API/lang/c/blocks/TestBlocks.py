@@ -2,7 +2,6 @@
 
 
 
-import unittest2
 import lldb
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
@@ -10,8 +9,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class BlocksTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     lines = []
 
     def setUp(self):
@@ -20,6 +17,7 @@ class BlocksTestCase(TestBase):
         # Find the line numbers to break at.
         self.lines.append(line_number('main.c', '// Set breakpoint 0 here.'))
         self.lines.append(line_number('main.c', '// Set breakpoint 1 here.'))
+        self.lines.append(line_number('main.c', '// Set breakpoint 2 here.'))
 
     def launch_common(self):
         self.build()
@@ -50,6 +48,10 @@ class BlocksTestCase(TestBase):
         # This should display correctly.
         self.expect("expression (int)neg (-12)", VARIABLES_DISPLAYED_CORRECTLY,
                     substrs=["= 12"])
+
+        self.wait_for_breakpoint()
+
+        self.expect_expr("h(cg)", result_type="int", result_value="42")
 
     @skipUnlessDarwin
     def test_define(self):

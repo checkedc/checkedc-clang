@@ -57,9 +57,9 @@ template <class T> struct IntrusiveList {
   void checkConsistency() const;
 
 protected:
-  uptr Size;
-  T *First;
-  T *Last;
+  uptr Size = 0;
+  T *First = nullptr;
+  T *Last = nullptr;
 };
 
 template <class T> void IntrusiveList<T>::checkConsistency() const {
@@ -108,6 +108,18 @@ template <class T> struct SinglyLinkedList : public IntrusiveList<T> {
     if (!First)
       Last = nullptr;
     Size--;
+  }
+
+  // Insert X next to Prev
+  void insert(T *Prev, T *X) {
+    DCHECK(!empty());
+    DCHECK_NE(Prev, nullptr);
+    DCHECK_NE(X, nullptr);
+    X->Next = Prev->Next;
+    Prev->Next = X;
+    if (Last == Prev)
+      Last = X;
+    ++Size;
   }
 
   void extract(T *Prev, T *X) {

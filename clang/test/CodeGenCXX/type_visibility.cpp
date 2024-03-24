@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 %s -std=c++11 -triple=x86_64-apple-darwin10 -emit-llvm -o %t.ll
 // RUN: FileCheck %s -check-prefix=FUNS < %t.ll
 // RUN: FileCheck %s -check-prefix=VARS < %t.ll
-// RUN: %clang_cc1 %s -std=c++11 -triple=x86_64-apple-darwin10 -fvisibility hidden -emit-llvm -o %t.ll
+// RUN: %clang_cc1 %s -std=c++11 -triple=x86_64-apple-darwin10 -fvisibility=hidden -emit-llvm -o %t.ll
 // RUN: FileCheck %s -check-prefix=FUNS-HIDDEN < %t.ll
 // RUN: FileCheck %s -check-prefix=VARS-HIDDEN < %t.ll
 
@@ -110,14 +110,14 @@ namespace type0 {
   };
 
   void A::foo() {}
-  // FUNS-LABEL:        define{{.*}} void @_ZN5type01A3fooEv(
-  // VARS:        @_ZTVN5type01AE = dso_local unnamed_addr constant
-  // VARS:        @_ZTSN5type01AE = dso_local constant
-  // VARS:        @_ZTIN5type01AE = dso_local constant
+  // FUNS-LABEL:        define void @_ZN5type01A3fooEv(
+  // VARS:        @_ZTVN5type01AE = unnamed_addr constant
+  // VARS:        @_ZTSN5type01AE = constant
+  // VARS:        @_ZTIN5type01AE = constant
   // FUNS-HIDDEN-LABEL: define hidden void @_ZN5type01A3fooEv(
-  // VARS-HIDDEN: @_ZTVN5type01AE = dso_local unnamed_addr constant
-  // VARS-HIDDEN: @_ZTSN5type01AE = dso_local constant
-  // VARS-HIDDEN: @_ZTIN5type01AE = dso_local constant
+  // VARS-HIDDEN: @_ZTVN5type01AE = unnamed_addr constant
+  // VARS-HIDDEN: @_ZTSN5type01AE = constant
+  // VARS-HIDDEN: @_ZTIN5type01AE = constant
 }
 
 namespace type1 {
@@ -127,13 +127,13 @@ namespace type1 {
 
   void A::foo() {}
   // FUNS-LABEL:        define hidden void @_ZN5type11A3fooEv(
-  // VARS:        @_ZTVN5type11AE = dso_local unnamed_addr constant
-  // VARS:        @_ZTSN5type11AE = dso_local constant
-  // VARS:        @_ZTIN5type11AE = dso_local constant
+  // VARS:        @_ZTVN5type11AE = unnamed_addr constant
+  // VARS:        @_ZTSN5type11AE = constant
+  // VARS:        @_ZTIN5type11AE = constant
   // FUNS-HIDDEN-LABEL: define hidden void @_ZN5type11A3fooEv(
-  // VARS-HIDDEN: @_ZTVN5type11AE = dso_local unnamed_addr constant
-  // VARS-HIDDEN: @_ZTSN5type11AE = dso_local constant
-  // VARS-HIDDEN: @_ZTIN5type11AE = dso_local constant
+  // VARS-HIDDEN: @_ZTVN5type11AE = unnamed_addr constant
+  // VARS-HIDDEN: @_ZTSN5type11AE = constant
+  // VARS-HIDDEN: @_ZTIN5type11AE = constant
 }
 
 namespace type2 {
@@ -142,7 +142,7 @@ namespace type2 {
   };
 
   void A::foo() {}
-  // FUNS-LABEL:        define dso_local void @_ZN5type21A3fooEv(
+  // FUNS-LABEL:        define void @_ZN5type21A3fooEv(
   // VARS:        @_ZTVN5type21AE = hidden unnamed_addr constant
   // VARS:        @_ZTSN5type21AE = hidden constant
   // VARS:        @_ZTIN5type21AE = hidden constant
@@ -158,11 +158,11 @@ namespace type3 {
   };
 
   void A::foo() {}
-  // FUNS-LABEL:        define dso_local void @_ZN5type31A3fooEv(
+  // FUNS-LABEL:        define void @_ZN5type31A3fooEv(
   // VARS:        @_ZTVN5type31AE = hidden unnamed_addr constant
   // VARS:        @_ZTSN5type31AE = hidden constant
   // VARS:        @_ZTIN5type31AE = hidden constant
-  // FUNS-HIDDEN-LABEL: define dso_local void @_ZN5type31A3fooEv(
+  // FUNS-HIDDEN-LABEL: define void @_ZN5type31A3fooEv(
   // VARS-HIDDEN: @_ZTVN5type31AE = hidden unnamed_addr constant
   // VARS-HIDDEN: @_ZTSN5type31AE = hidden constant
   // VARS-HIDDEN: @_ZTIN5type31AE = hidden constant

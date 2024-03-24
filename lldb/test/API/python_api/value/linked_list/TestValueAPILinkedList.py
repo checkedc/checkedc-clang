@@ -3,9 +3,6 @@ Test SBValue API linked_list_iter which treats the SBValue as a linked list and
 supports iteration till the end of list is reached.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 
 class ValueAsLinkedListTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
@@ -28,7 +23,6 @@ class ValueAsLinkedListTestCase(TestBase):
     # Py3 asserts due to a bug in SWIG.  A fix for this was upstreamed into
     # SWIG 3.0.8.
     @skipIf(py_version=['>=', (3, 0)], swig_version=['<', (3, 0, 8)])
-    @add_test_categories(['pyapi'])
     def test(self):
         """Exercise SBValue API linked_list_iter."""
         d = {'EXE': self.exe_name}
@@ -50,7 +44,7 @@ class ValueAsLinkedListTestCase(TestBase):
         self.assertTrue(process, PROCESS_IS_VALID)
 
         # Get Frame #0.
-        self.assertTrue(process.GetState() == lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(
@@ -80,7 +74,7 @@ class ValueAsLinkedListTestCase(TestBase):
         # Sanity checks that the we visited all the items (no more, no less).
         if self.TraceOn():
             print("visited IDs:", list)
-        self.assertTrue(visitedIDs == list)
+        self.assertEqual(visitedIDs, list)
 
         # Let's exercise the linked_list_iter() API again, this time supplying
         # our end of list test function.
@@ -111,7 +105,7 @@ class ValueAsLinkedListTestCase(TestBase):
         # Sanity checks that the we visited all the items (no more, no less).
         if self.TraceOn():
             print("visited IDs:", list)
-        self.assertTrue(visitedIDs == list)
+        self.assertEqual(visitedIDs, list)
 
         # Get variable 'empty_task_head'.
         empty_task_head = frame0.FindVariable('empty_task_head')
@@ -125,7 +119,7 @@ class ValueAsLinkedListTestCase(TestBase):
                 print(cvf.format(t))
             list.append(int(t.GetChildMemberWithName("id").GetValue()))
 
-        self.assertTrue(len(list) == 0)
+        self.assertEqual(len(list), 0)
 
         # Get variable 'task_evil'.
         task_evil = frame0.FindVariable('task_evil')
@@ -139,4 +133,4 @@ class ValueAsLinkedListTestCase(TestBase):
                 print(cvf.format(t))
             list.append(int(t.GetChildMemberWithName("id").GetValue()))
 
-        self.assertTrue(len(list) == 3)
+        self.assertEqual(len(list), 3)

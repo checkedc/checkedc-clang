@@ -9,25 +9,29 @@
 #include "../ClangTidy.h"
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
+#include "IdDependentBackwardBranchCheck.h"
 #include "KernelNameRestrictionCheck.h"
 #include "SingleWorkItemBarrierCheck.h"
 #include "StructPackAlignCheck.h"
+#include "UnrollLoopsCheck.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace altera {
 
 class AlteraModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
+    CheckFactories.registerCheck<IdDependentBackwardBranchCheck>(
+        "altera-id-dependent-backward-branch");
     CheckFactories.registerCheck<KernelNameRestrictionCheck>(
         "altera-kernel-name-restriction");
     CheckFactories.registerCheck<SingleWorkItemBarrierCheck>(
         "altera-single-work-item-barrier");
     CheckFactories.registerCheck<StructPackAlignCheck>(
         "altera-struct-pack-align");
+    CheckFactories.registerCheck<UnrollLoopsCheck>("altera-unroll-loops");
   }
 };
 
@@ -41,5 +45,4 @@ static ClangTidyModuleRegistry::Add<altera::AlteraModule>
 // and thus register the AlteraModule.
 volatile int AlteraModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

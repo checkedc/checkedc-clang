@@ -69,13 +69,13 @@ public:
   /// Return true if the specified register number is in
   /// the virtual register namespace.
   static bool isVirtualRegister(unsigned Reg) {
-    return Reg & MCRegister::VirtualRegFlag && !isStackSlot(Reg);
+    return Reg & MCRegister::VirtualRegFlag;
   }
 
   /// Convert a virtual register number to a 0-based index.
   /// The first virtual register in a function will get the index 0.
   static unsigned virtReg2Index(Register Reg) {
-    assert(isVirtualRegister(Reg) && "Not a virtual register");
+    assert(Reg.isVirtual() && "Not a virtual register");
     return Reg & ~MCRegister::VirtualRegFlag;
   }
 
@@ -162,4 +162,4 @@ template<> struct DenseMapInfo<Register> {
 
 }
 
-#endif // ifndef LLVM_CODEGEN_REGISTER_H
+#endif // LLVM_CODEGEN_REGISTER_H

@@ -11,8 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/CodeGen/MBFIWrapper.h"
 #include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
+#include "llvm/CodeGen/MBFIWrapper.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -30,7 +31,7 @@ void MBFIWrapper::setBlockFreq(const MachineBasicBlock *MBB,
   MergedBBFreq[MBB] = F;
 }
 
-Optional<uint64_t>
+std::optional<uint64_t>
 MBFIWrapper::getBlockProfileCount(const MachineBasicBlock *MBB) const {
   auto I = MergedBBFreq.find(MBB);
 

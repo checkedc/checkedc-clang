@@ -21,6 +21,7 @@ add_llvm_target(BPFCodeGen
   BPFCheckAndAdjustIR.cpp
   BPFFrameLowering.cpp
   BPFInstrInfo.cpp
+  BPFIRPeephole.cpp
   BPFISelDAGToDAG.cpp
   BPFISelLowering.cpp
   BPFMCInstLower.cpp
@@ -35,6 +36,7 @@ add_llvm_target(BPFCodeGen
   BTFDebug.cpp
 
   LINK_COMPONENTS
+  Analysis
   AsmPrinter
   CodeGen
   Core
@@ -46,6 +48,8 @@ add_llvm_target(BPFCodeGen
   SelectionDAG
   Support
   Target
+  TargetParser
+  TransformUtils
 
   ADD_TO_COMPONENT
   BPF

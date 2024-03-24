@@ -15,13 +15,12 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include <optional>
 #include <string>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 StaticAssertCheck::StaticAssertCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context) {}
@@ -104,8 +103,8 @@ void StaticAssertCheck::check(const MatchFinder::MatchResult &Result) {
 
     StringRef FalseMacroName =
         Lexer::getImmediateMacroName(FalseLiteralLoc, SM, Opts);
-    if (FalseMacroName.compare_lower("false") == 0 ||
-        FalseMacroName.compare_lower("null") == 0)
+    if (FalseMacroName.compare_insensitive("false") == 0 ||
+        FalseMacroName.compare_insensitive("null") == 0)
       return;
   }
 
@@ -118,17 +117,16 @@ void StaticAssertCheck::check(const MatchFinder::MatchResult &Result) {
     FixItHints.push_back(
         FixItHint::CreateReplacement(SourceRange(AssertLoc), "static_assert"));
 
-    std::string StaticAssertMSG = ", \"\"";
     if (AssertExprRoot) {
       FixItHints.push_back(FixItHint::CreateRemoval(
           SourceRange(AssertExprRoot->getOperatorLoc())));
       FixItHints.push_back(FixItHint::CreateRemoval(
           SourceRange(AssertMSG->getBeginLoc(), AssertMSG->getEndLoc())));
-      StaticAssertMSG = (Twine(", \"") + AssertMSG->getString() + "\"").str();
+      FixItHints.push_back(FixItHint::CreateInsertion(
+          LastParenLoc, (Twine(", \"") + AssertMSG->getString() + "\"").str()));
+    } else if (!Opts.CPlusPlus17) {
+      FixItHints.push_back(FixItHint::CreateInsertion(LastParenLoc, ", \"\""));
     }
-
-    FixItHints.push_back(
-        FixItHint::CreateInsertion(LastParenLoc, StaticAssertMSG));
   }
 
   diag(AssertLoc, "found assert() that could be replaced by static_assert()")
@@ -140,7 +138,7 @@ SourceLocation StaticAssertCheck::getLastParenLoc(const ASTContext *ASTCtx,
   const LangOptions &Opts = ASTCtx->getLangOpts();
   const SourceManager &SM = ASTCtx->getSourceManager();
 
-  llvm::Optional<llvm::MemoryBufferRef> Buffer =
+  std::optional<llvm::MemoryBufferRef> Buffer =
       SM.getBufferOrNone(SM.getFileID(AssertLoc));
   if (!Buffer)
     return SourceLocation();
@@ -167,6 +165,4 @@ SourceLocation StaticAssertCheck::getLastParenLoc(const ASTContext *ASTCtx,
   return Token.getLocation();
 }
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc

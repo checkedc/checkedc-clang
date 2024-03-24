@@ -37,9 +37,12 @@ def main():
   if not object_encodings_map:
     sys.exit("no object encodings found in input")
 
+  # generate-cfi-funcs.py doesn't generate unwind info for _main.
+  object_encodings_map['_main'] = '00000000'
+
   program_symbols_map = {address:symbol
     for address, symbol in
-    re.findall(r"^%s(%s) g\s+F __TEXT,__text (x\1)$" % (hex8, hex8),
+    re.findall(r"^%s(%s) g\s+F __TEXT,__text (x\1|_main)$" % (hex8, hex8),
                objdump_string, re.MULTILINE)}
   if not program_symbols_map:
     sys.exit("no program symbols found in input")
@@ -73,8 +76,10 @@ def main():
 
   if program_encodings_map != object_encodings_map:
     if args.debug:
-      pprint("program encodings map:\n" + str(program_encodings_map))
-      pprint("object encodings map:\n" + str(object_encodings_map))
+      print("program encodings map:")
+      pprint(program_encodings_map)
+      print("object encodings map:")
+      pprint(object_encodings_map)
     sys.exit("encoding maps differ")
 
   # Count frequency of object-file folded encodings

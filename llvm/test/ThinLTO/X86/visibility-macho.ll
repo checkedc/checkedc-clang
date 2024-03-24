@@ -18,16 +18,17 @@
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.15.0"
 
-; CHECK:      @var1 = external global i32, align 4
+; CHECK:      @var1 = external hidden global i32, align 4
 ; CHECK-NEXT: @var2 = available_externally hidden global i32 1, align 4
 
 @var1 = weak global i32 1, align 4
 @var2 = extern_weak global i32
 
-declare void @ext(void ()*)
+declare void @ext(ptr)
 
-; CHECK: declare i32 @hidden_def_weak_def()
-;; Currently the visibility is not propagated for an unimported function.
+; CHECK: declare hidden i32 @hidden_def_weak_def()
+;; Currently the visibility is not propagated onto an unimported function,
+;; because we don't have summaries for declarations.
 ; CHECK: declare extern_weak dso_local void @not_imported()
 ; CHECK: define available_externally hidden void @hidden_def_ref() !thinlto_src_module !0
 ; CHECK: define available_externally hidden void @hidden_def_weak_ref() !thinlto_src_module !0
@@ -39,7 +40,7 @@ declare void @ext(void ()*)
 
 define weak i32 @hidden_def_weak_def() {
 entry:
-  %0 = load i32, i32* @var2
+  %0 = load i32, ptr @var2
   ret i32 %0
 }
 
@@ -50,10 +51,10 @@ declare extern_weak void @hidden_def_weak_ref()
 
 define i32 @main() {
 entry:
-  call void @ext(void ()* bitcast (i32 ()* @hidden_def_weak_def to void ()*))
-  call void @ext(void ()* @hidden_def_ref)
-  call void @ext(void ()* @hidden_def_weak_ref)
-  call void @ext(void ()* @not_imported)
+  call void @ext(ptr @hidden_def_weak_def)
+  call void @ext(ptr @hidden_def_ref)
+  call void @ext(ptr @hidden_def_weak_ref)
+  call void @ext(ptr @not_imported)
 
   ;; Calls ensure the functions are imported.
   call i32 @hidden_def_weak_def()
@@ -71,7 +72,7 @@ target triple = "x86_64-apple-macosx10.15.0"
 
 define hidden i32 @hidden_def_weak_def() {
 entry:
-  %0 = load i32, i32* @var1
+  %0 = load i32, ptr @var1
   ret i32 %0
 }
 

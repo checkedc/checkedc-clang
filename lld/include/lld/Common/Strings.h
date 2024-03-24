@@ -10,18 +10,15 @@
 #define LLD_STRINGS_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/GlobPattern.h"
 #include <string>
 #include <vector>
 
 namespace lld {
-// Returns a demangled C++ symbol name. If Name is not a mangled
-// name, it returns name.
-std::string demangleItanium(llvm::StringRef name);
 
-std::vector<uint8_t> parseHex(llvm::StringRef s);
+llvm::SmallVector<uint8_t, 0> parseHex(llvm::StringRef s);
 bool isValidCIdentifier(llvm::StringRef s);
 
 // Write the contents of the a buffer to a file
@@ -32,7 +29,7 @@ void saveBuffer(llvm::StringRef buffer, const llvm::Twine &path);
 // glob pattern in the sense of GlobPattern.
 class SingleStringMatcher {
 public:
-  // Create a StringPattern from Pattern to be matched exactly irregardless
+  // Create a StringPattern from Pattern to be matched exactly regardless
   // of globbing characters if ExactMatch is true.
   SingleStringMatcher(llvm::StringRef Pattern);
 
@@ -45,8 +42,7 @@ public:
   }
 
 private:
-  // Whether to do an exact match irregardless of the presence of wildcard
-  // character.
+  // Whether to do an exact match regardless of wildcard characters.
   bool ExactMatch;
 
   // GlobPattern object if not doing an exact match.

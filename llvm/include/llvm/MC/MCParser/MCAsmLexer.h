@@ -12,10 +12,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCAsmMacro.h"
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
-#include <cstdint>
 #include <string>
 
 namespace llvm {
@@ -48,12 +46,16 @@ protected: // Can only create subclasses.
   const char *TokStart = nullptr;
   bool SkipSpace = true;
   bool AllowAtInIdentifier;
+  bool AllowHashInIdentifier = false;
   bool IsAtStartOfStatement = true;
   bool LexMasmHexFloats = false;
   bool LexMasmIntegers = false;
   bool LexMasmStrings = false;
+  bool LexMotorolaIntegers = false;
   bool UseMasmDefaultRadix = false;
   unsigned DefaultRadix = 10;
+  bool LexHLASMIntegers = false;
+  bool LexHLASMStrings = false;
   AsmCommentConsumer *CommentConsumer = nullptr;
 
   MCAsmLexer();
@@ -147,6 +149,8 @@ public:
   bool getAllowAtInIdentifier() { return AllowAtInIdentifier; }
   void setAllowAtInIdentifier(bool v) { AllowAtInIdentifier = v; }
 
+  void setAllowHashInIdentifier(bool V) { AllowHashInIdentifier = V; }
+
   void setCommentConsumer(AsmCommentConsumer *CommentConsumer) {
     this->CommentConsumer = CommentConsumer;
   }
@@ -168,6 +172,18 @@ public:
   /// Set whether to lex masm-style string literals, such as 'Can''t find file'
   /// and "This ""value"" not found".
   void setLexMasmStrings(bool V) { LexMasmStrings = V; }
+
+  /// Set whether to lex Motorola-style integer literals, such as $deadbeef or
+  /// %01010110.
+  void setLexMotorolaIntegers(bool V) { LexMotorolaIntegers = V; }
+
+  /// Set whether to lex HLASM-flavour integers. For now this is only [0-9]*
+  void setLexHLASMIntegers(bool V) { LexHLASMIntegers = V; }
+
+  /// Set whether to "lex" HLASM-flavour character and string literals. For now,
+  /// setting this option to true, will disable lexing for character and string
+  /// literals.
+  void setLexHLASMStrings(bool V) { LexHLASMStrings = V; }
 };
 
 } // end namespace llvm

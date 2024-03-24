@@ -9,11 +9,8 @@ from lldbsuite.test import lldbutil
 
 
 class TestReadMemCString(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipIfReproducer # SBProcess::ReadCStringFromMemory is not instrumented.
     def test_read_memory_c_string(self):
         """Test corner case behavior of SBProcess::ReadCStringFromMemory"""
         self.build()
@@ -33,26 +30,26 @@ class TestReadMemCString(TestBase):
         err = lldb.SBError()
 
         empty_str_addr = frame.FindVariable("empty_string").GetValueAsUnsigned(err)
-        self.assertTrue(err.Success())
-        self.assertTrue(empty_str_addr != lldb.LLDB_INVALID_ADDRESS)
+        self.assertSuccess(err)
+        self.assertNotEqual(empty_str_addr, lldb.LLDB_INVALID_ADDRESS)
 
         one_letter_str_addr = frame.FindVariable("one_letter_string").GetValueAsUnsigned(err)
-        self.assertTrue(err.Success())
-        self.assertTrue(one_letter_str_addr != lldb.LLDB_INVALID_ADDRESS)
+        self.assertSuccess(err)
+        self.assertNotEqual(one_letter_str_addr, lldb.LLDB_INVALID_ADDRESS)
 
         invalid_memory_str_addr = frame.FindVariable("invalid_memory_string").GetValueAsUnsigned(err)
-        self.assertTrue(err.Success())
-        self.assertTrue(invalid_memory_str_addr != lldb.LLDB_INVALID_ADDRESS)
+        self.assertSuccess(err)
+        self.assertNotEqual(invalid_memory_str_addr, lldb.LLDB_INVALID_ADDRESS)
 
         # Important:  An empty (0-length) c-string must come back as a Python string, not a
         # None object.
         empty_str = process.ReadCStringFromMemory(empty_str_addr, 2048, err)
-        self.assertTrue(err.Success())
-        self.assertTrue(empty_str == "")
+        self.assertSuccess(err)
+        self.assertEqual(empty_str, "")
 
         one_letter_string = process.ReadCStringFromMemory(one_letter_str_addr, 2048, err)
-        self.assertTrue(err.Success())
-        self.assertTrue(one_letter_string == "1")
+        self.assertSuccess(err)
+        self.assertEqual(one_letter_string, "1")
 
         invalid_memory_string = process.ReadCStringFromMemory(invalid_memory_str_addr, 2048, err)
         self.assertTrue(err.Fail())

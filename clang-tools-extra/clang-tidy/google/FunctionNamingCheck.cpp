@@ -13,10 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace google {
-namespace objc {
+namespace clang::tidy::google::objc {
 
 namespace {
 
@@ -60,8 +57,8 @@ FixItHint generateFixItHint(const FunctionDecl *Decl) {
   size_t Index = 0;
   bool AtWordBoundary = true;
   while (Index < NewName.size()) {
-    char ch = NewName[Index];
-    if (isalnum(ch)) {
+    char Ch = NewName[Index];
+    if (isalnum(Ch)) {
       // Capitalize the first letter after every word boundary.
       if (AtWordBoundary) {
         NewName[Index] = toupper(NewName[Index]);
@@ -117,7 +114,4 @@ void FunctionNamingCheck::check(const MatchFinder::MatchResult &Result) {
       << MatchedDecl << IsGlobal << generateFixItHint(MatchedDecl);
 }
 
-} // namespace objc
-} // namespace google
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::google::objc

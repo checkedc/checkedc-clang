@@ -31,6 +31,7 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Pass.h"
+#include <atomic>
 #include <cassert>
 #include <cstdint>
 
@@ -151,24 +152,6 @@ static bool performCustomAdjustments(MachineInstr &MI, unsigned NewOpc,
   (void)NewOpc;
   unsigned Opc = MI.getOpcode();
   switch (Opc) {
-  case X86::VPDPBUSDSZ256m:
-  case X86::VPDPBUSDSZ256r:
-  case X86::VPDPBUSDSZ128m:
-  case X86::VPDPBUSDSZ128r:
-  case X86::VPDPBUSDZ256m:
-  case X86::VPDPBUSDZ256r:
-  case X86::VPDPBUSDZ128m:
-  case X86::VPDPBUSDZ128r:
-  case X86::VPDPWSSDSZ256m:
-  case X86::VPDPWSSDSZ256r:
-  case X86::VPDPWSSDSZ128m:
-  case X86::VPDPWSSDSZ128r:
-  case X86::VPDPWSSDZ256m:
-  case X86::VPDPWSSDZ256r:
-  case X86::VPDPWSSDZ128m:
-  case X86::VPDPWSSDZ128r:
-    // These can only VEX convert if AVXVNNI is enabled.
-    return ST->hasAVXVNNI();
   case X86::VALIGNDZ128rri:
   case X86::VALIGNDZ128rmi:
   case X86::VALIGNQZ128rri:
@@ -268,8 +251,8 @@ bool EvexToVexInstPass::CompressEvexToVexImpl(MachineInstr &MI) const {
 
   // Use the VEX.L bit to select the 128 or 256-bit table.
   ArrayRef<X86EvexToVexCompressTableEntry> Table =
-    (Desc.TSFlags & X86II::VEX_L) ? makeArrayRef(X86EvexToVex256CompressTable)
-                                  : makeArrayRef(X86EvexToVex128CompressTable);
+      (Desc.TSFlags & X86II::VEX_L) ? ArrayRef(X86EvexToVex256CompressTable)
+                                    : ArrayRef(X86EvexToVex128CompressTable);
 
   const auto *I = llvm::lower_bound(Table, MI.getOpcode());
   if (I == Table.end() || I->EvexOpcode != MI.getOpcode())
@@ -278,6 +261,9 @@ bool EvexToVexInstPass::CompressEvexToVexImpl(MachineInstr &MI) const {
   unsigned NewOpc = I->VexOpcode;
 
   if (usesExtendedRegister(MI))
+    return false;
+
+  if (!CheckVEXInstPredicate(MI, ST))
     return false;
 
   if (!performCustomAdjustments(MI, NewOpc, ST))

@@ -1,7 +1,7 @@
-; RUN: llvm-as < %s -o %t.bc -data-layout=A5 2>&1 | FileCheck -check-prefixes=ALL,AS %s
-; RUN: llvm-dis < %t.bc | FileCheck -check-prefixes=ALL,DIS %s
-; RUN: opt < %s -S -data-layout=A5 2>&1 | FileCheck -check-prefixes=ALL,AS %s
-; RUN: opt < %t.bc -S | FileCheck -check-prefixes=ALL,DIS %s
+; RUN: llvm-as < %s -o %t.bc -data-layout=A5 2>&1 | FileCheck -check-prefixes=AS %s
+; RUN: llvm-dis < %t.bc | FileCheck -check-prefixes=DIS %s
+; RUN: opt < %s -S -data-layout=A5 2>&1 | FileCheck -check-prefixes=AS %s
+; RUN: opt < %t.bc -S | FileCheck -check-prefixes=DIS %s
 
 define void @foo() {
 entry:
@@ -9,10 +9,9 @@ entry:
 ; DIS: %tmp = alloca i32, align 4, addrspace(5)
   %tmp = alloca i32, addrspace(5)
   call void @llvm.dbg.value(
-      metadata i8* undef,
+      metadata ptr undef,
       metadata !DILocalVariable(scope: !1),
       metadata !DIExpression())
-; ALL-NOT: Allocation instruction pointer not in the stack address space!
 ; AS: llvm.dbg.value intrinsic requires a !dbg attachment
 ; AS: warning: ignoring invalid debug info in <stdin>
 ret void

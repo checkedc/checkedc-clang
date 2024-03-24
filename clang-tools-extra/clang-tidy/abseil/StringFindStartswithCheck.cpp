@@ -17,9 +17,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 StringFindStartswithCheck::StringFindStartswithCheck(StringRef Name,
                                                      ClangTidyContext *Context)
@@ -27,20 +25,20 @@ StringFindStartswithCheck::StringFindStartswithCheck(StringRef Name,
       StringLikeClasses(utils::options::parseStringList(
           Options.get("StringLikeClasses", "::std::basic_string"))),
       IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
-                                               utils::IncludeSorter::IS_LLVM)),
+                                               utils::IncludeSorter::IS_LLVM),
+                      areDiagsSelfContained()),
       AbseilStringsMatchHeader(
           Options.get("AbseilStringsMatchHeader", "absl/strings/match.h")) {}
 
 void StringFindStartswithCheck::registerMatchers(MatchFinder *Finder) {
   auto ZeroLiteral = integerLiteral(equals(0));
-  auto StringClassMatcher = cxxRecordDecl(hasAnyName(SmallVector<StringRef, 4>(
-      StringLikeClasses.begin(), StringLikeClasses.end())));
+  auto StringClassMatcher = cxxRecordDecl(hasAnyName(StringLikeClasses));
   auto StringType = hasUnqualifiedDesugaredType(
       recordType(hasDeclaration(StringClassMatcher)));
 
   auto StringFind = cxxMemberCallExpr(
       // .find()-call on a string...
-      callee(cxxMethodDecl(hasName("find"))),
+      callee(cxxMethodDecl(hasName("find")).bind("findfun")),
       on(hasType(StringType)),
       // ... with some search expression ...
       hasArgument(0, expr().bind("needle")),
@@ -53,6 +51,25 @@ void StringFindStartswithCheck::registerMatchers(MatchFinder *Finder) {
           hasAnyOperatorName("==", "!="),
           hasOperands(ignoringParenImpCasts(ZeroLiteral),
                       ignoringParenImpCasts(StringFind.bind("findexpr"))))
+          .bind("expr"),
+      this);
+
+  auto StringRFind = cxxMemberCallExpr(
+      // .rfind()-call on a string...
+      callee(cxxMethodDecl(hasName("rfind")).bind("findfun")),
+      on(hasType(StringType)),
+      // ... with some search expression ...
+      hasArgument(0, expr().bind("needle")),
+      // ... and "0" as second argument.
+      hasArgument(1, ZeroLiteral));
+
+  Finder->addMatcher(
+      // Match [=!]= with either a zero or npos on one side and a string.rfind
+      // on the other.
+      binaryOperator(
+          hasAnyOperatorName("==", "!="),
+          hasOperands(ignoringParenImpCasts(ZeroLiteral),
+                      ignoringParenImpCasts(StringRFind.bind("findexpr"))))
           .bind("expr"),
       this);
 }
@@ -69,6 +86,11 @@ void StringFindStartswithCheck::check(const MatchFinder::MatchResult &Result) {
   const Expr *Haystack = Result.Nodes.getNodeAs<CXXMemberCallExpr>("findexpr")
                              ->getImplicitObjectArgument();
   assert(Haystack != nullptr);
+  const CXXMethodDecl *FindFun =
+      Result.Nodes.getNodeAs<CXXMethodDecl>("findfun");
+  assert(FindFun != nullptr);
+
+  bool Rev = FindFun->getName().contains("rfind");
 
   if (ComparisonExpr->getBeginLoc().isMacroID())
     return;
@@ -83,27 +105,22 @@ void StringFindStartswithCheck::check(const MatchFinder::MatchResult &Result) {
       Context.getLangOpts());
 
   // Create the StartsWith string, negating if comparison was "!=".
-  bool Neg = ComparisonExpr->getOpcodeStr() == "!=";
-  StringRef StartswithStr;
-  if (Neg) {
-    StartswithStr = "!absl::StartsWith";
-  } else {
-    StartswithStr = "absl::StartsWith";
-  }
+  bool Neg = ComparisonExpr->getOpcode() == BO_NE;
 
   // Create the warning message and a FixIt hint replacing the original expr.
   auto Diagnostic =
       diag(ComparisonExpr->getBeginLoc(),
-           (StringRef("use ") + StartswithStr + " instead of find() " +
-            ComparisonExpr->getOpcodeStr() + " 0")
-               .str());
+           "use %select{absl::StartsWith|!absl::StartsWith}0 "
+           "instead of %select{find()|rfind()}1 %select{==|!=}0 0")
+      << Neg << Rev;
 
   Diagnostic << FixItHint::CreateReplacement(
       ComparisonExpr->getSourceRange(),
-      (StartswithStr + "(" + HaystackExprCode + ", " + NeedleExprCode + ")")
+      ((Neg ? "!absl::StartsWith(" : "absl::StartsWith(") + HaystackExprCode +
+       ", " + NeedleExprCode + ")")
           .str());
 
-  // Create a preprocessor #include FixIt hint (CreateIncludeInsertion checks
+  // Create a preprocessor #include FixIt hint (createIncludeInsertion checks
   // whether this already exists).
   Diagnostic << IncludeInserter.createIncludeInsertion(
       Source.getFileID(ComparisonExpr->getBeginLoc()),
@@ -123,6 +140,4 @@ void StringFindStartswithCheck::storeOptions(
   Options.store(Opts, "AbseilStringsMatchHeader", AbseilStringsMatchHeader);
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

@@ -8,6 +8,7 @@ set(LLVM_LINK_COMPONENTS
   MIRParser
   Support
   Target
+  TargetParser
   )
 
 add_llvm_unittest(GlobalISelTests
@@ -20,5 +21,7 @@ add_llvm_unittest(GlobalISelTests
   GISelMITest.cpp
   PatternMatchTest.cpp
   KnownBitsTest.cpp
+  KnownBitsVectorTest.cpp
   GISelUtilsTest.cpp
+  GISelAliasTest.cpp
   )

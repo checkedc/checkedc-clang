@@ -18,8 +18,7 @@
 #include "PreferRegisterOverUnsignedCheck.h"
 #include "TwineLocalCheck.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace llvm_check {
 
 class LLVMModule : public ClangTidyModule {
@@ -42,10 +41,10 @@ public:
 
   ClangTidyOptions getModuleOptions() override {
     ClangTidyOptions Options;
-    Options.CheckOptions["llvm-qualified-auto.AddConstToQualified"] = "0";
-    Options.CheckOptions["llvm-else-after-return.WarnOnUnfixable"] = "0";
+    Options.CheckOptions["llvm-qualified-auto.AddConstToQualified"] = "false";
+    Options.CheckOptions["llvm-else-after-return.WarnOnUnfixable"] = "false";
     Options.CheckOptions["llvm-else-after-return.WarnOnConditionVariables"] =
-        "0";
+        "false";
     return Options;
   }
 };
@@ -60,5 +59,4 @@ static ClangTidyModuleRegistry::Add<LLVMModule> X("llvm-module",
 // and thus register the LLVMModule.
 volatile int LLVMModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

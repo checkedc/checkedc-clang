@@ -20,8 +20,8 @@ include "mlir/IR/OpBase.td"
 //===----------------------------------------------------------------------===//
 
 def PDL_Dialect : Dialect {
-  string summary = "High level pattern definition dialect";
-  string description = [{
+  let summary = "High level pattern definition dialect";
+  let description = [{
     PDL presents a high level abstraction for the rewrite pattern infrastructure
     available in MLIR. This abstraction allows for representing patterns
     transforming MLIR, as MLIR. This allows for applying all of the benefits
@@ -35,20 +35,20 @@ def PDL_Dialect : Dialect {
     a `pdl.rewrite` that either dispatches to an external rewriter or contains
     a region for the rewrite specified via `pdl`. The types of values in `pdl`
     are handle types to MLIR C++ types, with `!pdl.attribute`, `!pdl.operation`,
-    and `!pdl.type` directly mapping to `mlir::Attribute`, `mlir::Operation*`,
-    and `mlir::Value` respectively.
+    `!pdl.value`, and `!pdl.type` directly mapping to `mlir::Attribute`,
+    `mlir::Operation*`, `mlir::Value`, and `mlir::Type` respectively.
 
     An example pattern is shown below:
 
     ```mlir
     // pdl.pattern contains metadata similarly to a `RewritePattern`.
     pdl.pattern : benefit(1) {
-      // External input operand values are specified via `pdl.input` operations.
+      // External input operand values are specified via `pdl.operand` operations.
       // Result types are constrainted via `pdl.type` operations.
 
       %resultType = pdl.type
-      %inputOperand = pdl.input
-      %root, %results = pdl.operation "foo.op"(%inputOperand) -> %resultType
+      %inputOperand = pdl.operand
+      %root = pdl.operation "foo.op"(%inputOperand) -> %resultType
       pdl.rewrite %root {
         pdl.replace %root with (%inputOperand)
       }
@@ -64,6 +64,12 @@ def PDL_Dialect : Dialect {
 
   let name = "pdl";
   let cppNamespace = "::mlir::pdl";
+
+  let useDefaultTypePrinterParser = 1;
+  let useFoldAPI = kEmitFoldAdaptorFolder;
+  let extraClassDeclaration = [{
+    void registerTypes();
+  }];
 }
 
 #endif // MLIR_DIALECT_PDL_IR_PDLDIALECT

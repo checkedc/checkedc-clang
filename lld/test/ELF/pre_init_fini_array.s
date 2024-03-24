@@ -4,7 +4,7 @@
 // RUN: ld.lld %t2 -o %t2.so -shared -soname=so
 // RUN: ld.lld %t %t2.so -o %t2
 // RUN: llvm-readelf -S -d -r -s %t2 | FileCheck %s
-// RUN: llvm-objdump -d --syms %t2 | FileCheck --check-prefix=DISASM %s
+// RUN: llvm-objdump --no-print-imm-hex -d --syms %t2 | FileCheck --check-prefix=DISASM %s
 
 .globl _start
 _start:
@@ -45,12 +45,12 @@ _start:
 
 // CHECK-LABEL: Symbol table '.symtab'
 // CHECK:       Value                             Size Type    Bind   Vis       Ndx   Name
-// CHECK:       [[# FINI_ADDR + FINI_SIZE]]       0    NOTYPE  LOCAL  HIDDEN    [[#]] __fini_array_end
-// CHECK-NEXT:  [[# FINI_ADDR]]                   0    NOTYPE  LOCAL  HIDDEN    [[#]] __fini_array_start
-// CHECK-NEXT:  [[# INIT_ADDR + INIT_SIZE]]       0    NOTYPE  LOCAL  HIDDEN    [[#]] __init_array_end
-// CHECK-NEXT:  [[# INIT_ADDR]]                   0    NOTYPE  LOCAL  HIDDEN    [[#]] __init_array_start
+// CHECK:       [[# PREINIT_ADDR]]                0    NOTYPE  LOCAL  HIDDEN    [[#]] __preinit_array_start
 // CHECK-NEXT:  [[# PREINIT_ADDR + PREINIT_SIZE]] 0    NOTYPE  LOCAL  HIDDEN    [[#]] __preinit_array_end
-// CHECK-NEXT:  [[# PREINIT_ADDR]]                0    NOTYPE  LOCAL  HIDDEN    [[#]] __preinit_array_start
+// CHECK-NEXT:  [[# INIT_ADDR]]                   0    NOTYPE  LOCAL  HIDDEN    [[#]] __init_array_start
+// CHECK-NEXT:  [[# INIT_ADDR + INIT_SIZE]]       0    NOTYPE  LOCAL  HIDDEN    [[#]] __init_array_end
+// CHECK-NEXT:  [[# FINI_ADDR]]                   0    NOTYPE  LOCAL  HIDDEN    [[#]] __fini_array_start
+// CHECK-NEXT:  [[# FINI_ADDR + FINI_SIZE]]       0    NOTYPE  LOCAL  HIDDEN    [[#]] __fini_array_end
 
 // DISASM:      SYMBOL TABLE:
 // DISASM-DAG: {{0*}}[[# %x, PREINIT_ARRAY_START:]]  l  .preinit_array  {{0+}}  .hidden  __preinit_array_start

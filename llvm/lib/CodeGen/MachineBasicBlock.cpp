@@ -11,8 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/LiveVariables.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -21,20 +22,20 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
-#include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include <algorithm>
+#include <cmath>
 using namespace llvm;
 
 #define DEBUG_TYPE "codegen"
@@ -52,8 +53,7 @@ MachineBasicBlock::MachineBasicBlock(MachineFunction &MF, const BasicBlock *B)
     IrrLoopHeaderWeight = B->getIrrLoopHeaderWeight();
 }
 
-MachineBasicBlock::~MachineBasicBlock() {
-}
+MachineBasicBlock::~MachineBasicBlock() = default;
 
 /// Return the MCSymbol for this basic block.
 MCSymbol *MachineBasicBlock::getSymbol() const {
@@ -85,6 +85,17 @@ MCSymbol *MachineBasicBlock::getSymbol() const {
     }
   }
   return CachedMCSymbol;
+}
+
+MCSymbol *MachineBasicBlock::getEHCatchretSymbol() const {
+  if (!CachedEHCatchretMCSymbol) {
+    const MachineFunction *MF = getParent();
+    SmallString<128> SymbolName;
+    raw_svector_ostream(SymbolName)
+        << "$ehgcr_" << MF->getFunctionNumber() << '_' << getNumber();
+    CachedEHCatchretMCSymbol = MF->getContext().getOrCreateSymbol(SymbolName);
+  }
+  return CachedEHCatchretMCSymbol;
 }
 
 MCSymbol *MachineBasicBlock::getEndSymbol() const {
@@ -122,9 +133,8 @@ void ilist_callback_traits<MachineBasicBlock>::addNodeToList(
 
   // Make sure the instructions have their operands in the reginfo lists.
   MachineRegisterInfo &RegInfo = MF.getRegInfo();
-  for (MachineBasicBlock::instr_iterator
-         I = N->instr_begin(), E = N->instr_end(); I != E; ++I)
-    I->AddRegOperandsToUseLists(RegInfo);
+  for (MachineInstr &MI : N->instrs())
+    MI.addRegOperandsToUseLists(RegInfo);
 }
 
 void ilist_callback_traits<MachineBasicBlock>::removeNodeFromList(
@@ -142,7 +152,7 @@ void ilist_traits<MachineInstr>::addNodeToList(MachineInstr *N) {
   // Add the instruction's register operands to their corresponding
   // use/def lists.
   MachineFunction *MF = Parent->getParent();
-  N->AddRegOperandsToUseLists(MF->getRegInfo());
+  N->addRegOperandsToUseLists(MF->getRegInfo());
   MF->handleInsertion(*N);
 }
 
@@ -154,7 +164,7 @@ void ilist_traits<MachineInstr>::removeNodeFromList(MachineInstr *N) {
   // Remove from the use/def lists.
   if (MachineFunction *MF = N->getMF()) {
     MF->handleRemoval(*N);
-    N->RemoveRegOperandsFromUseLists(MF->getRegInfo());
+    N->removeRegOperandsFromUseLists(MF->getRegInfo());
   }
 
   N->setParent(nullptr);
@@ -182,7 +192,7 @@ void ilist_traits<MachineInstr>::transferNodesFromList(ilist_traits &FromList,
 
 void ilist_traits<MachineInstr>::deleteNode(MachineInstr *MI) {
   assert(!MI->getParent() && "MI is still in a block!");
-  Parent->getParent()->DeleteMachineInstr(MI);
+  Parent->getParent()->deleteMachineInstr(MI);
 }
 
 MachineBasicBlock::iterator MachineBasicBlock::getFirstNonPHI() {
@@ -210,11 +220,13 @@ MachineBasicBlock::SkipPHIsAndLabels(MachineBasicBlock::iterator I) {
 }
 
 MachineBasicBlock::iterator
-MachineBasicBlock::SkipPHIsLabelsAndDebug(MachineBasicBlock::iterator I) {
+MachineBasicBlock::SkipPHIsLabelsAndDebug(MachineBasicBlock::iterator I,
+                                          bool SkipPseudoOp) {
   const TargetInstrInfo *TII = getParent()->getSubtarget().getInstrInfo();
 
   iterator E = end();
   while (I != E && (I->isPHI() || I->isPosition() || I->isDebugInstr() ||
+                    (SkipPseudoOp && I->isPseudoProbe()) ||
                     TII->isBasicBlockPrologue(*I)))
     ++I;
   // FIXME: This needs to change if we wish to bundle labels / dbg_values
@@ -243,18 +255,26 @@ MachineBasicBlock::instr_iterator MachineBasicBlock::getFirstInstrTerminator() {
   return I;
 }
 
-MachineBasicBlock::iterator MachineBasicBlock::getFirstNonDebugInstr() {
-  // Skip over begin-of-block dbg_value instructions.
-  return skipDebugInstructionsForward(begin(), end());
+MachineBasicBlock::iterator MachineBasicBlock::getFirstTerminatorForward() {
+  return find_if(instrs(), [](auto &II) { return II.isTerminator(); });
 }
 
-MachineBasicBlock::iterator MachineBasicBlock::getLastNonDebugInstr() {
+MachineBasicBlock::iterator
+MachineBasicBlock::getFirstNonDebugInstr(bool SkipPseudoOp) {
+  // Skip over begin-of-block dbg_value instructions.
+  return skipDebugInstructionsForward(begin(), end(), SkipPseudoOp);
+}
+
+MachineBasicBlock::iterator
+MachineBasicBlock::getLastNonDebugInstr(bool SkipPseudoOp) {
   // Skip over end-of-block dbg_value instructions.
   instr_iterator B = instr_begin(), I = instr_end();
   while (I != B) {
     --I;
     // Return instruction that starts a bundle.
     if (I->isDebugInstr() || I->isInsideBundle())
+      continue;
+    if (SkipPseudoOp && I->isPseudoProbe())
       continue;
     return I;
   }
@@ -263,8 +283,8 @@ MachineBasicBlock::iterator MachineBasicBlock::getLastNonDebugInstr() {
 }
 
 bool MachineBasicBlock::hasEHPadSuccessor() const {
-  for (const_succ_iterator I = succ_begin(), E = succ_end(); I != E; ++I)
-    if ((*I)->isEHPad())
+  for (const MachineBasicBlock *Succ : successors())
+    if (Succ->isEHPad())
       return true;
   return false;
 }
@@ -436,8 +456,8 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
 
   if (IrrLoopHeaderWeight && IsStandalone) {
     if (Indexes) OS << '\t';
-    OS.indent(2) << "; Irreducible loop header weight: "
-                 << IrrLoopHeaderWeight.getValue() << '\n';
+    OS.indent(2) << "; Irreducible loop header weight: " << *IrrLoopHeaderWeight
+                 << '\n';
   }
 }
 
@@ -462,6 +482,28 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
   os << "bb." << getNumber();
   bool hasAttributes = false;
 
+  auto PrintBBRef = [&](const BasicBlock *bb) {
+    os << "%ir-block.";
+    if (bb->hasName()) {
+      os << bb->getName();
+    } else {
+      int slot = -1;
+
+      if (moduleSlotTracker) {
+        slot = moduleSlotTracker->getLocalSlot(bb);
+      } else if (bb->getParent()) {
+        ModuleSlotTracker tmpTracker(bb->getModule(), false);
+        tmpTracker.incorporateFunction(*bb->getParent());
+        slot = tmpTracker.getLocalSlot(bb);
+      }
+
+      if (slot == -1)
+        os << "<ir-block badref>";
+      else
+        os << slot;
+    }
+  };
+
   if (printNameFlags & PrintNameIr) {
     if (const auto *bb = getBasicBlock()) {
       if (bb->hasName()) {
@@ -469,34 +511,31 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
       } else {
         hasAttributes = true;
         os << " (";
-
-        int slot = -1;
-
-        if (moduleSlotTracker) {
-          slot = moduleSlotTracker->getLocalSlot(bb);
-        } else if (bb->getParent()) {
-          ModuleSlotTracker tmpTracker(bb->getModule(), false);
-          tmpTracker.incorporateFunction(*bb->getParent());
-          slot = tmpTracker.getLocalSlot(bb);
-        }
-
-        if (slot == -1)
-          os << "<ir-block badref>";
-        else
-          os << (Twine("%ir-block.") + Twine(slot)).str();
+        PrintBBRef(bb);
       }
     }
   }
 
   if (printNameFlags & PrintNameAttributes) {
-    if (hasAddressTaken()) {
+    if (isMachineBlockAddressTaken()) {
       os << (hasAttributes ? ", " : " (");
-      os << "address-taken";
+      os << "machine-block-address-taken";
+      hasAttributes = true;
+    }
+    if (isIRBlockAddressTaken()) {
+      os << (hasAttributes ? ", " : " (");
+      os << "ir-block-address-taken ";
+      PrintBBRef(getAddressTakenIRBlock());
       hasAttributes = true;
     }
     if (isEHPad()) {
       os << (hasAttributes ? ", " : " (");
       os << "landing-pad";
+      hasAttributes = true;
+    }
+    if (isInlineAsmBrIndirectTarget()) {
+      os << (hasAttributes ? ", " : " (");
+      os << "inlineasm-br-indirect-target";
       hasAttributes = true;
     }
     if (isEHFuncletEntry()) {
@@ -522,6 +561,11 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
       default:
         os << getSectionID().Number;
       }
+      hasAttributes = true;
+    }
+    if (getBBID().has_value()) {
+      os << (hasAttributes ? ", " : " (");
+      os << "bb_id " << *getBBID();
       hasAttributes = true;
     }
   }
@@ -896,7 +940,11 @@ bool MachineBasicBlock::isLayoutSuccessor(const MachineBasicBlock *MBB) const {
   return std::next(I) == MachineFunction::const_iterator(MBB);
 }
 
-MachineBasicBlock *MachineBasicBlock::getFallThrough() {
+const MachineBasicBlock *MachineBasicBlock::getSingleSuccessor() const {
+  return Successors.size() == 1 ? Successors[0] : nullptr;
+}
+
+MachineBasicBlock *MachineBasicBlock::getFallThrough(bool JumpToFallThrough) {
   MachineFunction::iterator Fallthrough = getIterator();
   ++Fallthrough;
   // If FallthroughBlock is off the end of the function, it can't fall through.
@@ -927,8 +975,8 @@ MachineBasicBlock *MachineBasicBlock::getFallThrough() {
 
   // If there is some explicit branch to the fallthrough block, it can obviously
   // reach, even though the branch should get folded to fall through implicitly.
-  if (MachineFunction::iterator(TBB) == Fallthrough ||
-      MachineFunction::iterator(FBB) == Fallthrough)
+  if (!JumpToFallThrough && (MachineFunction::iterator(TBB) == Fallthrough ||
+                           MachineFunction::iterator(FBB) == Fallthrough))
     return &*Fallthrough;
 
   // If it's an unconditional branch to some block not the fall through, it
@@ -1016,36 +1064,30 @@ MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(
   // Collect a list of virtual registers killed by the terminators.
   SmallVector<Register, 4> KilledRegs;
   if (LV)
-    for (instr_iterator I = getFirstInstrTerminator(), E = instr_end();
-         I != E; ++I) {
-      MachineInstr *MI = &*I;
-      for (MachineInstr::mop_iterator OI = MI->operands_begin(),
-           OE = MI->operands_end(); OI != OE; ++OI) {
-        if (!OI->isReg() || OI->getReg() == 0 ||
-            !OI->isUse() || !OI->isKill() || OI->isUndef())
+    for (MachineInstr &MI :
+         llvm::make_range(getFirstInstrTerminator(), instr_end())) {
+      for (MachineOperand &MO : MI.operands()) {
+        if (!MO.isReg() || MO.getReg() == 0 || !MO.isUse() || !MO.isKill() ||
+            MO.isUndef())
           continue;
-        Register Reg = OI->getReg();
-        if (Register::isPhysicalRegister(Reg) ||
-            LV->getVarInfo(Reg).removeKill(*MI)) {
+        Register Reg = MO.getReg();
+        if (Reg.isPhysical() || LV->getVarInfo(Reg).removeKill(MI)) {
           KilledRegs.push_back(Reg);
-          LLVM_DEBUG(dbgs() << "Removing terminator kill: " << *MI);
-          OI->setIsKill(false);
+          LLVM_DEBUG(dbgs() << "Removing terminator kill: " << MI);
+          MO.setIsKill(false);
         }
       }
     }
 
   SmallVector<Register, 4> UsedRegs;
   if (LIS) {
-    for (instr_iterator I = getFirstInstrTerminator(), E = instr_end();
-         I != E; ++I) {
-      MachineInstr *MI = &*I;
-
-      for (MachineInstr::mop_iterator OI = MI->operands_begin(),
-           OE = MI->operands_end(); OI != OE; ++OI) {
-        if (!OI->isReg() || OI->getReg() == 0)
+    for (MachineInstr &MI :
+         llvm::make_range(getFirstInstrTerminator(), instr_end())) {
+      for (const MachineOperand &MO : MI.operands()) {
+        if (!MO.isReg() || MO.getReg() == 0)
           continue;
 
-        Register Reg = OI->getReg();
+        Register Reg = MO.getReg();
         if (!is_contained(UsedRegs, Reg))
           UsedRegs.push_back(Reg);
       }
@@ -1058,9 +1100,9 @@ MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(
   // SlotIndexes.
   SmallVector<MachineInstr*, 4> Terminators;
   if (Indexes) {
-    for (instr_iterator I = getFirstInstrTerminator(), E = instr_end();
-         I != E; ++I)
-      Terminators.push_back(&*I);
+    for (MachineInstr &MI :
+         llvm::make_range(getFirstInstrTerminator(), instr_end()))
+      Terminators.push_back(&MI);
   }
 
   // Since we replaced all uses of Succ with NMBB, that should also be treated
@@ -1071,14 +1113,13 @@ MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(
 
   if (Indexes) {
     SmallVector<MachineInstr*, 4> NewTerminators;
-    for (instr_iterator I = getFirstInstrTerminator(), E = instr_end();
-         I != E; ++I)
-      NewTerminators.push_back(&*I);
+    for (MachineInstr &MI :
+         llvm::make_range(getFirstInstrTerminator(), instr_end()))
+      NewTerminators.push_back(&MI);
 
-    for (SmallVectorImpl<MachineInstr*>::iterator I = Terminators.begin(),
-        E = Terminators.end(); I != E; ++I) {
-      if (!is_contained(NewTerminators, *I))
-        Indexes->removeMachineInstrFromMaps(**I);
+    for (MachineInstr *Terminator : Terminators) {
+      if (!is_contained(NewTerminators, Terminator))
+        Indexes->removeMachineInstrFromMaps(*Terminator);
     }
   }
 
@@ -1116,7 +1157,7 @@ MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(
       for (instr_iterator I = instr_end(), E = instr_begin(); I != E;) {
         if (!(--I)->addRegisterKilled(Reg, TRI, /* AddIfNotFound= */ false))
           continue;
-        if (Register::isVirtualRegister(Reg))
+        if (Reg.isVirtual())
           LV->getVarInfo(Reg).Kills.push_back(&*I);
         LLVM_DEBUG(dbgs() << "Restored terminator kill: " << *I);
         break;
@@ -1361,6 +1402,14 @@ MachineBasicBlock::findDebugLoc(instr_iterator MBBI) {
   return {};
 }
 
+DebugLoc MachineBasicBlock::rfindDebugLoc(reverse_instr_iterator MBBI) {
+  // Skip debug declarations, we don't want a DebugLoc from them.
+  MBBI = skipDebugInstructionsBackward(MBBI, instr_rbegin());
+  if (!MBBI->isDebugInstr())
+    return MBBI->getDebugLoc();
+  return {};
+}
+
 /// Find the previous valid DebugLoc preceding MBBI, skipping and DBG_VALUE
 /// instructions.  Return UnknownLoc if there is none.
 DebugLoc MachineBasicBlock::findPrevDebugLoc(instr_iterator MBBI) {
@@ -1368,6 +1417,16 @@ DebugLoc MachineBasicBlock::findPrevDebugLoc(instr_iterator MBBI) {
   // Skip debug instructions, we don't want a DebugLoc from them.
   MBBI = prev_nodbg(MBBI, instr_begin());
   if (!MBBI->isDebugInstr()) return MBBI->getDebugLoc();
+  return {};
+}
+
+DebugLoc MachineBasicBlock::rfindPrevDebugLoc(reverse_instr_iterator MBBI) {
+  if (MBBI == instr_rend())
+    return {};
+  // Skip debug declarations, we don't want a DebugLoc from them.
+  MBBI = next_nodbg(MBBI, instr_rend());
+  if (MBBI != instr_rend())
+    return MBBI->getDebugLoc();
   return {};
 }
 
@@ -1401,7 +1460,7 @@ MachineBasicBlock::getSuccProbability(const_succ_iterator Succ) const {
     // ditribute the complemental of the sum to each unknown probability.
     unsigned KnownProbNum = 0;
     auto Sum = BranchProbability::getZero();
-    for (auto &P : Probs) {
+    for (const auto &P : Probs) {
       if (!P.isUnknown()) {
         Sum += P;
         KnownProbNum++;
@@ -1455,7 +1514,7 @@ MachineBasicBlock::computeRegisterLiveness(const TargetRegisterInfo *TRI,
   // Try searching forwards from Before, looking for reads or defs.
   const_iterator I(Before);
   for (; I != end() && N > 0; ++I) {
-    if (I->isDebugInstr())
+    if (I->isDebugOrPseudoInstr())
       continue;
 
     --N;
@@ -1493,7 +1552,7 @@ MachineBasicBlock::computeRegisterLiveness(const TargetRegisterInfo *TRI,
     do {
       --I;
 
-      if (I->isDebugInstr())
+      if (I->isDebugOrPseudoInstr())
         continue;
 
       --N;
@@ -1527,7 +1586,7 @@ MachineBasicBlock::computeRegisterLiveness(const TargetRegisterInfo *TRI,
 
   // If all the instructions before this in the block are debug instructions,
   // skip over them.
-  while (I != begin() && std::prev(I)->isDebugInstr())
+  while (I != begin() && std::prev(I)->isDebugOrPseudoInstr())
     --I;
 
   // Did we get to the start of the block?
@@ -1567,6 +1626,38 @@ MachineBasicBlock::livein_iterator MachineBasicBlock::livein_begin() const {
       MachineFunctionProperties::Property::TracksLiveness) &&
       "Liveness information is accurate");
   return LiveIns.begin();
+}
+
+MachineBasicBlock::liveout_iterator MachineBasicBlock::liveout_begin() const {
+  const MachineFunction &MF = *getParent();
+  assert(MF.getProperties().hasProperty(
+      MachineFunctionProperties::Property::TracksLiveness) &&
+      "Liveness information is accurate");
+
+  const TargetLowering &TLI = *MF.getSubtarget().getTargetLowering();
+  MCPhysReg ExceptionPointer = 0, ExceptionSelector = 0;
+  if (MF.getFunction().hasPersonalityFn()) {
+    auto PersonalityFn = MF.getFunction().getPersonalityFn();
+    ExceptionPointer = TLI.getExceptionPointerRegister(PersonalityFn);
+    ExceptionSelector = TLI.getExceptionSelectorRegister(PersonalityFn);
+  }
+
+  return liveout_iterator(*this, ExceptionPointer, ExceptionSelector, false);
+}
+
+bool MachineBasicBlock::sizeWithoutDebugLargerThan(unsigned Limit) const {
+  unsigned Cntr = 0;
+  auto R = instructionsWithoutDebug(begin(), end());
+  for (auto I = R.begin(), E = R.end(); I != E; ++I) {
+    if (++Cntr > Limit)
+      return true;
+  }
+  return false;
+}
+
+unsigned MachineBasicBlock::getBBIDOrNumber() const {
+  uint8_t BBAddrMapVersion = getParent()->getContext().getBBAddrMapVersion();
+  return BBAddrMapVersion < 2 ? getNumber() : *getBBID();
 }
 
 const MBBSectionID MBBSectionID::ColdSectionID(MBBSectionID::SectionType::Cold);

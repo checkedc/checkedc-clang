@@ -50,7 +50,7 @@ public:
   bool WriteRegister(const lldb_private::RegisterInfo *reg_info,
                      const lldb_private::RegisterValue &value) override;
 
-  bool ReadAllRegisterValues(lldb::DataBufferSP &data_sp) override;
+  bool ReadAllRegisterValues(lldb::WritableDataBufferSP &data_sp) override;
 
   bool WriteAllRegisterValues(const lldb::DataBufferSP &data_sp) override;
 
@@ -66,6 +66,11 @@ public:
   bool GetStartPC(lldb::addr_t &start_pc);
 
   bool ReadPC(lldb::addr_t &start_pc);
+
+  // Indicates whether this frame *behaves* like frame zero -- the currently
+  // executing frame -- or not.  This can be true in the middle of the stack
+  // above asynchronous trap handlers (sigtramp) for instance.
+  bool BehavesLikeZerothFrame() const override;
 
 private:
   enum FrameType {
@@ -198,8 +203,7 @@ private:
   void UnwindLogMsgVerbose(const char *fmt, ...)
       __attribute__((format(printf, 2, 3)));
 
-  bool IsUnwindPlanValidForCurrentPC(lldb::UnwindPlanSP unwind_plan_sp,
-                                     int &valid_pc_offset);
+  bool IsUnwindPlanValidForCurrentPC(lldb::UnwindPlanSP unwind_plan_sp);
 
   lldb::addr_t GetReturnAddressHint(int32_t plan_offset);
 
@@ -228,14 +232,16 @@ private:
                         // unknown
                         // 0 if no instructions have been executed yet.
 
-  int m_current_offset_backed_up_one; // how far into the function we've
-                                      // executed; -1 if unknown
   // 0 if no instructions have been executed yet.
   // On architectures where the return address on the stack points
   // to the instruction after the CALL, this value will have 1
   // subtracted from it.  Else a function that ends in a CALL will
   // have an offset pointing into the next function's address range.
   // m_current_pc has the actual address of the "current" pc.
+  int m_current_offset_backed_up_one; // how far into the function we've
+                                      // executed; -1 if unknown
+
+  bool m_behaves_like_zeroth_frame; // this frame behaves like frame zero
 
   lldb_private::SymbolContext &m_sym_ctx;
   bool m_sym_ctx_valid; // if ResolveSymbolContextForAddress fails, don't try to

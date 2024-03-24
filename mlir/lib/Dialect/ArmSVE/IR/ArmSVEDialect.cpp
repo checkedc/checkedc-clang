@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/ArmSVE/ArmSVEDialect.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
@@ -19,17 +19,26 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
+using namespace mlir::arm_sve;
 
-void arm_sve::ArmSVEDialect::initialize() {
-  addOperations<
-#define GET_OP_LIST
-#include "mlir/Dialect/ArmSVE/ArmSVE.cpp.inc"
-      >();
-  addTypes<
-#define GET_TYPEDEF_LIST
-#include "mlir/Dialect/ArmSVE/ArmSVETypes.cpp.inc"
-      >();
+//===----------------------------------------------------------------------===//
+// ScalableVector versions of general helpers for comparison ops
+//===----------------------------------------------------------------------===//
+
+/// Return the scalable vector of the same shape and containing i1.
+static Type getI1SameShape(Type type) {
+  auto i1Type = IntegerType::get(type.getContext(), 1);
+  if (auto sVectorType = type.dyn_cast<VectorType>())
+    return VectorType::get(sVectorType.getShape(), i1Type,
+                           sVectorType.getNumScalableDims());
+  return nullptr;
 }
+
+//===----------------------------------------------------------------------===//
+// Tablegen Definitions
+//===----------------------------------------------------------------------===//
+
+#include "mlir/Dialect/ArmSVE/ArmSVEDialect.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/ArmSVE/ArmSVE.cpp.inc"
@@ -37,20 +46,9 @@ void arm_sve::ArmSVEDialect::initialize() {
 #define GET_TYPEDEF_CLASSES
 #include "mlir/Dialect/ArmSVE/ArmSVETypes.cpp.inc"
 
-//===----------------------------------------------------------------------===//
-// ScalableVectorType
-//===----------------------------------------------------------------------===//
-
-Type arm_sve::ArmSVEDialect::parseType(DialectAsmParser &parser) const {
-  llvm::SMLoc typeLoc = parser.getCurrentLocation();
-  auto genType = generatedTypeParser(getContext(), parser, "vector");
-  if (genType != Type())
-    return genType;
-  parser.emitError(typeLoc, "unknown type in ArmSVE dialect");
-  return Type();
-}
-
-void arm_sve::ArmSVEDialect::printType(Type type, DialectAsmPrinter &os) const {
-  if (failed(generatedTypePrinter(type, os)))
-    llvm_unreachable("unexpected 'arm_sve' type kind");
+void ArmSVEDialect::initialize() {
+  addOperations<
+#define GET_OP_LIST
+#include "mlir/Dialect/ArmSVE/ArmSVE.cpp.inc"
+      >();
 }

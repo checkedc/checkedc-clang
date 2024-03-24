@@ -8,7 +8,7 @@
 
 // <string>
 
-// size_type find_first_of(const basic_string_view sv, size_type pos = 0) const;
+// size_type find_first_of(const basic_string_view sv, size_type pos = 0) const; // constexpr since C++20
 
 #include <string>
 #include <cassert>
@@ -17,25 +17,27 @@
 #include "min_allocator.h"
 
 template <class S, class SV>
-void
+TEST_CONSTEXPR_CXX20 void
 test(const S& s, SV sv, typename S::size_type pos, typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_first_of(sv, pos));
     assert(s.find_first_of(sv, pos) == x);
     if (x != S::npos)
         assert(pos <= x && x < s.size());
 }
 
 template <class S, class SV>
-void
+TEST_CONSTEXPR_CXX20 void
 test(const S& s, SV sv, typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_first_of(sv));
     assert(s.find_first_of(sv) == x);
     if (x != S::npos)
         assert(x < s.size());
 }
 
 template <class S, class SV>
-void test0()
+TEST_CONSTEXPR_CXX20 void test0()
 {
     test(S(""), SV(""), 0, S::npos);
     test(S(""), SV("laenf"), 0, S::npos);
@@ -120,7 +122,7 @@ void test0()
 }
 
 template <class S, class SV>
-void test1()
+TEST_CONSTEXPR_CXX20 void test1()
 {
     test(S(""), SV(""), S::npos);
     test(S(""), SV("laenf"), S::npos);
@@ -140,21 +142,30 @@ void test1()
     test(S("pniotcfrhqsmgdkjbael"), SV("htaobedqikfplcgjsmrn"), 0);
 }
 
-int main(int, char**)
-{
-    {
+TEST_CONSTEXPR_CXX20 bool test() {
+  {
     typedef std::string S;
     typedef std::string_view SV;
     test0<S, SV>();
     test1<S, SV>();
-    }
+  }
 #if TEST_STD_VER >= 11
-    {
+  {
     typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
     typedef std::string_view SV;
     test0<S, SV>();
     test1<S, SV>();
-    }
+  }
+#endif
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  static_assert(test());
 #endif
 
   return 0;

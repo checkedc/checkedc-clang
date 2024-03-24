@@ -21,6 +21,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/ThreadPlanStepOverRange.h"
 #include "lldb/Target/ThreadPlanStepThrough.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 #include <memory>
@@ -33,17 +34,17 @@ uint32_t ThreadPlanStepOut::s_default_flag_values = 0;
 // ThreadPlanStepOut: Step out of the current frame
 ThreadPlanStepOut::ThreadPlanStepOut(
     Thread &thread, SymbolContext *context, bool first_insn, bool stop_others,
-    Vote stop_vote, Vote run_vote, uint32_t frame_idx,
+    Vote report_stop_vote, Vote report_run_vote, uint32_t frame_idx,
     LazyBool step_out_avoids_code_without_debug_info,
     bool continue_to_next_branch, bool gather_return_value)
-    : ThreadPlan(ThreadPlan::eKindStepOut, "Step out", thread, stop_vote,
-                 run_vote),
+    : ThreadPlan(ThreadPlan::eKindStepOut, "Step out", thread, report_stop_vote,
+                 report_run_vote),
       ThreadPlanShouldStopHere(this), m_step_from_insn(LLDB_INVALID_ADDRESS),
       m_return_bp_id(LLDB_INVALID_BREAK_ID),
       m_return_addr(LLDB_INVALID_ADDRESS), m_stop_others(stop_others),
       m_immediate_step_from_function(nullptr),
       m_calculate_return_value(gather_return_value) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
   SetFlagsToDefault();
   SetupAvoidNoDebug(step_out_avoids_code_without_debug_info);
 
@@ -423,7 +424,7 @@ bool ThreadPlanStepOut::MischiefManaged() {
     // reason and we're now stopping for some other reason altogether, then
     // we're done with this step out operation.
 
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+    Log *log = GetLog(LLDBLog::Step);
     if (log)
       LLDB_LOGF(log, "Completed step out plan.");
     if (m_return_bp_id != LLDB_INVALID_BREAK_ID) {
@@ -447,7 +448,7 @@ bool ThreadPlanStepOut::QueueInlinedStepPlan(bool queue_now) {
   if (!immediate_return_from_sp)
     return false;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
   if (log) {
     StreamString s;
     immediate_return_from_sp->Dump(&s, true, false);

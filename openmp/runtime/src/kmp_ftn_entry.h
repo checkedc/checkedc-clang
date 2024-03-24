@@ -58,6 +58,16 @@ extern "C" {
 #define KMP_DEREF *
 #endif
 
+// For API with specific C vs. Fortran interfaces (ompc_* exists in
+// kmp_csupport.cpp), only create GOMP versioned symbols of the API for the
+// APPEND Fortran entries in this file. The GOMP versioned symbols of the C API
+// will take place where the ompc_* functions are defined.
+#if KMP_FTN_ENTRIES == KMP_FTN_APPEND
+#define KMP_EXPAND_NAME_IF_APPEND(name) KMP_EXPAND_NAME(name)
+#else
+#define KMP_EXPAND_NAME_IF_APPEND(name) name
+#endif
+
 void FTN_STDCALL FTN_SET_STACKSIZE(int KMP_DEREF arg) {
 #ifdef KMP_STUB
   __kmps_set_stacksize(KMP_DEREF arg);
@@ -118,12 +128,10 @@ int FTN_STDCALL FTN_GET_BLOCKTIME(void) {
   return __kmps_get_blocktime();
 #else
   int gtid, tid;
-  kmp_info_t *thread;
   kmp_team_p *team;
 
   gtid = __kmp_entry_gtid();
   tid = __kmp_tid_from_gtid(gtid);
-  thread = __kmp_thread_from_gtid(gtid);
   team = __kmp_threads[gtid]->th.th_team;
 
   /* These must match the settings used in __kmp_wait_sleep() */
@@ -202,8 +210,11 @@ void FTN_STDCALL FTN_SET_DISP_NUM_BUFFERS(int KMP_DEREF arg) {
 #else
   // ignore after initialization because some teams have already
   // allocated dispatch buffers
-  if (__kmp_init_serial == 0 && (KMP_DEREF arg) > 0)
-    __kmp_dispatch_num_buffers = KMP_DEREF arg;
+  int num_buffers = KMP_DEREF arg;
+  if (__kmp_init_serial == FALSE && num_buffers >= KMP_MIN_DISP_NUM_BUFF &&
+      num_buffers <= KMP_MAX_DISP_NUM_BUFF) {
+    __kmp_dispatch_num_buffers = num_buffers;
+  }
 #endif
 }
 
@@ -214,6 +225,7 @@ int FTN_STDCALL FTN_SET_AFFINITY(void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_set_affinity(mask);
 #endif
 }
@@ -224,6 +236,12 @@ int FTN_STDCALL FTN_GET_AFFINITY(void **mask) {
 #else
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
+  }
+  __kmp_assign_root_init_mask();
+  int gtid = __kmp_get_gtid();
+  if (__kmp_threads[gtid]->th.th_team->t.t_level == 0 &&
+      __kmp_affinity.flags.reset) {
+    __kmp_reset_root_init_mask(gtid);
   }
   return __kmp_aux_get_affinity(mask);
 #endif
@@ -237,6 +255,7 @@ int FTN_STDCALL FTN_GET_AFFINITY_MAX_PROC(void) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_get_affinity_max_proc();
 #endif
 }
@@ -250,6 +269,7 @@ void FTN_STDCALL FTN_CREATE_AFFINITY_MASK(void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   mask_internals = __kmp_affinity_dispatch->allocate_mask();
   KMP_CPU_ZERO(mask_internals);
   *mask = mask_internals;
@@ -265,6 +285,7 @@ void FTN_STDCALL FTN_DESTROY_AFFINITY_MASK(void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   if (__kmp_env_consistency_check) {
     if (*mask == NULL) {
       KMP_FATAL(AffinityInvalidMask, "kmp_destroy_affinity_mask");
@@ -283,6 +304,7 @@ int FTN_STDCALL FTN_SET_AFFINITY_MASK_PROC(int KMP_DEREF proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_set_affinity_mask_proc(KMP_DEREF proc, mask);
 #endif
 }
@@ -294,6 +316,7 @@ int FTN_STDCALL FTN_UNSET_AFFINITY_MASK_PROC(int KMP_DEREF proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_unset_affinity_mask_proc(KMP_DEREF proc, mask);
 #endif
 }
@@ -305,6 +328,7 @@ int FTN_STDCALL FTN_GET_AFFINITY_MASK_PROC(int KMP_DEREF proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_get_affinity_mask_proc(KMP_DEREF proc, mask);
 #endif
 }
@@ -341,6 +365,11 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_MAX_THREADS)(void) {
   }
   gtid = __kmp_entry_gtid();
   thread = __kmp_threads[gtid];
+#if KMP_AFFINITY_SUPPORTED
+  if (thread->th.th_team->t.t_level == 0 && !__kmp_affinity.flags.reset) {
+    __kmp_assign_root_init_mask();
+  }
+#endif
   // return thread -> th.th_team -> t.t_current_task[
   // thread->th.th_info.ds.ds_tid ] -> icvs.nproc;
   return thread->th.th_current_task->td_icvs.nproc;
@@ -432,8 +461,9 @@ public:
 /*
  * Set the value of the affinity-format-var ICV on the current device to the
  * format specified in the argument.
-*/
-void FTN_STDCALL FTN_SET_AFFINITY_FORMAT(char const *format, size_t size) {
+ */
+void FTN_STDCALL KMP_EXPAND_NAME_IF_APPEND(FTN_SET_AFFINITY_FORMAT)(
+    char const *format, size_t size) {
 #ifdef KMP_STUB
   return;
 #else
@@ -453,8 +483,9 @@ void FTN_STDCALL FTN_SET_AFFINITY_FORMAT(char const *format, size_t size) {
  * specification (not including null byte character) and writes the value of the
  * affinity-format-var ICV on the current device to buffer. If the return value
  * is larger than size, the affinity format specification is truncated.
-*/
-size_t FTN_STDCALL FTN_GET_AFFINITY_FORMAT(char *buffer, size_t size) {
+ */
+size_t FTN_STDCALL KMP_EXPAND_NAME_IF_APPEND(FTN_GET_AFFINITY_FORMAT)(
+    char *buffer, size_t size) {
 #ifdef KMP_STUB
   return 0;
 #else
@@ -475,8 +506,9 @@ size_t FTN_STDCALL FTN_GET_AFFINITY_FORMAT(char *buffer, size_t size) {
  * Prints the thread affinity information of the current thread in the format
  * specified by the format argument. If the format is NULL or a zero-length
  * string, the value of the affinity-format-var ICV is used.
-*/
-void FTN_STDCALL FTN_DISPLAY_AFFINITY(char const *format, size_t size) {
+ */
+void FTN_STDCALL KMP_EXPAND_NAME_IF_APPEND(FTN_DISPLAY_AFFINITY)(
+    char const *format, size_t size) {
 #ifdef KMP_STUB
   return;
 #else
@@ -484,7 +516,14 @@ void FTN_STDCALL FTN_DISPLAY_AFFINITY(char const *format, size_t size) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   gtid = __kmp_get_gtid();
+#if KMP_AFFINITY_SUPPORTED
+  if (__kmp_threads[gtid]->th.th_team->t.t_level == 0 &&
+      __kmp_affinity.flags.reset) {
+    __kmp_reset_root_init_mask(gtid);
+  }
+#endif
   ConvertedString cformat(format, size);
   __kmp_aux_display_affinity(gtid, cformat.get());
 #endif
@@ -499,9 +538,9 @@ void FTN_STDCALL FTN_DISPLAY_AFFINITY(char const *format, size_t size) {
  * used. The buffer must be allocated prior to calling the routine. If the
  * return value is larger than size, the affinity format specification is
  * truncated.
-*/
-size_t FTN_STDCALL FTN_CAPTURE_AFFINITY(char *buffer, char const *format,
-                                        size_t buf_size, size_t for_size) {
+ */
+size_t FTN_STDCALL KMP_EXPAND_NAME_IF_APPEND(FTN_CAPTURE_AFFINITY)(
+    char *buffer, char const *format, size_t buf_size, size_t for_size) {
 #if defined(KMP_STUB)
   return 0;
 #else
@@ -511,7 +550,14 @@ size_t FTN_STDCALL FTN_CAPTURE_AFFINITY(char *buffer, char const *format,
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   gtid = __kmp_get_gtid();
+#if KMP_AFFINITY_SUPPORTED
+  if (__kmp_threads[gtid]->th.th_team->t.t_level == 0 &&
+      __kmp_affinity.flags.reset) {
+    __kmp_reset_root_init_mask(gtid);
+  }
+#endif
   __kmp_str_buf_init(&capture_buf);
   ConvertedString cformat(format, for_size);
   num_required = __kmp_aux_capture_affinity(gtid, cformat.get(), &capture_buf);
@@ -531,7 +577,7 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_THREAD_NUM)(void) {
   int gtid;
 
 #if KMP_OS_DARWIN || KMP_OS_DRAGONFLY || KMP_OS_FREEBSD || KMP_OS_NETBSD ||    \
-        KMP_OS_HURD|| KMP_OS_OPENBSD
+    KMP_OS_HURD || KMP_OS_OPENBSD
   gtid = __kmp_entry_gtid();
 #elif KMP_OS_WINDOWS
   if (!__kmp_init_parallel ||
@@ -587,18 +633,28 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_PROCS)(void) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+#if KMP_AFFINITY_SUPPORTED
+  if (!__kmp_affinity.flags.reset) {
+    // only bind root here if its affinity reset is not requested
+    int gtid = __kmp_entry_gtid();
+    kmp_info_t *thread = __kmp_threads[gtid];
+    if (thread->th.th_team->t.t_level == 0) {
+      __kmp_assign_root_init_mask();
+    }
+  }
+#endif
   return __kmp_avail_proc;
 #endif
 }
 
 void FTN_STDCALL KMP_EXPAND_NAME(FTN_SET_NESTED)(int KMP_DEREF flag) {
-  KMP_INFORM(APIDeprecated, "omp_set_nested", "omp_set_max_active_levels");
 #ifdef KMP_STUB
   __kmps_set_nested(KMP_DEREF flag);
 #else
   kmp_info_t *thread;
   /* For the thread-private internal controls implementation */
   thread = __kmp_entry_thread();
+  KMP_INFORM(APIDeprecated, "omp_set_nested", "omp_set_max_active_levels");
   __kmp_save_internal_controls(thread);
   // Somewhat arbitrarily decide where to get a value for max_active_levels
   int max_active_levels = get__max_active_levels(thread);
@@ -609,12 +665,12 @@ void FTN_STDCALL KMP_EXPAND_NAME(FTN_SET_NESTED)(int KMP_DEREF flag) {
 }
 
 int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NESTED)(void) {
-  KMP_INFORM(APIDeprecated, "omp_get_nested", "omp_get_max_active_levels");
 #ifdef KMP_STUB
   return __kmps_get_nested();
 #else
   kmp_info_t *thread;
   thread = __kmp_entry_thread();
+  KMP_INFORM(APIDeprecated, "omp_get_nested", "omp_get_max_active_levels");
   return get__max_active_levels(thread) > 1;
 #endif
 }
@@ -692,6 +748,9 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_MAX_ACTIVE_LEVELS)(void) {
   return 0;
 #else
   /* TO DO: We want per-task implementation of this internal control */
+  if (!TCR_4(__kmp_init_middle)) {
+    __kmp_middle_initialize();
+  }
   return __kmp_get_max_active_levels(__kmp_entry_gtid());
 #endif
 }
@@ -715,7 +774,7 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_LEVEL)(void) {
 }
 
 int FTN_STDCALL
-    KMP_EXPAND_NAME(FTN_GET_ANCESTOR_THREAD_NUM)(int KMP_DEREF level) {
+KMP_EXPAND_NAME(FTN_GET_ANCESTOR_THREAD_NUM)(int KMP_DEREF level) {
 #ifdef KMP_STUB
   return (KMP_DEREF level) ? (-1) : (0);
 #else
@@ -775,7 +834,15 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_PLACES)(void) {
   }
   if (!KMP_AFFINITY_CAPABLE())
     return 0;
-  return __kmp_affinity_num_masks;
+  if (!__kmp_affinity.flags.reset) {
+    // only bind root here if its affinity reset is not requested
+    int gtid = __kmp_entry_gtid();
+    kmp_info_t *thread = __kmp_threads[gtid];
+    if (thread->th.th_team->t.t_level == 0) {
+      __kmp_assign_root_init_mask();
+    }
+  }
+  return __kmp_affinity.num_masks;
 #endif
 }
 
@@ -790,9 +857,17 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_PLACE_NUM_PROCS)(int place_num) {
   }
   if (!KMP_AFFINITY_CAPABLE())
     return 0;
-  if (place_num < 0 || place_num >= (int)__kmp_affinity_num_masks)
+  if (!__kmp_affinity.flags.reset) {
+    // only bind root here if its affinity reset is not requested
+    int gtid = __kmp_entry_gtid();
+    kmp_info_t *thread = __kmp_threads[gtid];
+    if (thread->th.th_team->t.t_level == 0) {
+      __kmp_assign_root_init_mask();
+    }
+  }
+  if (place_num < 0 || place_num >= (int)__kmp_affinity.num_masks)
     return 0;
-  kmp_affin_mask_t *mask = KMP_CPU_INDEX(__kmp_affinity_masks, place_num);
+  kmp_affin_mask_t *mask = KMP_CPU_INDEX(__kmp_affinity.masks, place_num);
   KMP_CPU_SET_ITERATE(i, mask) {
     if ((!KMP_CPU_ISSET(i, __kmp_affin_fullMask)) ||
         (!KMP_CPU_ISSET(i, mask))) {
@@ -815,9 +890,17 @@ void FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_PLACE_PROC_IDS)(int place_num,
   }
   if (!KMP_AFFINITY_CAPABLE())
     return;
-  if (place_num < 0 || place_num >= (int)__kmp_affinity_num_masks)
+  if (!__kmp_affinity.flags.reset) {
+    // only bind root here if its affinity reset is not requested
+    int gtid = __kmp_entry_gtid();
+    kmp_info_t *thread = __kmp_threads[gtid];
+    if (thread->th.th_team->t.t_level == 0) {
+      __kmp_assign_root_init_mask();
+    }
+  }
+  if (place_num < 0 || place_num >= (int)__kmp_affinity.num_masks)
     return;
-  kmp_affin_mask_t *mask = KMP_CPU_INDEX(__kmp_affinity_masks, place_num);
+  kmp_affin_mask_t *mask = KMP_CPU_INDEX(__kmp_affinity.masks, place_num);
   j = 0;
   KMP_CPU_SET_ITERATE(i, mask) {
     if ((!KMP_CPU_ISSET(i, __kmp_affin_fullMask)) ||
@@ -842,6 +925,9 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_PLACE_NUM)(void) {
     return -1;
   gtid = __kmp_entry_gtid();
   thread = __kmp_thread_from_gtid(gtid);
+  if (thread->th.th_team->t.t_level == 0 && !__kmp_affinity.flags.reset) {
+    __kmp_assign_root_init_mask();
+  }
   if (thread->th.th_current_place < 0)
     return -1;
   return thread->th.th_current_place;
@@ -861,6 +947,9 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_PARTITION_NUM_PLACES)(void) {
     return 0;
   gtid = __kmp_entry_gtid();
   thread = __kmp_thread_from_gtid(gtid);
+  if (thread->th.th_team->t.t_level == 0 && !__kmp_affinity.flags.reset) {
+    __kmp_assign_root_init_mask();
+  }
   first_place = thread->th.th_first_place;
   last_place = thread->th.th_last_place;
   if (first_place < 0 || last_place < 0)
@@ -868,13 +957,13 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_PARTITION_NUM_PLACES)(void) {
   if (first_place <= last_place)
     num_places = last_place - first_place + 1;
   else
-    num_places = __kmp_affinity_num_masks - first_place + last_place + 1;
+    num_places = __kmp_affinity.num_masks - first_place + last_place + 1;
   return num_places;
 #endif
 }
 
-void
-    FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_PARTITION_PLACE_NUMS)(int *place_nums) {
+void FTN_STDCALL
+KMP_EXPAND_NAME(FTN_GET_PARTITION_PLACE_NUMS)(int *place_nums) {
 #if defined(KMP_STUB) || !KMP_AFFINITY_SUPPORTED
 // Nothing.
 #else
@@ -887,6 +976,9 @@ void
     return;
   gtid = __kmp_entry_gtid();
   thread = __kmp_thread_from_gtid(gtid);
+  if (thread->th.th_team->t.t_level == 0 && !__kmp_affinity.flags.reset) {
+    __kmp_assign_root_init_mask();
+  }
   first_place = thread->th.th_first_place;
   last_place = thread->th.th_last_place;
   if (first_place < 0 || last_place < 0)
@@ -939,15 +1031,18 @@ void FTN_STDCALL KMP_EXPAND_NAME(FTN_SET_DEFAULT_DEVICE)(int KMP_DEREF arg) {
 
 // Get number of NON-HOST devices.
 // libomptarget, if loaded, provides this function in api.cpp.
-int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)(void) KMP_WEAK_ATTRIBUTE_EXTERNAL;
+int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)(void)
+    KMP_WEAK_ATTRIBUTE_EXTERNAL;
 int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)(void) {
-#if KMP_MIC || KMP_OS_DARWIN || KMP_OS_WINDOWS || defined(KMP_STUB)
+#if KMP_MIC || KMP_OS_DARWIN || defined(KMP_STUB)
   return 0;
 #else
   int (*fptr)();
-  if ((*(void **)(&fptr) = dlsym(RTLD_DEFAULT, "_Offload_number_of_devices"))) {
+  if ((*(void **)(&fptr) = KMP_DLSYM("__tgt_get_num_devices"))) {
     return (*fptr)();
-  } else if ((*(void **)(&fptr) = dlsym(RTLD_NEXT, "omp_get_num_devices"))) {
+  } else if ((*(void **)(&fptr) = KMP_DLSYM_NEXT("omp_get_num_devices"))) {
+    return (*fptr)();
+  } else if ((*(void **)(&fptr) = KMP_DLSYM("_Offload_number_of_devices"))) {
     return (*fptr)();
   } else { // liboffload & libomptarget don't exist
     return 0;
@@ -957,26 +1052,18 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)(void) {
 
 // This function always returns true when called on host device.
 // Compiler/libomptarget should handle when it is called inside target region.
-int FTN_STDCALL KMP_EXPAND_NAME(FTN_IS_INITIAL_DEVICE)(void) KMP_WEAK_ATTRIBUTE_EXTERNAL;
+int FTN_STDCALL KMP_EXPAND_NAME(FTN_IS_INITIAL_DEVICE)(void)
+    KMP_WEAK_ATTRIBUTE_EXTERNAL;
 int FTN_STDCALL KMP_EXPAND_NAME(FTN_IS_INITIAL_DEVICE)(void) {
   return 1; // This is the host
 }
 
 // libomptarget, if loaded, provides this function
-int FTN_STDCALL FTN_GET_INITIAL_DEVICE(void) KMP_WEAK_ATTRIBUTE_EXTERNAL;
-int FTN_STDCALL FTN_GET_INITIAL_DEVICE(void) {
-#if KMP_MIC || KMP_OS_DARWIN || KMP_OS_WINDOWS || defined(KMP_STUB)
+int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_INITIAL_DEVICE)(void)
+    KMP_WEAK_ATTRIBUTE_EXTERNAL;
+int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_INITIAL_DEVICE)(void) {
   // same as omp_get_num_devices()
-  return 0;
-#else
-  int (*fptr)();
-  if ((*(void **)(&fptr) = dlsym(RTLD_NEXT, "omp_get_initial_device"))) {
-    return (*fptr)();
-  } else { // liboffload & libomptarget don't exist
-    // same as omp_get_num_devices()
-    return 0;
-  }
-#endif
+  return KMP_EXPAND_NAME(FTN_GET_NUM_DEVICES)();
 }
 
 #if defined(KMP_STUB)
@@ -1273,7 +1360,7 @@ void FTN_STDCALL FTN_SET_DEFAULTS(char const *str
                                   ,
                                   int len
 #endif
-                                  ) {
+) {
 #ifndef KMP_STUB
 #ifdef PASS_ARGS_BY_VALUE
   int len = (int)KMP_STRLEN(str);
@@ -1321,38 +1408,38 @@ int FTN_STDCALL KMP_EXPAND_NAME(FTN_GET_MAX_TASK_PRIORITY)(void) {
 // loaded, we assume we are on the host and return KMP_HOST_DEVICE.
 // Compiler/libomptarget will handle this if called inside target.
 int FTN_STDCALL FTN_GET_DEVICE_NUM(void) KMP_WEAK_ATTRIBUTE_EXTERNAL;
-int FTN_STDCALL FTN_GET_DEVICE_NUM(void) { return FTN_GET_INITIAL_DEVICE(); }
+int FTN_STDCALL FTN_GET_DEVICE_NUM(void) {
+  return KMP_EXPAND_NAME(FTN_GET_INITIAL_DEVICE)();
+}
 
 // Compiler will ensure that this is only called from host in sequential region
-int FTN_STDCALL FTN_PAUSE_RESOURCE(kmp_pause_status_t kind, int device_num) {
+int FTN_STDCALL KMP_EXPAND_NAME(FTN_PAUSE_RESOURCE)(kmp_pause_status_t kind,
+                                                    int device_num) {
 #ifdef KMP_STUB
   return 1; // just fail
 #else
-  if (device_num == FTN_GET_INITIAL_DEVICE())
+  if (device_num == KMP_EXPAND_NAME(FTN_GET_INITIAL_DEVICE)())
     return __kmpc_pause_resource(kind);
   else {
-#if !KMP_OS_WINDOWS
     int (*fptr)(kmp_pause_status_t, int);
-    if ((*(void **)(&fptr) = dlsym(RTLD_DEFAULT, "tgt_pause_resource")))
+    if ((*(void **)(&fptr) = KMP_DLSYM("tgt_pause_resource")))
       return (*fptr)(kind, device_num);
     else
-#endif
       return 1; // just fail if there is no libomptarget
   }
 #endif
 }
 
 // Compiler will ensure that this is only called from host in sequential region
-int FTN_STDCALL FTN_PAUSE_RESOURCE_ALL(kmp_pause_status_t kind) {
+int FTN_STDCALL
+    KMP_EXPAND_NAME(FTN_PAUSE_RESOURCE_ALL)(kmp_pause_status_t kind) {
 #ifdef KMP_STUB
   return 1; // just fail
 #else
   int fails = 0;
-#if !KMP_OS_WINDOWS
   int (*fptr)(kmp_pause_status_t, int);
-  if ((*(void **)(&fptr) = dlsym(RTLD_DEFAULT, "tgt_pause_resource")))
+  if ((*(void **)(&fptr) = KMP_DLSYM("tgt_pause_resource")))
     fails = (*fptr)(kind, KMP_DEVICE_ALL); // pause devices
-#endif
   fails += __kmpc_pause_resource(kind); // pause host
   return fails;
 #endif
@@ -1373,10 +1460,176 @@ void FTN_STDCALL FTN_FULFILL_EVENT(kmp_event_t *event) {
 #endif
 }
 
+// nteams-var per-device ICV
+void FTN_STDCALL FTN_SET_NUM_TEAMS(int KMP_DEREF num_teams) {
+#ifdef KMP_STUB
+// Nothing.
+#else
+  if (!__kmp_init_serial) {
+    __kmp_serial_initialize();
+  }
+  __kmp_set_num_teams(KMP_DEREF num_teams);
+#endif
+}
+int FTN_STDCALL FTN_GET_MAX_TEAMS(void) {
+#ifdef KMP_STUB
+  return 1;
+#else
+  if (!__kmp_init_serial) {
+    __kmp_serial_initialize();
+  }
+  return __kmp_get_max_teams();
+#endif
+}
+// teams-thread-limit-var per-device ICV
+void FTN_STDCALL FTN_SET_TEAMS_THREAD_LIMIT(int KMP_DEREF limit) {
+#ifdef KMP_STUB
+// Nothing.
+#else
+  if (!__kmp_init_serial) {
+    __kmp_serial_initialize();
+  }
+  __kmp_set_teams_thread_limit(KMP_DEREF limit);
+#endif
+}
+int FTN_STDCALL FTN_GET_TEAMS_THREAD_LIMIT(void) {
+#ifdef KMP_STUB
+  return 1;
+#else
+  if (!__kmp_init_serial) {
+    __kmp_serial_initialize();
+  }
+  return __kmp_get_teams_thread_limit();
+#endif
+}
+
+/// TODO: Include the `omp.h` of the current build
+/* OpenMP 5.1 interop */
+typedef intptr_t omp_intptr_t;
+
+/* 0..omp_get_num_interop_properties()-1 are reserved for implementation-defined
+ * properties */
+typedef enum omp_interop_property {
+  omp_ipr_fr_id = -1,
+  omp_ipr_fr_name = -2,
+  omp_ipr_vendor = -3,
+  omp_ipr_vendor_name = -4,
+  omp_ipr_device_num = -5,
+  omp_ipr_platform = -6,
+  omp_ipr_device = -7,
+  omp_ipr_device_context = -8,
+  omp_ipr_targetsync = -9,
+  omp_ipr_first = -9
+} omp_interop_property_t;
+
+#define omp_interop_none 0
+
+typedef enum omp_interop_rc {
+  omp_irc_no_value = 1,
+  omp_irc_success = 0,
+  omp_irc_empty = -1,
+  omp_irc_out_of_range = -2,
+  omp_irc_type_int = -3,
+  omp_irc_type_ptr = -4,
+  omp_irc_type_str = -5,
+  omp_irc_other = -6
+} omp_interop_rc_t;
+
+typedef enum omp_interop_fr {
+  omp_ifr_cuda = 1,
+  omp_ifr_cuda_driver = 2,
+  omp_ifr_opencl = 3,
+  omp_ifr_sycl = 4,
+  omp_ifr_hip = 5,
+  omp_ifr_level_zero = 6,
+  omp_ifr_last = 7
+} omp_interop_fr_t;
+
+typedef void *omp_interop_t;
+
+// libomptarget, if loaded, provides this function
+int FTN_STDCALL FTN_GET_NUM_INTEROP_PROPERTIES(const omp_interop_t interop) {
+#if KMP_MIC || KMP_OS_DARWIN || defined(KMP_STUB)
+  return 0;
+#else
+  int (*fptr)(const omp_interop_t);
+  if ((*(void **)(&fptr) = KMP_DLSYM_NEXT("omp_get_num_interop_properties")))
+    return (*fptr)(interop);
+  return 0;
+#endif // KMP_MIC || KMP_OS_DARWIN || KMP_OS_WINDOWS || defined(KMP_STUB)
+}
+
+/// TODO Convert FTN_GET_INTEROP_XXX functions into a macro like interop.cpp
+// libomptarget, if loaded, provides this function
+intptr_t FTN_STDCALL FTN_GET_INTEROP_INT(const omp_interop_t interop,
+                                         omp_interop_property_t property_id,
+                                         int *err) {
+  intptr_t (*fptr)(const omp_interop_t, omp_interop_property_t, int *);
+  if ((*(void **)(&fptr) = KMP_DLSYM_NEXT("omp_get_interop_int")))
+    return (*fptr)(interop, property_id, err);
+  return 0;
+}
+
+// libomptarget, if loaded, provides this function
+void *FTN_STDCALL FTN_GET_INTEROP_PTR(const omp_interop_t interop,
+                                      omp_interop_property_t property_id,
+                                      int *err) {
+  void *(*fptr)(const omp_interop_t, omp_interop_property_t, int *);
+  if ((*(void **)(&fptr) = KMP_DLSYM_NEXT("omp_get_interop_ptr")))
+    return (*fptr)(interop, property_id, err);
+  return nullptr;
+}
+
+// libomptarget, if loaded, provides this function
+const char *FTN_STDCALL FTN_GET_INTEROP_STR(const omp_interop_t interop,
+                                            omp_interop_property_t property_id,
+                                            int *err) {
+  const char *(*fptr)(const omp_interop_t, omp_interop_property_t, int *);
+  if ((*(void **)(&fptr) = KMP_DLSYM_NEXT("omp_get_interop_str")))
+    return (*fptr)(interop, property_id, err);
+  return nullptr;
+}
+
+// libomptarget, if loaded, provides this function
+const char *FTN_STDCALL FTN_GET_INTEROP_NAME(
+    const omp_interop_t interop, omp_interop_property_t property_id) {
+  const char *(*fptr)(const omp_interop_t, omp_interop_property_t);
+  if ((*(void **)(&fptr) = KMP_DLSYM_NEXT("omp_get_interop_name")))
+    return (*fptr)(interop, property_id);
+  return nullptr;
+}
+
+// libomptarget, if loaded, provides this function
+const char *FTN_STDCALL FTN_GET_INTEROP_TYPE_DESC(
+    const omp_interop_t interop, omp_interop_property_t property_id) {
+  const char *(*fptr)(const omp_interop_t, omp_interop_property_t);
+  if ((*(void **)(&fptr) = KMP_DLSYM_NEXT("omp_get_interop_type_desc")))
+    return (*fptr)(interop, property_id);
+  return nullptr;
+}
+
+// libomptarget, if loaded, provides this function
+const char *FTN_STDCALL FTN_GET_INTEROP_RC_DESC(
+    const omp_interop_t interop, omp_interop_property_t property_id) {
+  const char *(*fptr)(const omp_interop_t, omp_interop_property_t);
+  if ((*(void **)(&fptr) = KMP_DLSYM_NEXT("omp_get_interop_rec_desc")))
+    return (*fptr)(interop, property_id);
+  return nullptr;
+}
+
 // display environment variables when requested
 void FTN_STDCALL FTN_DISPLAY_ENV(int verbose) {
 #ifndef KMP_STUB
   __kmp_omp_display_env(verbose);
+#endif
+}
+
+int FTN_STDCALL FTN_IN_EXPLICIT_TASK(void) {
+#ifdef KMP_STUB
+  return 0;
+#else
+  int gtid = __kmp_entry_gtid();
+  return __kmp_thread_from_gtid(gtid)->th.th_current_task->td_flags.tasktype;
 #endif
 }
 
@@ -1472,12 +1725,19 @@ KMP_VERSION_SYMBOL(FTN_GET_PLACE_PROC_IDS, 45, "OMP_4.5");
 KMP_VERSION_SYMBOL(FTN_GET_PLACE_NUM, 45, "OMP_4.5");
 KMP_VERSION_SYMBOL(FTN_GET_PARTITION_NUM_PLACES, 45, "OMP_4.5");
 KMP_VERSION_SYMBOL(FTN_GET_PARTITION_PLACE_NUMS, 45, "OMP_4.5");
-// KMP_VERSION_SYMBOL(FTN_GET_INITIAL_DEVICE, 45, "OMP_4.5");
+KMP_VERSION_SYMBOL(FTN_GET_INITIAL_DEVICE, 45, "OMP_4.5");
 
 // OMP_5.0 versioned symbols
 // KMP_VERSION_SYMBOL(FTN_GET_DEVICE_NUM, 50, "OMP_5.0");
-// KMP_VERSION_SYMBOL(FTN_PAUSE_RESOURCE, 50, "OMP_5.0");
-// KMP_VERSION_SYMBOL(FTN_PAUSE_RESOURCE_ALL, 50, "OMP_5.0");
+KMP_VERSION_SYMBOL(FTN_PAUSE_RESOURCE, 50, "OMP_5.0");
+KMP_VERSION_SYMBOL(FTN_PAUSE_RESOURCE_ALL, 50, "OMP_5.0");
+// The C versions (KMP_FTN_PLAIN) of these symbols are in kmp_csupport.c
+#if KMP_FTN_ENTRIES == KMP_FTN_APPEND
+KMP_VERSION_SYMBOL(FTN_CAPTURE_AFFINITY, 50, "OMP_5.0");
+KMP_VERSION_SYMBOL(FTN_DISPLAY_AFFINITY, 50, "OMP_5.0");
+KMP_VERSION_SYMBOL(FTN_GET_AFFINITY_FORMAT, 50, "OMP_5.0");
+KMP_VERSION_SYMBOL(FTN_SET_AFFINITY_FORMAT, 50, "OMP_5.0");
+#endif
 // KMP_VERSION_SYMBOL(FTN_GET_SUPPORTED_ACTIVE_LEVELS, 50, "OMP_5.0");
 // KMP_VERSION_SYMBOL(FTN_FULFILL_EVENT, 50, "OMP_5.0");
 

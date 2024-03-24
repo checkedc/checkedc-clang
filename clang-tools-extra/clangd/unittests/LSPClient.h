@@ -6,12 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <condition_variable>
-#include <deque>
-#include <llvm/ADT/Optional.h>
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_LSPCLIENT_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_LSPCLIENT_H
+
 #include <llvm/Support/Error.h>
 #include <llvm/Support/JSON.h>
+#include <condition_variable>
+#include <deque>
 #include <mutex>
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -39,7 +42,7 @@ public:
     // Should be called once to provide the value.
     void set(llvm::Expected<llvm::json::Value> V);
 
-    llvm::Optional<llvm::Expected<llvm::json::Value>> Value;
+    std::optional<llvm::Expected<llvm::json::Value>> Value;
     std::mutex Mu;
     std::condition_variable CV;
 
@@ -69,7 +72,7 @@ public:
   // Blocks until the server is idle (using the 'sync' protocol extension).
   void sync();
   // sync()s to ensure pending diagnostics arrive, and returns the newest set.
-  llvm::Optional<std::vector<llvm::json::Value>>
+  std::optional<std::vector<llvm::json::Value>>
   diagnostics(llvm::StringRef Path);
 
   // Get the transport used to connect this client to a ClangdLSPServer.
@@ -80,3 +83,5 @@ private:
 
 } // namespace clangd
 } // namespace clang
+
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_LSPCLIENT_H

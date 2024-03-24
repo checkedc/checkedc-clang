@@ -16,6 +16,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/PointerIntPair.h"
+#include <optional>
 
 #define DEBUG_TYPE "clang-tidy"
 
@@ -23,7 +24,7 @@ using namespace clang::ast_matchers;
 
 namespace llvm {
 
-/// Specialisation of DenseMapInfo to allow NamingCheckId objects in DenseMaps
+/// Specialization of DenseMapInfo to allow NamingCheckId objects in DenseMaps
 template <>
 struct DenseMapInfo<clang::tidy::RenamerClangTidyCheck::NamingCheckId> {
   using NamingCheckId = clang::tidy::RenamerClangTidyCheck::NamingCheckId;
@@ -58,8 +59,7 @@ struct DenseMapInfo<clang::tidy::RenamerClangTidyCheck::NamingCheckId> {
 
 } // namespace llvm
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 namespace {
 
@@ -176,7 +176,7 @@ void RenamerClangTidyCheck::addUsage(
   if (!Failure.RawUsageLocs.insert(FixLocation).second)
     return;
 
-  if (!Failure.ShouldFix())
+  if (!Failure.shouldFix())
     return;
 
   if (SourceMgr && SourceMgr->isWrittenInScratchSpace(FixLocation))
@@ -214,7 +214,7 @@ class NameLookup {
 
 public:
   explicit NameLookup(const NamedDecl *ND) : Data(ND, false) {}
-  explicit NameLookup(llvm::NoneType) : Data(nullptr, true) {}
+  explicit NameLookup(std::nullopt_t) : Data(nullptr, true) {}
   explicit NameLookup(std::nullptr_t) : Data(nullptr, false) {}
   NameLookup() : NameLookup(nullptr) {}
 
@@ -258,14 +258,14 @@ NameLookup findDeclInBases(const CXXRecordDecl &Parent, StringRef DeclName,
       if (*Search) {
         if (Found)
           return NameLookup(
-              llvm::None); // Multiple decls found in different base classes.
+              std::nullopt); // Multiple decls found in different base classes.
         Found = *Search;
         continue;
       }
     } else
-      return NameLookup(llvm::None); // Propagate multiple resolution back up.
+      return NameLookup(std::nullopt); // Propagate multiple resolution back up.
   }
-  return NameLookup(Found); // If nullptr, decl wasnt found.
+  return NameLookup(Found); // If nullptr, decl wasn't found.
 }
 
 void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
@@ -445,8 +445,8 @@ void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
     if (isa<ClassTemplateSpecializationDecl>(Decl))
       return;
 
-    Optional<FailureInfo> MaybeFailure =
-        GetDeclFailureInfo(Decl, *Result.SourceManager);
+    std::optional<FailureInfo> MaybeFailure =
+        getDeclFailureInfo(Decl, *Result.SourceManager);
     if (!MaybeFailure)
       return;
     FailureInfo &Info = *MaybeFailure;
@@ -464,7 +464,7 @@ void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
         Failure.FixStatus = ShouldFixStatus::ConflictsWithKeyword;
       else if (Ident->hasMacroDefinition())
         Failure.FixStatus = ShouldFixStatus::ConflictsWithMacroDefinition;
-    } else if (!isValidIdentifier(Info.Fixup)) {
+    } else if (!isValidAsciiIdentifier(Info.Fixup)) {
       Failure.FixStatus = ShouldFixStatus::FixInvalidIdentifier;
     }
 
@@ -476,8 +476,8 @@ void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
 void RenamerClangTidyCheck::checkMacro(SourceManager &SourceMgr,
                                        const Token &MacroNameTok,
                                        const MacroInfo *MI) {
-  Optional<FailureInfo> MaybeFailure =
-      GetMacroFailureInfo(MacroNameTok, SourceMgr);
+  std::optional<FailureInfo> MaybeFailure =
+      getMacroFailureInfo(MacroNameTok, SourceMgr);
   if (!MaybeFailure)
     return;
   FailureInfo &Info = *MaybeFailure;
@@ -485,6 +485,9 @@ void RenamerClangTidyCheck::checkMacro(SourceManager &SourceMgr,
   NamingCheckId ID(MI->getDefinitionLoc(), std::string(Name));
   NamingCheckFailure &Failure = NamingCheckFailures[ID];
   SourceRange Range(MacroNameTok.getLocation(), MacroNameTok.getEndLoc());
+
+  if (!isValidAsciiIdentifier(Info.Fixup))
+    Failure.FixStatus = ShouldFixStatus::FixInvalidIdentifier;
 
   Failure.Info = std::move(Info);
   addUsage(ID, Range);
@@ -532,14 +535,14 @@ void RenamerClangTidyCheck::onEndOfTranslationUnit() {
     if (Failure.Info.KindName.empty())
       continue;
 
-    if (Failure.ShouldNotify()) {
-      auto DiagInfo = GetDiagInfo(Decl, Failure);
+    if (Failure.shouldNotify()) {
+      auto DiagInfo = getDiagInfo(Decl, Failure);
       auto Diag = diag(Decl.first,
                        DiagInfo.Text + getDiagnosticSuffix(Failure.FixStatus,
                                                            Failure.Info.Fixup));
       DiagInfo.ApplyArgs(Diag);
 
-      if (Failure.ShouldFix()) {
+      if (Failure.shouldFix()) {
         for (const auto &Loc : Failure.RawUsageLocs) {
           // We assume that the identifier name is made of one token only. This
           // is always the case as we ignore usages in macros that could build
@@ -559,5 +562,4 @@ void RenamerClangTidyCheck::onEndOfTranslationUnit() {
   }
 }
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

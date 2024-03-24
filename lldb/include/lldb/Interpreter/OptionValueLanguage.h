@@ -15,17 +15,16 @@
 
 namespace lldb_private {
 
-class OptionValueLanguage : public OptionValue {
+class OptionValueLanguage : public Cloneable<OptionValueLanguage, OptionValue> {
 public:
   OptionValueLanguage(lldb::LanguageType value)
-      : OptionValue(), m_current_value(value), m_default_value(value) {}
+      : m_current_value(value), m_default_value(value) {}
 
   OptionValueLanguage(lldb::LanguageType current_value,
                       lldb::LanguageType default_value)
-      : OptionValue(), m_current_value(current_value),
-        m_default_value(default_value) {}
+      : m_current_value(current_value), m_default_value(default_value) {}
 
-  ~OptionValueLanguage() override {}
+  ~OptionValueLanguage() override = default;
 
   // Virtual subclass pure virtual overrides
 
@@ -34,19 +33,16 @@ public:
   void DumpValue(const ExecutionContext *exe_ctx, Stream &strm,
                  uint32_t dump_mask) override;
 
+  llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) override;
+
   Status
   SetValueFromString(llvm::StringRef value,
                      VarSetOperationType op = eVarSetOperationAssign) override;
-  Status
-  SetValueFromString(const char *,
-                     VarSetOperationType = eVarSetOperationAssign) = delete;
 
   void Clear() override {
     m_current_value = m_default_value;
     m_value_was_set = false;
   }
-
-  lldb::OptionValueSP DeepCopy() const override;
 
   // Subclass specific functions
 

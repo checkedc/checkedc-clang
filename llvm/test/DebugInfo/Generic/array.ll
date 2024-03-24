@@ -5,8 +5,8 @@ define i32 @main() nounwind ssp !dbg !0 {
 entry:
   %retval = alloca i32, align 4
   %a = alloca [0 x i32], align 4
-  store i32 0, i32* %retval
-  call void @llvm.dbg.declare(metadata [0 x i32]* %a, metadata !6, metadata !DIExpression()), !dbg !11
+  store i32 0, ptr %retval
+  call void @llvm.dbg.declare(metadata ptr %a, metadata !6, metadata !DIExpression()), !dbg !11
   ret i32 0, !dbg !12
 }
 
@@ -25,7 +25,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 !7 = distinct !DILexicalBlock(line: 3, column: 12, file: !14, scope: !0)
 !8 = !DICompositeType(tag: DW_TAG_array_type, align: 32, file: !14, scope: !2, baseType: !5, elements: !9)
 !9 = !{!10}
-;CHECK: .section {{.*}}debug_info
+;CHECK: {{.section.*debug_info|.*dwinfo:}}
 ;CHECK: DW_TAG_subrange_type
 ;CHECK-NEXT: DW_AT_type
 ;CHECK-NOT: DW_AT_lower_bound

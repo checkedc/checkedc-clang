@@ -157,8 +157,6 @@ Expected<RegisterInfo> RegisterInfoParser::create(StringRef Response) {
       },
       nullptr,
       nullptr,
-      nullptr, // Dwarf expression opcode bytes pointer
-      0        // Dwarf expression opcode bytes length
   };
   Info.name = ConstString(Elements["name"]).GetCString();
   if (!Info.name)
@@ -217,7 +215,7 @@ Expected<RegisterValue> parseRegisterValue(const RegisterInfo &Info,
   RegisterValue Value;
   Status ST;
   Value.SetFromMemoryData(
-      &Info, Bytes.data(), Bytes.size(),
+      Info, Bytes.data(), Bytes.size(),
       Endian == support::little ? eByteOrderLittle : eByteOrderBig, ST);
   if (ST.Fail())
     return ST.ToError();

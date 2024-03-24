@@ -9,9 +9,12 @@
 #ifndef LLDB_TOOLS_LLDB_VSCODE_FIFOFILES_H
 #define LLDB_TOOLS_LLDB_VSCODE_FIFOFILES_H
 
+#include "llvm/Config/llvm-config.h" // for LLVM_ON_UNIX
 #include "llvm/Support/Error.h"
 
 #include "JSONUtils.h"
+
+#include <chrono>
 
 namespace lldb_vscode {
 

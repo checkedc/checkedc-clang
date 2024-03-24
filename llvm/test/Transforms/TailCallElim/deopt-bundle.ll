@@ -1,4 +1,4 @@
-; RUN: opt < %s -tailcallelim -verify-dom-info -S | FileCheck %s
+; RUN: opt < %s -passes=tailcallelim -verify-dom-info -S | FileCheck %s
 
 define i32 @f_1(i32 %x) {
 ; CHECK-LABEL: @f_1(
@@ -55,3 +55,15 @@ catch:
 exit:
   ret void
 }
+
+; CHECK-LABEL: @test_clang_arc_attachedcall(
+; CHECK: tail call ptr @getObj(
+
+declare ptr @getObj()
+
+define ptr @test_clang_arc_attachedcall() {
+  %r = call ptr @getObj() [ "clang.arc.attachedcall"(ptr @llvm.objc.retainAutoreleasedReturnValue) ]
+  ret ptr %r
+}
+
+declare ptr @llvm.objc.retainAutoreleasedReturnValue(ptr)

@@ -31,19 +31,20 @@ public:
   MOCK_METHOD2(emitSymbolAttribute,
                bool(MCSymbol *Symbol, MCSymbolAttr Attribute));
   MOCK_METHOD3(emitCommonSymbol,
-               void(MCSymbol *Symbol, uint64_t Size, unsigned ByteAlignment));
+               void(MCSymbol *Symbol, uint64_t Size, Align ByteAlignment));
   MOCK_METHOD5(emitZerofill,
                void(MCSection *Section, MCSymbol *Symbol, uint64_t Size,
-                    unsigned ByteAlignment, SMLoc Loc));
+                    Align ByteAlignment, SMLoc Loc));
 
   // The following are mock methods to be used in tests.
 
+  MOCK_METHOD2(emitLabel, void(MCSymbol *Symbol, SMLoc Loc));
   MOCK_METHOD2(emitIntValue, void(uint64_t Value, unsigned Size));
   MOCK_METHOD3(emitValueImpl,
                void(const MCExpr *Value, unsigned Size, SMLoc Loc));
   MOCK_METHOD3(emitAbsoluteSymbolDiff,
                void(const MCSymbol *Hi, const MCSymbol *Lo, unsigned Size));
-  MOCK_METHOD2(EmitCOFFSecRel32, void(MCSymbol const *Symbol, uint64_t Offset));
+  MOCK_METHOD2(emitCOFFSecRel32, void(MCSymbol const *Symbol, uint64_t Offset));
 };
 
 class TestAsmPrinter {

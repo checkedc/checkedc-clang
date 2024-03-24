@@ -1,4 +1,4 @@
-; RUN: llc %s -o %t.s
+; RUN: llc %s -o %t.s -experimental-debug-variable-locations=true
 ; RUN: llvm-mc %t.s -filetype=obj -triple=x86_64-windows-msvc -o %t.o
 ; RUN: FileCheck %s < %t.s --check-prefix=ASM
 ; RUN: llvm-dwarfdump %t.o | FileCheck %s --check-prefix=DWARF
@@ -26,7 +26,7 @@ target triple = "x86_64-pc-windows-msvc19.0.24215"
 
 declare void @llvm.dbg.addr(metadata, metadata, metadata) #2
 declare void @llvm.dbg.value(metadata, metadata, metadata) #2
-declare void @escape(i32*)
+declare void @escape(ptr)
 
 @global = external global i32, align 4
 
@@ -34,20 +34,20 @@ declare void @escape(i32*)
 define void @f(i32 %x) #0 !dbg !8 {
 entry:
   %x.addr = alloca i32, align 4
-  store i32 %x, i32* %x.addr, align 4
-  call void @llvm.dbg.addr(metadata i32* %x.addr, metadata !13, metadata !DIExpression()), !dbg !18
-  call void @escape(i32* %x.addr), !dbg !19
+  store i32 %x, ptr %x.addr, align 4
+  call void @llvm.dbg.addr(metadata ptr %x.addr, metadata !13, metadata !DIExpression()), !dbg !18
+  call void @escape(ptr %x.addr), !dbg !19
   call void @llvm.dbg.value(metadata i32 1, metadata !13, metadata !DIExpression()), !dbg !20
-  store i32 1, i32* @global, align 4, !dbg !22
-  call void @llvm.dbg.addr(metadata i32* %x.addr, metadata !13, metadata !DIExpression()), !dbg !23
-  store i32 2, i32* %x.addr, align 4, !dbg !23
-  call void @escape(i32* %x.addr), !dbg !24
+  store i32 1, ptr @global, align 4, !dbg !22
+  call void @llvm.dbg.addr(metadata ptr %x.addr, metadata !13, metadata !DIExpression()), !dbg !23
+  store i32 2, ptr %x.addr, align 4, !dbg !23
+  call void @escape(ptr %x.addr), !dbg !24
   ret void, !dbg !25
 }
 
 ; ASM-LABEL: f: # @f
-; ASM: movl    %ecx, [[OFF_X:[0-9]+]](%rsp)
-; ASM: #DEBUG_VALUE: f:x <- [DW_OP_plus_uconst [[OFF_X]]] [$rsp+0]
+; ASM: #DEBUG_VALUE: f:x <- [DW_OP_plus_uconst [[OFF_X:[0-9]+]]] [$rsp+0]
+; ASM: movl    %ecx, [[OFF_X]](%rsp)
 ; ASM: callq   escape
 ; ASM: #DEBUG_VALUE: f:x <- 1
 ; ASM: movl    $1, global(%rip)

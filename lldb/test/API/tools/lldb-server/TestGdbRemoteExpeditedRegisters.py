@@ -6,8 +6,6 @@ from lldbsuite.test import lldbutil
 
 class TestGdbRemoteExpeditedRegisters(
         gdbremote_testcase.GdbRemoteTestCaseBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
     def gather_expedited_registers(self):
         # Setup the stub and set the gdb remote command stream.
@@ -54,7 +52,7 @@ class TestGdbRemoteExpeditedRegisters(
         self.assertIsNotNone(reg_info)
 
         # Ensure the expedited registers contained it.
-        self.assertTrue(reg_info["lldb_register_index"] in expedited_registers)
+        self.assertIn(reg_info["lldb_register_index"], expedited_registers)
         self.trace("{} reg_info:{}".format(generic_register_name, reg_info))
 
     def test_stop_notification_contains_any_registers(self):
@@ -121,5 +119,5 @@ class TestGdbRemoteExpeditedRegisters(
         self.assertIsNotNone(reg_info)
 
         # Ensure the expedited registers contained it.
-        self.assertTrue(reg_info["lldb_register_index"] in expedited_registers)
+        self.assertIn(reg_info["lldb_register_index"], expedited_registers)
         self.trace("{} reg_info:{}".format('vg', reg_info))

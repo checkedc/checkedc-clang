@@ -128,6 +128,17 @@ public:
     // Type depends on a runtime value (variable-length array).
     VariablyModified = 32,
 
+    // Dependence that is propagated syntactically, regardless of semantics.
+    Syntactic = UnexpandedPack | Instantiation | Error,
+    // Dependence that is propagated semantically, even in cases where the
+    // type doesn't syntactically appear. This currently excludes only
+    // UnexpandedPack. Even though Instantiation dependence is also notionally
+    // syntactic, we also want to propagate it semantically because anything
+    // that semantically depends on an instantiation-dependent entity should
+    // always be instantiated when that instantiation-dependent entity is.
+    Semantic =
+        Instantiation | Type | Value | Dependent | Error | VariablyModified,
+
     LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/VariablyModified)
   };
 
@@ -164,6 +175,21 @@ public:
              translate(D, TNDependence::Instantiation, Instantiation) |
              translate(D, TNDependence::Dependent, Dependent) |
              translate(D, TNDependence::Error, Error)) {}
+
+  /// Extract only the syntactic portions of this type's dependence.
+  Dependence syntactic() {
+    Dependence Result = *this;
+    Result.V &= Syntactic;
+    return Result;
+  }
+
+  /// Extract the semantic portions of this type's dependence that apply even
+  /// to uses where the type does not appear syntactically.
+  Dependence semantic() {
+    Dependence Result = *this;
+    Result.V &= Semantic;
+    return Result;
+  }
 
   TypeDependence type() const {
     return translate(V, UnexpandedPack, TypeDependence::UnexpandedPack) |
@@ -221,7 +247,10 @@ private:
 inline ExprDependence toExprDependence(TemplateArgumentDependence TA) {
   return Dependence(TA).expr();
 }
-inline ExprDependence toExprDependence(TypeDependence D) {
+inline ExprDependence toExprDependenceForImpliedType(TypeDependence D) {
+  return Dependence(D).semantic().expr();
+}
+inline ExprDependence toExprDependenceAsWritten(TypeDependence D) {
   return Dependence(D).expr();
 }
 // Note: it's often necessary to strip `Dependent` from qualifiers.
@@ -254,6 +283,13 @@ inline TypeDependence toTypeDependence(TemplateNameDependence D) {
 }
 inline TypeDependence toTypeDependence(TemplateArgumentDependence D) {
   return Dependence(D).type();
+}
+
+inline TypeDependence toSyntacticDependence(TypeDependence D) {
+  return Dependence(D).syntactic().type();
+}
+inline TypeDependence toSemanticDependence(TypeDependence D) {
+  return Dependence(D).semantic().type();
 }
 
 inline NestedNameSpecifierDependence

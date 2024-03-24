@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 namespace {
 AST_MATCHER_P(InitListExpr, initCountIs, unsigned, N) {
@@ -207,33 +205,26 @@ void UseDefaultMemberInitCheck::registerMatchers(MatchFinder *Finder) {
             declRefExpr(to(enumConstantDecl())));
 
   auto Init =
-      anyOf(initListExpr(anyOf(
-                allOf(initCountIs(1), hasInit(0, ignoringImplicit(InitBase))),
-                initCountIs(0))),
+      anyOf(initListExpr(anyOf(allOf(initCountIs(1), hasInit(0, InitBase)),
+                               initCountIs(0))),
             InitBase);
 
   Finder->addMatcher(
-      cxxConstructorDecl(
-          isDefaultConstructor(), unless(isInstantiated()),
-          forEachConstructorInitializer(
-              cxxCtorInitializer(
-                  forField(unless(anyOf(getLangOpts().CPlusPlus20
-                                            ? unless(anything())
-                                            : isBitField(),
-                                        hasInClassInitializer(anything()),
-                                        hasParent(recordDecl(isUnion()))))),
-                  isWritten(), withInitializer(ignoringImplicit(Init)))
-                  .bind("default"))),
+      cxxConstructorDecl(forEachConstructorInitializer(
+          cxxCtorInitializer(
+              forField(unless(anyOf(
+                  getLangOpts().CPlusPlus20 ? unless(anything()) : isBitField(),
+                  hasInClassInitializer(anything()),
+                  hasParent(recordDecl(isUnion()))))),
+              withInitializer(Init))
+              .bind("default"))),
       this);
 
   Finder->addMatcher(
-      cxxConstructorDecl(
-          unless(ast_matchers::isTemplateInstantiation()),
-          forEachConstructorInitializer(
-              cxxCtorInitializer(forField(hasInClassInitializer(anything())),
-                                 isWritten(),
-                                 withInitializer(ignoringImplicit(Init)))
-                  .bind("existing"))),
+      cxxConstructorDecl(forEachConstructorInitializer(
+          cxxCtorInitializer(forField(hasInClassInitializer(anything())),
+                             withInitializer(Init))
+              .bind("existing"))),
       this);
 }
 
@@ -251,6 +242,14 @@ void UseDefaultMemberInitCheck::check(const MatchFinder::MatchResult &Result) {
 void UseDefaultMemberInitCheck::checkDefaultInit(
     const MatchFinder::MatchResult &Result, const CXXCtorInitializer *Init) {
   const FieldDecl *Field = Init->getAnyMember();
+
+  // Check whether we have multiple hand-written constructors and bomb out, as
+  // it is hard to reconcile their sets of member initializers.
+  const auto *ClassDecl = cast<CXXRecordDecl>(Field->getParent());
+  if (llvm::count_if(ClassDecl->ctors(), [](const CXXConstructorDecl *Ctor) {
+        return !Ctor->isCopyOrMoveConstructor();
+      }) > 1)
+    return;
 
   SourceLocation StartLoc = Field->getBeginLoc();
   if (StartLoc.isMacroID() && IgnoreMacros)
@@ -295,6 +294,4 @@ void UseDefaultMemberInitCheck::checkExistingInit(
       << FixItHint::CreateRemoval(Init->getSourceRange());
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

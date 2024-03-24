@@ -10,17 +10,17 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
+#include "llvm/ADT/StringSet.h"
+
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace llvm_libc {
+namespace clang::tidy::llvm_libc {
 
 // Gets the outermost namespace of a DeclContext, right under the Translation
 // Unit.
 const DeclContext *getOutermostNamespace(const DeclContext *Decl) {
   const DeclContext *Parent = Decl->getParent();
-  if (Parent && Parent->isTranslationUnit())
+  if (Parent->isTranslationUnit())
     return Decl;
   return getOutermostNamespace(Parent);
 }
@@ -29,6 +29,13 @@ void CalleeNamespaceCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       declRefExpr(to(functionDecl().bind("func"))).bind("use-site"), this);
 }
+
+// A list of functions that are exempted from this check. The __errno_location
+// function is for setting errno, which is allowed in libc, and the other
+// functions are specifically allowed to be external so that they can be
+// intercepted.
+static const llvm::StringSet<> IgnoredFunctions = {
+    "__errno_location", "malloc", "calloc", "realloc", "free", "aligned_alloc"};
 
 void CalleeNamespaceCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *UsageSiteExpr = Result.Nodes.getNodeAs<DeclRefExpr>("use-site");
@@ -43,6 +50,11 @@ void CalleeNamespaceCheck::check(const MatchFinder::MatchResult &Result) {
   if (NS && NS->getName() == "__llvm_libc")
     return;
 
+  const DeclarationName &Name = FuncDecl->getDeclName();
+  if (Name.isIdentifier() &&
+      IgnoredFunctions.contains(Name.getAsIdentifierInfo()->getName()))
+    return;
+
   diag(UsageSiteExpr->getBeginLoc(), "%0 must resolve to a function declared "
                                      "within the '__llvm_libc' namespace")
       << FuncDecl;
@@ -51,6 +63,4 @@ void CalleeNamespaceCheck::check(const MatchFinder::MatchResult &Result) {
        clang::DiagnosticIDs::Note);
 }
 
-} // namespace llvm_libc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::llvm_libc

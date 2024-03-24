@@ -6,9 +6,9 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -44,9 +44,9 @@ std::unique_ptr<LLVMTargetMachine> createTargetMachine() {
     return nullptr;
 
   TargetOptions Options;
-  return std::unique_ptr<LLVMTargetMachine>(static_cast<LLVMTargetMachine*>(
-      T->createTargetMachine("AMDGPU", "gfx900", "", Options, None, None,
-                             CodeGenOpt::Aggressive)));
+  return std::unique_ptr<LLVMTargetMachine>(static_cast<LLVMTargetMachine *>(
+      T->createTargetMachine("AMDGPU", "gfx900", "", Options, std::nullopt,
+                             std::nullopt, CodeGenOpt::Aggressive)));
 }
 
 std::unique_ptr<Module> parseMIR(LLVMContext &Context,
@@ -462,9 +462,9 @@ TEST(LiveIntervalTest, EarlyClobberSubRegMoveUp) {
   liveIntervalTest(R"MIR(
     %4:sreg_32 = IMPLICIT_DEF
     %6:sreg_32 = IMPLICIT_DEF
-    undef early-clobber %9.sub0:sreg_64 = WWM %4:sreg_32, implicit $exec
+    undef early-clobber %9.sub0:sreg_64 = STRICT_WWM %4:sreg_32, implicit $exec
     %5:sreg_32 = S_FLBIT_I32_B32 %9.sub0:sreg_64
-    early-clobber %9.sub1:sreg_64 = WWM %6:sreg_32, implicit $exec
+    early-clobber %9.sub1:sreg_64 = STRICT_WWM %6:sreg_32, implicit $exec
     %7:sreg_32 = S_FLBIT_I32_B32 %9.sub1:sreg_64
 )MIR", [](MachineFunction &MF, LiveIntervals &LIS) {
     testHandleMove(MF, LIS, 4, 3);
@@ -529,6 +529,19 @@ TEST(LiveIntervalTest, TestMoveSubRegUseAcrossMainRangeHole) {
     MI.getOperand(0).setIsUndef(false);
     testHandleMove(MF, LIS, 4, 3, 1);
     testHandleMove(MF, LIS, 1, 4, 1);
+  });
+}
+
+TEST(LiveIntervalTest, TestMoveSubRegsOfOneReg) {
+  liveIntervalTest(R"MIR(
+    INLINEASM &"", 0, 1835018, def undef %4.sub0:vreg_64, 1835018, def undef %4.sub1:vreg_64
+    %1:vreg_64 = COPY %4
+    undef %2.sub0:vreg_64 = V_MOV_B32_e32 0, implicit $exec
+    %2.sub1:vreg_64 = COPY %2.sub0
+    %3:vreg_64 = COPY %2
+)MIR", [](MachineFunction &MF, LiveIntervals &LIS) {
+    testHandleMove(MF, LIS, 1, 4);
+    testHandleMove(MF, LIS, 0, 3);
   });
 }
 
@@ -646,6 +659,27 @@ TEST(LiveIntervalTest, SplitAtMultiInstruction) {
     S_NOP 0
 )MIR", [](MachineFunction &MF, LiveIntervals &LIS) {
     testSplitAt(MF, LIS, 0, 0);
+  });
+}
+
+TEST(LiveIntervalTest, RepairIntervals) {
+  liveIntervalTest(R"MIR(
+  %1:sgpr_32 = IMPLICIT_DEF
+  dead %2:sgpr_32 = COPY undef %3.sub0:sgpr_128
+  undef %4.sub2:sgpr_128 = COPY %1:sgpr_32
+  %5:sgpr_32 = COPY %4.sub2:sgpr_128
+)MIR", [](MachineFunction &MF, LiveIntervals &LIS) {
+    MachineInstr &Instr1 = getMI(MF, 1, 0);
+    MachineInstr &Instr2 = getMI(MF, 2, 0);
+    MachineInstr &Instr3 = getMI(MF, 3, 0);
+    LIS.RemoveMachineInstrFromMaps(Instr2);
+    MachineBasicBlock *MBB = Instr1.getParent();
+    SmallVector<Register> OrigRegs{
+      Instr1.getOperand(0).getReg(),
+      Instr2.getOperand(0).getReg(),
+      Instr2.getOperand(1).getReg(),
+    };
+    LIS.repairIntervalsInRange(MBB, Instr2, Instr3, OrigRegs);
   });
 }
 

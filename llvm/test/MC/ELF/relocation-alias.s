@@ -1,5 +1,5 @@
 # RUN: llvm-mc -filetype=obj -triple x86_64 %s -o %t
-# RUN: llvm-objdump -dr %t | FileCheck %s
+# RUN: llvm-objdump --no-print-imm-hex -dr %t | FileCheck %s
 # RUN: llvm-readelf -s %t | FileCheck %s --check-prefix=SYM
 
 # RUN: not llvm-mc -filetype=obj -triple x86_64 --defsym ERR=1 %s 2>&1 | FileCheck %s --check-prefix=ERR
@@ -50,6 +50,6 @@ call memcpy_plus_1@PLT
 # SYM-NEXT: NOTYPE  LOCAL  DEFAULT   4 data_alias_l
 # SYM-NEXT: SECTION LOCAL  DEFAULT   4 .data
 # SYM-NEXT: NOTYPE  GLOBAL DEFAULT UND __GI_memcpy
-# SYM-NEXT: NOTYPE  GLOBAL DEFAULT   4 data
 # SYM-NEXT: NOTYPE  GLOBAL DEFAULT   4 data_alias
+# SYM-NEXT: NOTYPE  GLOBAL DEFAULT   4 data
 # SYM-NOT:  {{.}}

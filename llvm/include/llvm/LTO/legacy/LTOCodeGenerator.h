@@ -24,6 +24,7 @@
 //   As of this writing, we don't separate IPO and the Post-IPO SOPT. They
 // are intermingled together, and are driven by a single pass manager (see
 // PassManagerBuilder::populateLTOPassManager()).
+//   FIXME: populateLTOPassManager no longer exists.
 //
 //   The "LTOCodeGenerator" is the driver for the IPO and Post-IPO stages.
 // The "CodeGenerator" here is bit confusing. Don't confuse the "CodeGenerator"
@@ -31,8 +32,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LTO_LTOCODEGENERATOR_H
-#define LLVM_LTO_LTOCODEGENERATOR_H
+#ifndef LLVM_LTO_LEGACY_LTOCODEGENERATOR_H
+#define LLVM_LTO_LEGACY_LTOCODEGENERATOR_H
 
 #include "llvm-c/lto.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -41,6 +42,8 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
+#include "llvm/LTO/Config.h"
+#include "llvm/LTO/LTO.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -48,9 +51,6 @@
 #include "llvm/Target/TargetOptions.h"
 #include <string>
 #include <vector>
-
-/// Enable global value internalization in LTO.
-extern llvm::cl::opt<bool> EnableLTOInternalization;
 
 namespace llvm {
 template <typename T> class ArrayRef;
@@ -63,6 +63,9 @@ template <typename T> class ArrayRef;
   class TargetMachine;
   class raw_ostream;
   class raw_pwrite_stream;
+
+/// Enable global value internalization in LTO.
+extern cl::opt<bool> EnableLTOInternalization;
 
 //===----------------------------------------------------------------------===//
 /// C++ class which implements the opaque lto_code_gen_t type.
@@ -86,18 +89,23 @@ struct LTOCodeGenerator {
   void setAsmUndefinedRefs(struct LTOModule *);
   void setTargetOptions(const TargetOptions &Options);
   void setDebugInfo(lto_debug_model);
-  void setCodePICModel(Optional<Reloc::Model> Model) { RelocModel = Model; }
+  void setCodePICModel(std::optional<Reloc::Model> Model) {
+    Config.RelocModel = Model;
+  }
 
   /// Set the file type to be emitted (assembly or object code).
   /// The default is CGFT_ObjectFile.
-  void setFileType(CodeGenFileType FT) { FileType = FT; }
+  void setFileType(CodeGenFileType FT) { Config.CGFileType = FT; }
 
-  void setCpu(StringRef MCpu) { this->MCpu = std::string(MCpu); }
-  void setAttrs(std::vector<std::string> MAttrs) { this->MAttrs = MAttrs; }
+  void setCpu(StringRef MCpu) { Config.CPU = std::string(MCpu); }
+  void setAttrs(std::vector<std::string> MAttrs) { Config.MAttrs = MAttrs; }
   void setOptLevel(unsigned OptLevel);
 
   void setShouldInternalize(bool Value) { ShouldInternalize = Value; }
   void setShouldEmbedUselists(bool Value) { ShouldEmbedUselists = Value; }
+  void setSaveIRBeforeOptPath(std::string Value) {
+    SaveIRBeforeOptPath = Value;
+  }
 
   /// Restore linkage of globals
   ///
@@ -165,20 +173,22 @@ struct LTOCodeGenerator {
   /// if the compilation was not successful.
   std::unique_ptr<MemoryBuffer> compileOptimized();
 
-  /// Compile the merged optimized module into out.size() output files each
+  /// Compile the merged optimized module \p ParallelismLevel output files each
   /// representing a linkable partition of the module. If out contains more
-  /// than one element, code generation is done in parallel with out.size()
-  /// threads.  Output files will be written to members of out. Returns true on
-  /// success.
+  /// than one element, code generation is done in parallel with \p
+  /// ParallelismLevel threads.  Output files will be written to the streams
+  /// created using the \p AddStream callback. Returns true on success.
   ///
   /// Calls \a verifyMergedModuleOnce().
-  bool compileOptimized(ArrayRef<raw_pwrite_stream *> Out);
+  bool compileOptimized(AddStreamFn AddStream, unsigned ParallelismLevel);
 
   /// Enable the Freestanding mode: indicate that the optimizer should not
   /// assume builtins are present on the target.
-  void setFreestanding(bool Enabled) { Freestanding = Enabled; }
+  void setFreestanding(bool Enabled) { Config.Freestanding = Enabled; }
 
-  void setDisableVerify(bool Value) { DisableVerify = Value; }
+  void setDisableVerify(bool Value) { Config.DisableVerify = Value; }
+
+  void setDebugPassManager(bool Enabled) { Config.DebugPassManager = Enabled; }
 
   void setDiagnosticHandler(lto_diagnostic_handler_t, void *);
 
@@ -188,8 +198,6 @@ struct LTOCodeGenerator {
   void DiagnosticHandler(const DiagnosticInfo &DI);
 
 private:
-  void initializeLTOPasses();
-
   /// Verify the merged module on first call.
   ///
   /// Sets \a HasVerifiedInput on first call and doesn't run again on the same
@@ -206,6 +214,9 @@ private:
   bool determineTarget();
   std::unique_ptr<TargetMachine> createTargetMachine();
 
+  bool useAIXSystemAssembler();
+  bool runAIXSystemAssembler(SmallString<128> &AssemblyFile);
+
   void emitError(const std::string &ErrMsg);
   void emitWarning(const std::string &ErrMsg);
 
@@ -218,30 +229,28 @@ private:
   bool EmitDwarfDebugInfo = false;
   bool ScopeRestrictionsDone = false;
   bool HasVerifiedInput = false;
-  Optional<Reloc::Model> RelocModel;
   StringSet<> MustPreserveSymbols;
   StringSet<> AsmUndefinedRefs;
   StringMap<GlobalValue::LinkageTypes> ExternalSymbols;
   std::vector<std::string> CodegenOptions;
   std::string FeatureStr;
-  std::string MCpu;
-  std::vector<std::string> MAttrs;
   std::string NativeObjectPath;
-  TargetOptions Options;
-  CodeGenOpt::Level CGOptLevel = CodeGenOpt::Default;
   const Target *MArch = nullptr;
   std::string TripleStr;
-  unsigned OptLevel = 2;
   lto_diagnostic_handler_t DiagHandler = nullptr;
   void *DiagContext = nullptr;
   bool ShouldInternalize = EnableLTOInternalization;
   bool ShouldEmbedUselists = false;
   bool ShouldRestoreGlobalsLinkage = false;
-  CodeGenFileType FileType = CGFT_ObjectFile;
   std::unique_ptr<ToolOutputFile> DiagnosticOutputFile;
-  bool Freestanding = false;
   std::unique_ptr<ToolOutputFile> StatsFile = nullptr;
-  bool DisableVerify = false;
+  std::string SaveIRBeforeOptPath;
+
+  lto::Config Config;
 };
+
+/// A convenience function that calls cl::ParseCommandLineOptions on the given
+/// set of options.
+void parseCommandLineOptions(std::vector<std::string> &Options);
 }
 #endif

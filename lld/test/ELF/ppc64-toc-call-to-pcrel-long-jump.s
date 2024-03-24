@@ -3,23 +3,28 @@
 
 # RUN: llvm-mc -filetype=obj -triple=powerpc64le %t/asm -o %t.o
 # RUN: ld.lld -T %t/lts %t.o -o %t_le
-# RUN: llvm-objdump --mcpu=pwr10 --no-show-raw-insn -d %t_le | FileCheck %s
+# RUN: llvm-objdump --no-show-raw-insn -d %t_le | FileCheck %s
 # RUN: llvm-readelf -s %t_le | FileCheck %s --check-prefix=SYM
 
 # RUN: llvm-mc -filetype=obj -triple=powerpc64 %t/asm -o %t.o
 # RUN: ld.lld -T %t/lts %t.o -o %t_be
-# RUN: llvm-objdump --mcpu=pwr10 --no-show-raw-insn -d %t_be | FileCheck %s
+# RUN: llvm-objdump --no-show-raw-insn -d %t_be | FileCheck %s
 # RUN: llvm-readelf -s %t_be | FileCheck %s --check-prefix=SYM
+
+# RUN: llvm-mc -filetype=obj -triple=powerpc64le %t/asm -o %t.o
+# RUN: ld.lld -T %t/lts %t.o -o %t_le --no-power10-stubs
+# RUN: llvm-objdump --no-show-raw-insn -d %t_le | FileCheck %s
+# RUN: llvm-readelf -s %t_le | FileCheck %s --check-prefix=SYM
 
 # SYM:      Symbol table '.symtab' contains 9 entries:
 # SYM:      1: 0000000010010000     0 NOTYPE  LOCAL  DEFAULT [<other: 0x20>]   1 callee
-# SYM-NEXT: 2: 0000000020020008     0 NOTYPE  LOCAL  DEFAULT [<other: 0x60>]   3 caller
-# SYM-NEXT: 3: 0000000010020008     0 NOTYPE  LOCAL  DEFAULT                  2 caller_close
+# SYM-NEXT: 2: 0000000010020008     0 NOTYPE  LOCAL  DEFAULT                  2 caller_close
+# SYM-NEXT: 3: 0000000020020008     0 NOTYPE  LOCAL  DEFAULT [<other: 0x60>]   3 caller
 # SYM-NEXT: 4: 0000000520020008     0 NOTYPE  LOCAL  DEFAULT                  4 caller_far
-# SYM-NEXT: 5: 0000000520028038     0 NOTYPE  LOCAL  HIDDEN                   6 .TOC.
+# SYM-NEXT: 5: 0000000520028040     0 NOTYPE  LOCAL  HIDDEN                   6 .TOC.
 # SYM-NEXT: 6: 0000000010020020     8 FUNC    LOCAL  DEFAULT                  2 __toc_save_callee
-# SYM-NEXT: 7: 0000000020020020    20 FUNC    LOCAL  DEFAULT                  3 __toc_save_callee
-# SYM-NEXT: 8: 0000000520020020    20 FUNC    LOCAL  DEFAULT                  4 __toc_save_callee
+# SYM-NEXT: 7: 0000000020020020    32 FUNC    LOCAL  DEFAULT                  3 __toc_save_callee
+# SYM-NEXT: 8: 0000000520020020    32 FUNC    LOCAL  DEFAULT                  4 __toc_save_callee
 
 #--- lts
 PHDRS {
@@ -69,9 +74,11 @@ caller_close:
 # CHECK-NEXT:    blr
 # CHECK-LABEL: <__toc_save_callee>:
 # CHECK:         std 2, 24(1)
-# CHECK-NEXT:    paddi 12, 0, -268501028, 1
+# CHECK-NEXT:    addis 12, 2, -4098
+# CHECK-NEXT:    addi 12, 12, 32704
 # CHECK-NEXT:    mtctr 12
 # CHECK-NEXT:    bctr
+
 .section .text_caller, "ax", %progbits
 .Lfunc_toc2:
   .quad .TOC.-.Lfunc_gep2

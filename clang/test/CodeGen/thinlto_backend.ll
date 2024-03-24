@@ -47,18 +47,18 @@
 ; Ensure we get expected error for input files without summaries
 ; RUN: opt -o %t2.o %s
 ; RUN: %clang -target x86_64-unknown-linux-gnu -O2 -o %t3.o -x ir %t1.o -c -fthinlto-index=%t.thinlto.bc 2>&1 | FileCheck %s -check-prefix=CHECK-ERROR2
-; CHECK-ERROR2: Error loading imported file '{{.*}}': Could not find module summary
+; CHECK-ERROR2: Error loading imported file {{.*}}: Could not find module summary
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 declare void @f2()
-declare i8* @f3()
+declare ptr @f3()
 
 define void @f1() {
   call void @f2()
   ; Make sure that the backend can handle undefined references.
   ; Do an indirect call so that the undefined ref shows up in the combined index.
-  call void bitcast (i8*()* @f3 to void()*)()
+  call void @f3()
   ret void
 }

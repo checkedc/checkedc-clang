@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <linux/futex.h>
 #include <sched.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -50,27 +51,24 @@ void *map(void *Addr, uptr Size, UNUSED const char *Name, uptr Flags,
     MmapProt = PROT_NONE;
   } else {
     MmapProt = PROT_READ | PROT_WRITE;
+  }
 #if defined(__aarch64__)
 #ifndef PROT_MTE
 #define PROT_MTE 0x20
 #endif
-    if (Flags & MAP_MEMTAG)
-      MmapProt |= PROT_MTE;
+  if (Flags & MAP_MEMTAG)
+    MmapProt |= PROT_MTE;
 #endif
-  }
-  if (Addr) {
-    // Currently no scenario for a noaccess mapping with a fixed address.
-    DCHECK_EQ(Flags & MAP_NOACCESS, 0);
+  if (Addr)
     MmapFlags |= MAP_FIXED;
-  }
   void *P = mmap(Addr, Size, MmapProt, MmapFlags, -1, 0);
   if (P == MAP_FAILED) {
     if (!(Flags & MAP_ALLOWNOMEM) || errno != ENOMEM)
-      dieOnMapUnmapError(errno == ENOMEM);
+      dieOnMapUnmapError(errno == ENOMEM ? Size : 0);
     return nullptr;
   }
 #if SCUDO_ANDROID
-  if (!(Flags & MAP_NOACCESS))
+  if (Name)
     prctl(ANDROID_PR_SET_VMA, ANDROID_PR_SET_VMA_ANON_NAME, P, Size, Name);
 #endif
   return P;
@@ -82,9 +80,17 @@ void unmap(void *Addr, uptr Size, UNUSED uptr Flags,
     dieOnMapUnmapError();
 }
 
+void setMemoryPermission(uptr Addr, uptr Size, uptr Flags,
+                         UNUSED MapPlatformData *Data) {
+  int Prot = (Flags & MAP_NOACCESS) ? PROT_NONE : (PROT_READ | PROT_WRITE);
+  if (mprotect(reinterpret_cast<void *>(Addr), Size, Prot) != 0)
+    dieOnMapUnmapError();
+}
+
 void releasePagesToOS(uptr BaseAddress, uptr Offset, uptr Size,
                       UNUSED MapPlatformData *Data) {
   void *Addr = reinterpret_cast<void *>(BaseAddress + Offset);
+
   while (madvise(Addr, Size, MADV_DONTNEED) == -1 && errno == EAGAIN) {
   }
 }
@@ -174,6 +180,39 @@ bool getRandom(void *Buffer, uptr Length, UNUSED bool Blocking) {
 // Allocation free syslog-like API.
 extern "C" WEAK int async_safe_write_log(int pri, const char *tag,
                                          const char *msg);
+
+static uptr GetRSSFromBuffer(const char *Buf) {
+  // The format of the file is:
+  // 1084 89 69 11 0 79 0
+  // We need the second number which is RSS in pages.
+  const char *Pos = Buf;
+  // Skip the first number.
+  while (*Pos >= '0' && *Pos <= '9')
+    Pos++;
+  // Skip whitespaces.
+  while (!(*Pos >= '0' && *Pos <= '9') && *Pos != 0)
+    Pos++;
+  // Read the number.
+  u64 Rss = 0;
+  for (; *Pos >= '0' && *Pos <= '9'; Pos++)
+    Rss = Rss * 10 + static_cast<u64>(*Pos) - '0';
+  return static_cast<uptr>(Rss * getPageSizeCached());
+}
+
+uptr GetRSS() {
+  // TODO: We currently use sanitizer_common's GetRSS which reads the
+  // RSS from /proc/self/statm by default. We might want to
+  // call getrusage directly, even if it's less accurate.
+  auto Fd = open("/proc/self/statm", O_RDONLY);
+  char Buf[64];
+  s64 Len = read(Fd, Buf, sizeof(Buf) - 1);
+  close(Fd);
+  if (Len <= 0)
+    return 0;
+  Buf[Len] = 0;
+
+  return GetRSSFromBuffer(Buf);
+}
 
 void outputRaw(const char *Buffer) {
   if (&async_safe_write_log) {

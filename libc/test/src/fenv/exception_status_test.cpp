@@ -10,7 +10,7 @@
 #include "src/fenv/feraiseexcept.h"
 #include "src/fenv/fetestexcept.h"
 
-#include "utils/FPUtil/FEnv.h"
+#include "src/__support/FPUtil/FEnvImpl.h"
 #include "utils/UnitTest/Test.h"
 
 #include <fenv.h>
@@ -20,10 +20,14 @@ TEST(LlvmLibcExceptionStatusTest, RaiseAndTest) {
   // status flags are updated. The intention is really not to invoke the
   // exception handler. Hence, we will disable all exceptions at the
   // beginning.
-  __llvm_libc::fputil::disableExcept(FE_ALL_EXCEPT);
+  __llvm_libc::fputil::disable_except(FE_ALL_EXCEPT);
 
   int excepts[] = {FE_DIVBYZERO, FE_INVALID, FE_INEXACT, FE_OVERFLOW,
                    FE_UNDERFLOW};
+
+  constexpr int ALL_EXCEPTS =
+      FE_DIVBYZERO | FE_INVALID | FE_INEXACT | FE_OVERFLOW | FE_UNDERFLOW;
+
   for (int e : excepts) {
     int r = __llvm_libc::feraiseexcept(e);
     ASSERT_EQ(r, 0);
@@ -108,8 +112,8 @@ TEST(LlvmLibcExceptionStatusTest, RaiseAndTest) {
     }
   }
 
-  int r = __llvm_libc::feraiseexcept(FE_ALL_EXCEPT);
+  int r = __llvm_libc::feraiseexcept(ALL_EXCEPTS);
   ASSERT_EQ(r, 0);
-  int s = __llvm_libc::fetestexcept(FE_ALL_EXCEPT);
-  ASSERT_EQ(s, FE_ALL_EXCEPT);
+  int s = __llvm_libc::fetestexcept(ALL_EXCEPTS);
+  ASSERT_EQ(s, ALL_EXCEPTS);
 }

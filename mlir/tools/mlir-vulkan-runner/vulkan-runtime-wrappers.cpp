@@ -17,7 +17,12 @@
 #include "VulkanRuntime.h"
 
 // Explicitly export entry points to the vulkan-runtime-wrapper.
+
+#ifdef _WIN32
+#define VULKAN_WRAPPER_SYMBOL_EXPORT __declspec(dllexport)
+#else
 #define VULKAN_WRAPPER_SYMBOL_EXPORT __attribute__((visibility("default")))
+#endif // _WIN32
 
 namespace {
 
@@ -65,7 +70,8 @@ private:
 
 } // namespace
 
-template <typename T, int N> struct MemRefDescriptor {
+template <typename T, int N>
+struct MemRefDescriptor {
   T *allocated;
   T *aligned;
   int64_t offset;
@@ -79,7 +85,7 @@ void bindMemRef(void *vkRuntimeManager, DescriptorSetIndex setIndex,
   uint32_t size = sizeof(T);
   for (unsigned i = 0; i < S; i++)
     size *= ptr->sizes[i];
-  VulkanHostMemoryBuffer memBuffer{ptr->allocated, size};
+  VulkanHostMemoryBuffer memBuffer{ptr->aligned, size};
   reinterpret_cast<VulkanRuntimeManager *>(vkRuntimeManager)
       ->setResourceData(setIndex, bindIndex, memBuffer);
 }

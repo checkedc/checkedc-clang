@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -8,7 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
+
+// Aligned allocation is required by std::experimental::pmr, but it was not provided
+// before macosx10.13 and as a result we get linker errors when deploying to older than
+// macosx10.13.
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}}
 
 // <experimental/regex>
 
@@ -25,6 +29,8 @@
 //  typedef match_results<wstring::const_iterator> wsmatch;
 //
 // }}} // namespace std::experimental::pmr
+
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <experimental/regex>
 #include <type_traits>
@@ -46,9 +52,11 @@ int main(int, char**)
 {
     {
         test_match_result_typedef<const char*, pmr::cmatch>();
-        test_match_result_typedef<const wchar_t*, pmr::wcmatch>();
         test_match_result_typedef<pmr::string::const_iterator, pmr::smatch>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
+        test_match_result_typedef<const wchar_t*, pmr::wcmatch>();
         test_match_result_typedef<pmr::wstring::const_iterator, pmr::wsmatch>();
+#endif
     }
     {
         // Check that std::match_results has been included and is complete.

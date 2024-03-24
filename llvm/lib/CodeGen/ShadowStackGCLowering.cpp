@@ -17,11 +17,13 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -37,7 +39,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include <cassert>
-#include <cstddef>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -67,6 +69,7 @@ public:
   ShadowStackGCLowering();
 
   bool doInitialization(Module &M) override;
+  void getAnalysisUsage(AnalysisUsage &AU) const override;
   bool runOnFunction(Function &F) override;
 
 private:
@@ -86,10 +89,12 @@ private:
 } // end anonymous namespace
 
 char ShadowStackGCLowering::ID = 0;
+char &llvm::ShadowStackGCLoweringID = ShadowStackGCLowering::ID;
 
 INITIALIZE_PASS_BEGIN(ShadowStackGCLowering, DEBUG_TYPE,
                       "Shadow Stack GC Lowering", false, false)
 INITIALIZE_PASS_DEPENDENCY(GCModuleInfo)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(ShadowStackGCLowering, DEBUG_TYPE,
                     "Shadow Stack GC Lowering", false, false)
 
@@ -157,8 +162,8 @@ Type *ShadowStackGCLowering::GetConcreteStackEntryType(Function &F) {
   // doInitialization creates the generic version of this type.
   std::vector<Type *> EltTys;
   EltTys.push_back(StackEntryTy);
-  for (size_t I = 0; I != Roots.size(); I++)
-    EltTys.push_back(Roots[I].second->getAllocatedType());
+  for (const std::pair<CallInst *, AllocaInst *> &Root : Roots)
+    EltTys.push_back(Root.second->getAllocatedType());
 
   return StructType::create(EltTys, ("gc_stackentry." + F.getName()).str());
 }
@@ -234,9 +239,9 @@ void ShadowStackGCLowering::CollectRoots(Function &F) {
 
   SmallVector<std::pair<CallInst *, AllocaInst *>, 16> MetaRoots;
 
-  for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
-    for (BasicBlock::iterator II = BB->begin(), E = BB->end(); II != E;)
-      if (IntrinsicInst *CI = dyn_cast<IntrinsicInst>(II++))
+  for (BasicBlock &BB : F)
+    for (Instruction &I : BB)
+      if (IntrinsicInst *CI = dyn_cast<IntrinsicInst>(&I))
         if (Function *F = CI->getCalledFunction())
           if (F->getIntrinsicID() == Intrinsic::gcroot) {
             std::pair<CallInst *, AllocaInst *> Pair = std::make_pair(
@@ -280,6 +285,10 @@ GetElementPtrInst *ShadowStackGCLowering::CreateGEP(LLVMContext &Context,
   return dyn_cast<GetElementPtrInst>(Val);
 }
 
+void ShadowStackGCLowering::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addPreserved<DominatorTreeWrapperPass>();
+}
+
 /// runOnFunction - Insert code to maintain the shadow stack.
 bool ShadowStackGCLowering::runOnFunction(Function &F) {
   // Quick exit for functions that do not use the shadow stack GC.
@@ -297,6 +306,10 @@ bool ShadowStackGCLowering::runOnFunction(Function &F) {
   if (Roots.empty())
     return false;
 
+  std::optional<DomTreeUpdater> DTU;
+  if (auto *DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>())
+    DTU.emplace(DTWP->getDomTree(), DomTreeUpdater::UpdateStrategy::Lazy);
+
   // Build the constant map and figure the type of the shadow stack entry.
   Value *FrameMap = GetFrameMap(F);
   Type *ConcreteStackEntryTy = GetConcreteStackEntryType(F);
@@ -308,9 +321,8 @@ bool ShadowStackGCLowering::runOnFunction(Function &F) {
   Instruction *StackEntry =
       AtEntry.CreateAlloca(ConcreteStackEntryTy, nullptr, "gc_frame");
 
-  while (isa<AllocaInst>(IP))
-    ++IP;
-  AtEntry.SetInsertPoint(IP->getParent(), IP);
+  AtEntry.SetInsertPointPastAllocas(&F);
+  IP = AtEntry.GetInsertPoint();
 
   // Initialize the map pointer and load the current head of the shadow stack.
   Instruction *CurrentHead =
@@ -348,7 +360,8 @@ bool ShadowStackGCLowering::runOnFunction(Function &F) {
   AtEntry.CreateStore(NewHeadVal, Head);
 
   // For each instruction that escapes...
-  EscapeEnumerator EE(F, "gc_cleanup");
+  EscapeEnumerator EE(F, "gc_cleanup", /*HandleExceptions=*/true,
+                      DTU ? &*DTU : nullptr);
   while (IRBuilder<> *AtExit = EE.Next()) {
     // Pop the entry from the shadow stack. Don't reuse CurrentHead from
     // AtEntry, since that would make the value live for the entire function.
@@ -363,9 +376,9 @@ bool ShadowStackGCLowering::runOnFunction(Function &F) {
   // Delete the original allocas (which are no longer used) and the intrinsic
   // calls (which are no longer valid). Doing this last avoids invalidating
   // iterators.
-  for (unsigned I = 0, E = Roots.size(); I != E; ++I) {
-    Roots[I].first->eraseFromParent();
-    Roots[I].second->eraseFromParent();
+  for (std::pair<CallInst *, AllocaInst *> &Root : Roots) {
+    Root.first->eraseFromParent();
+    Root.second->eraseFromParent();
   }
 
   Roots.clear();

@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 integer :: y
 procedure() :: a
 procedure(real) :: b
@@ -18,6 +18,7 @@ subroutine s
   !ERROR: Cannot call function 'f' like a subroutine
   call f
   !ERROR: Cannot call subroutine 's' like a function
+  !ERROR: Function result characteristics are not known
   i = s()
 contains
   function f()
@@ -69,9 +70,9 @@ subroutine s4
   block
     import, none
     integer :: i
-    !ERROR: Use of 'm' as a procedure conflicts with its declaration
+    !ERROR: 'm' is not a callable procedure
     i = m()
-    !ERROR: Use of 'm' as a procedure conflicts with its declaration
+    !ERROR: 'm' is not a callable procedure
     call m()
   end block
 end
@@ -112,3 +113,16 @@ end
 function b8()
   b8 = 0.0
 end
+
+subroutine s9
+  type t
+    procedure(), nopass, pointer :: p1, p2
+  end type
+  type(t) x
+  print *, x%p1()
+  call x%p2
+  !ERROR: Cannot call function 'p1' like a subroutine
+  call x%p1
+  !ERROR: Cannot call subroutine 'p2' like a function
+  print *, x%p2()
+end subroutine

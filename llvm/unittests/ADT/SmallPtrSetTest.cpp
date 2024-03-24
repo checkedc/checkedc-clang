@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/PointerIntPair.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 #include "gtest/gtest.h"
 
@@ -298,7 +299,7 @@ TEST(SmallPtrSetTest, dereferenceAndIterate) {
 
   // Sort.  We should hit the first element just once and the final element N
   // times.
-  llvm::sort(std::begin(Found), std::end(Found));
+  llvm::sort(Found);
   for (auto F = std::begin(Found), E = std::end(Found); F != E; ++F)
     EXPECT_EQ(F - Found + 1, *F);
 }
@@ -394,4 +395,17 @@ TEST(SmallPtrSetTest, Contains) {
   EXPECT_TRUE(Set.contains(&buf[0]));
   EXPECT_TRUE(Set.contains(&buf[1]));
   EXPECT_TRUE(Set.contains(&buf[2]));
+}
+
+TEST(SmallPtrSetTest, InsertIterator) {
+  SmallPtrSet<int *, 5> Set;
+  int Vals[5] = {11, 22, 33, 44, 55};
+  int *Buf[5] = {&Vals[0], &Vals[1], &Vals[2], &Vals[3], &Vals[4]};
+
+  for (int *Ptr : Buf)
+    Set.insert(Set.begin(), Ptr);
+
+  // Ensure that all of the values were copied into the set.
+  for (const auto *Ptr : Buf)
+    EXPECT_TRUE(Set.contains(Ptr));
 }

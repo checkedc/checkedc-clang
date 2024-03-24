@@ -1,3 +1,4 @@
+// UNSUPPORTED: target={{.*}}-zos{{.*}}, target={{.*}}-aix{{.*}}
 // Test that (the same) debug info is emitted for an Objective-C++
 // module and a C++ precompiled header.
 

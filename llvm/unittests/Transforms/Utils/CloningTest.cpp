@@ -25,6 +25,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -177,7 +178,8 @@ TEST_F(CloneInstruction, Attributes) {
   ValueToValueMapTy VMap;
   VMap[A] = UndefValue::get(A->getType());
 
-  CloneFunctionInto(F2, F1, VMap, false, Returns);
+  CloneFunctionInto(F2, F1, VMap, CloneFunctionChangeType::LocalChangesOnly,
+                    Returns);
   EXPECT_FALSE(F2->arg_begin()->hasNoCaptureAttr());
 
   delete F1;
@@ -200,7 +202,8 @@ TEST_F(CloneInstruction, CallingConvention) {
   ValueToValueMapTy VMap;
   VMap[&*F1->arg_begin()] = &*F2->arg_begin();
 
-  CloneFunctionInto(F2, F1, VMap, false, Returns);
+  CloneFunctionInto(F2, F1, VMap, CloneFunctionChangeType::LocalChangesOnly,
+                    Returns);
   EXPECT_EQ(CallingConv::Cold, F2->getCallingConv());
 
   delete F1;
@@ -470,7 +473,7 @@ protected:
 
     // Function DI
     auto *File = DBuilder.createFile("filename.c", "/file/dir/");
-    DITypeRefArray ParamTypes = DBuilder.getOrCreateTypeArray(None);
+    DITypeRefArray ParamTypes = DBuilder.getOrCreateTypeArray(std::nullopt);
     DISubroutineType *FuncType =
         DBuilder.createSubroutineType(ParamTypes);
     auto *CU = DBuilder.createCompileUnit(dwarf::DW_LANG_C99,
@@ -663,6 +666,28 @@ static int GetDICompileUnitCount(const Module& M) {
   return 0;
 }
 
+static bool haveCompileUnitsInCommon(const Module &LHS, const Module &RHS) {
+  const NamedMDNode *LHSCUs = LHS.getNamedMetadata("llvm.dbg.cu");
+  if (!LHSCUs)
+    return false;
+
+  const NamedMDNode *RHSCUs = RHS.getNamedMetadata("llvm.dbg.cu");
+  if (!RHSCUs)
+    return false;
+
+  SmallPtrSet<const MDNode *, 8> Found;
+  for (int I = 0, E = LHSCUs->getNumOperands(); I != E; ++I)
+    if (const MDNode *N = LHSCUs->getOperand(I))
+      Found.insert(N);
+
+  for (int I = 0, E = RHSCUs->getNumOperands(); I != E; ++I)
+    if (const MDNode *N = RHSCUs->getOperand(I))
+      if (Found.count(N))
+        return true;
+
+  return false;
+}
+
 TEST(CloneFunction, CloneEmptyFunction) {
   StringRef ImplAssembly = R"(
     define void @foo() {
@@ -684,7 +709,8 @@ TEST(CloneFunction, CloneEmptyFunction) {
   ValueToValueMapTy VMap;
   SmallVector<ReturnInst *, 8> Returns;
   ClonedCodeInfo CCI;
-  CloneFunctionInto(ImplFunction, DeclFunction, VMap, true, Returns, "", &CCI);
+  CloneFunctionInto(ImplFunction, DeclFunction, VMap,
+                    CloneFunctionChangeType::GlobalChanges, Returns, "", &CCI);
 
   EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
   EXPECT_FALSE(CCI.ContainsCalls);
@@ -693,10 +719,10 @@ TEST(CloneFunction, CloneEmptyFunction) {
 
 TEST(CloneFunction, CloneFunctionWithInalloca) {
   StringRef ImplAssembly = R"(
-    declare void @a(i32* inalloca)
+    declare void @a(i32* inalloca(i32))
     define void @foo() {
       %a = alloca inalloca i32
-      call void @a(i32* inalloca %a)
+      call void @a(i32* inalloca(i32) %a)
       ret void
     }
     declare void @bar()
@@ -715,7 +741,8 @@ TEST(CloneFunction, CloneFunctionWithInalloca) {
   ValueToValueMapTy VMap;
   SmallVector<ReturnInst *, 8> Returns;
   ClonedCodeInfo CCI;
-  CloneFunctionInto(DeclFunction, ImplFunction, VMap, true, Returns, "", &CCI);
+  CloneFunctionInto(DeclFunction, ImplFunction, VMap,
+                    CloneFunctionChangeType::GlobalChanges, Returns, "", &CCI);
 
   EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
   EXPECT_TRUE(CCI.ContainsCalls);
@@ -764,11 +791,64 @@ TEST(CloneFunction, CloneFunctionWithSubprograms) {
   ValueToValueMapTy VMap;
   SmallVector<ReturnInst *, 8> Returns;
   ClonedCodeInfo CCI;
-  CloneFunctionInto(NewFunc, OldFunc, VMap, true, Returns, "", &CCI);
+  CloneFunctionInto(NewFunc, OldFunc, VMap,
+                    CloneFunctionChangeType::GlobalChanges, Returns, "", &CCI);
 
   // This fails if the scopes in the llvm.dbg.declare variable and location
   // aren't the same.
   EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+}
+
+TEST(CloneFunction, CloneFunctionWithInlinedSubprograms) {
+  StringRef ImplAssembly = R"(
+    declare void @llvm.dbg.declare(metadata, metadata, metadata)
+
+    define void @test() !dbg !3 {
+      call void @llvm.dbg.declare(metadata i8* undef, metadata !5, metadata !DIExpression()), !dbg !7
+      ret void
+    }
+
+    declare void @cloned()
+
+    !llvm.dbg.cu = !{!0}
+    !llvm.module.flags = !{!2}
+    !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1)
+    !1 = !DIFile(filename: "test.cpp",  directory: "")
+    !2 = !{i32 1, !"Debug Info Version", i32 3}
+    !3 = distinct !DISubprogram(name: "test", scope: !0, unit: !0)
+    !4 = distinct !DISubprogram(name: "inlined", scope: !0, unit: !0, retainedNodes: !{!5})
+    !5 = !DILocalVariable(name: "awaitables", scope: !4)
+    !6 = distinct !DILexicalBlock(scope: !4, file: !1, line: 1)
+    !7 = !DILocation(line: 1, scope: !6, inlinedAt: !8)
+    !8 = !DILocation(line: 10, scope: !3)
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  EXPECT_TRUE(ImplModule != nullptr);
+  auto *Func = ImplModule->getFunction("test");
+  EXPECT_TRUE(Func != nullptr);
+  auto *ClonedFunc = ImplModule->getFunction("cloned");
+  EXPECT_TRUE(ClonedFunc != nullptr);
+
+  ValueToValueMapTy VMap;
+  SmallVector<ReturnInst *, 8> Returns;
+  ClonedCodeInfo CCI;
+  CloneFunctionInto(ClonedFunc, Func, VMap,
+                    CloneFunctionChangeType::GlobalChanges, Returns, "", &CCI);
+
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+
+  // Check that DILexicalBlock of inlined function was not cloned.
+  auto DbgDeclareI = Func->begin()->begin();
+  auto ClonedDbgDeclareI = ClonedFunc->begin()->begin();
+  const DebugLoc &DbgLoc = DbgDeclareI->getDebugLoc();
+  const DebugLoc &ClonedDbgLoc = ClonedDbgDeclareI->getDebugLoc();
+  EXPECT_NE(DbgLoc.get(), ClonedDbgLoc.get());
+  EXPECT_EQ(cast<DILexicalBlock>(DbgLoc.getScope()),
+            cast<DILexicalBlock>(ClonedDbgLoc.getScope()));
 }
 
 TEST(CloneFunction, CloneFunctionToDifferentModule) {
@@ -812,12 +892,14 @@ TEST(CloneFunction, CloneFunctionToDifferentModule) {
   VMap[ImplFunction] = DeclFunction;
   // No args to map
   SmallVector<ReturnInst*, 8> Returns;
-  CloneFunctionInto(DeclFunction, ImplFunction, VMap, true, Returns);
+  CloneFunctionInto(DeclFunction, ImplFunction, VMap,
+                    CloneFunctionChangeType::DifferentModule, Returns);
 
   EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
   EXPECT_FALSE(verifyModule(*DeclModule, &errs()));
-  // DICompileUnit !2 shall be inserted into DeclModule.
+  // DICompileUnit !2 shall be cloned into DeclModule.
   EXPECT_TRUE(GetDICompileUnitCount(*DeclModule) == 1);
+  EXPECT_FALSE(haveCompileUnitsInCommon(*ImplModule, *DeclModule));
 }
 
 class CloneModule : public ::testing::Test {
@@ -840,6 +922,33 @@ protected:
     GV->addMetadata(LLVMContext::MD_type, *MDNode::get(C, {}));
     GV->setComdat(CD);
 
+    // Add ifuncs
+    {
+      const unsigned AddrSpace = 123;
+      auto *FuncPtrTy = Type::getInt8Ty(C)->getPointerTo(123);
+      auto *FuncTy = FunctionType::get(FuncPtrTy, false);
+
+      auto *ResolverF = Function::Create(FuncTy, GlobalValue::PrivateLinkage,
+                                         AddrSpace, "resolver", OldM);
+      BasicBlock *ResolverBody = BasicBlock::Create(C, "", ResolverF);
+      ReturnInst::Create(C, ConstantPointerNull::get(FuncPtrTy), ResolverBody);
+
+      GlobalIFunc *GI = GlobalIFunc::create(FuncTy, AddrSpace,
+                                            GlobalValue::LinkOnceODRLinkage,
+                                            "an_ifunc", ResolverF, OldM);
+      GI->setVisibility(GlobalValue::ProtectedVisibility);
+    }
+
+    {
+      // Add an empty compile unit first that isn't otherwise referenced, to
+      // confirm that compile units get cloned in the correct order.
+      DIBuilder EmptyBuilder(*OldM);
+      auto *File = EmptyBuilder.createFile("empty.c", "/file/dir/");
+      (void)EmptyBuilder.createCompileUnit(dwarf::DW_LANG_C99, File,
+                                           "EmptyUnit", false, "", 0);
+      EmptyBuilder.finalize();
+    }
+
     DIBuilder DBuilder(*OldM);
     IRBuilder<> IBuilder(C);
 
@@ -853,7 +962,7 @@ protected:
 
     // Create debug info
     auto *File = DBuilder.createFile("filename.c", "/file/dir/");
-    DITypeRefArray ParamTypes = DBuilder.getOrCreateTypeArray(None);
+    DITypeRefArray ParamTypes = DBuilder.getOrCreateTypeArray(std::nullopt);
     DISubroutineType *DFuncType = DBuilder.createSubroutineType(ParamTypes);
     auto *CU = DBuilder.createCompileUnit(dwarf::DW_LANG_C99,
                                           DBuilder.createFile("filename.c",
@@ -882,6 +991,10 @@ protected:
     IBuilder.SetInsertPoint(Entry);
     IBuilder.CreateRetVoid();
 
+    auto *G =
+        Function::Create(FuncType, GlobalValue::ExternalLinkage, "g", OldM);
+    G->addMetadata(LLVMContext::MD_type, *MDNode::get(C, {}));
+
     // Finalize the debug info
     DBuilder.finalize();
   }
@@ -894,7 +1007,11 @@ protected:
 };
 
 TEST_F(CloneModule, Verify) {
-  EXPECT_FALSE(verifyModule(*NewM));
+  // Confirm the old module is (still) valid.
+  EXPECT_FALSE(verifyModule(*OldM, &errs()));
+
+  // Check the new module.
+  EXPECT_FALSE(verifyModule(*NewM, &errs()));
 }
 
 TEST_F(CloneModule, OldModuleUnchanged) {
@@ -910,6 +1027,11 @@ TEST_F(CloneModule, Subprogram) {
   EXPECT_EQ(SP->getName(), "f");
   EXPECT_EQ(SP->getFile()->getFilename(), "filename.c");
   EXPECT_EQ(SP->getLine(), (unsigned)4);
+}
+
+TEST_F(CloneModule, FunctionDeclarationMetadata) {
+  Function *NewF = NewM->getFunction("g");
+  EXPECT_NE(nullptr, NewF->getMetadata(LLVMContext::MD_type));
 }
 
 TEST_F(CloneModule, GlobalMetadata) {
@@ -944,10 +1066,19 @@ TEST_F(CloneModule, CompileUnit) {
   // Find DICompileUnit listed in llvm.dbg.cu
   auto *NMD = NewM->getNamedMetadata("llvm.dbg.cu");
   EXPECT_TRUE(NMD != nullptr);
-  EXPECT_EQ(NMD->getNumOperands(), 1U);
+  EXPECT_EQ(NMD->getNumOperands(), 2U);
+  EXPECT_FALSE(haveCompileUnitsInCommon(*OldM, *NewM));
 
-  DICompileUnit *CU = dyn_cast<llvm::DICompileUnit>(NMD->getOperand(0));
+  // Check that the empty CU is first, even though it's not referenced except
+  // from named metadata.
+  DICompileUnit *EmptyCU = dyn_cast<llvm::DICompileUnit>(NMD->getOperand(0));
+  EXPECT_TRUE(EmptyCU != nullptr);
+  EXPECT_EQ("EmptyUnit", EmptyCU->getProducer());
+
+  // Get the interesting CU.
+  DICompileUnit *CU = dyn_cast<llvm::DICompileUnit>(NMD->getOperand(1));
   EXPECT_TRUE(CU != nullptr);
+  EXPECT_EQ("CloneModule", CU->getProducer());
 
   // Assert this CU is consistent with the cloned function debug info
   DISubprogram *SP = NewM->getFunction("f")->getSubprogram();
@@ -972,5 +1103,20 @@ TEST_F(CloneModule, Comdat) {
 
   Function *NewF = NewM->getFunction("f");
   EXPECT_EQ(CD, NewF->getComdat());
+}
+
+TEST_F(CloneModule, IFunc) {
+  ASSERT_EQ(1u, NewM->ifunc_size());
+
+  const GlobalIFunc &IFunc = *NewM->ifunc_begin();
+  EXPECT_EQ("an_ifunc", IFunc.getName());
+  EXPECT_EQ(GlobalValue::LinkOnceODRLinkage, IFunc.getLinkage());
+  EXPECT_EQ(GlobalValue::ProtectedVisibility, IFunc.getVisibility());
+  EXPECT_EQ(123u, IFunc.getAddressSpace());
+
+  const Function *Resolver = IFunc.getResolverFunction();
+  ASSERT_NE(nullptr, Resolver);
+  EXPECT_EQ("resolver", Resolver->getName());
+  EXPECT_EQ(GlobalValue::PrivateLinkage, Resolver->getLinkage());
 }
 }

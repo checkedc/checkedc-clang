@@ -42,7 +42,7 @@ computeAliasingInstructions(const LLVMState &State, const Instruction *Instr,
   std::vector<unsigned> Opcodes;
   Opcodes.resize(State.getInstrInfo().getNumOpcodes());
   std::iota(Opcodes.begin(), Opcodes.end(), 0U);
-  std::shuffle(Opcodes.begin(), Opcodes.end(), randomGenerator());
+  llvm::shuffle(Opcodes.begin(), Opcodes.end(), randomGenerator());
 
   std::vector<const Instruction *> AliasingInstructions;
   for (const unsigned OtherOpcode : Opcodes) {
@@ -51,7 +51,7 @@ computeAliasingInstructions(const LLVMState &State, const Instruction *Instr,
     const Instruction &OtherInstr = State.getIC().getInstr(OtherOpcode);
     const MCInstrDesc &OtherInstrDesc = OtherInstr.Description;
     // Ignore instructions that we cannot run.
-    if (OtherInstrDesc.isPseudo() ||
+    if (OtherInstrDesc.isPseudo() || OtherInstrDesc.usesCustomInsertionHook() ||
         OtherInstrDesc.isBranch() || OtherInstrDesc.isIndirectBranch() ||
         OtherInstrDesc.isCall() || OtherInstrDesc.isReturn()) {
           continue;
@@ -96,7 +96,7 @@ static void appendCodeTemplates(const LLVMState &State,
   switch (ExecutionModeBit) {
   case ExecutionMode::ALWAYS_SERIAL_IMPLICIT_REGS_ALIAS:
     // Nothing to do, the instruction is always serial.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ExecutionMode::ALWAYS_SERIAL_TIED_REGS_ALIAS: {
     // Picking whatever value for the tied variable will make the instruction
     // serial.
@@ -115,8 +115,8 @@ static void appendCodeTemplates(const LLVMState &State,
   case ExecutionMode::SERIAL_VIA_EXPLICIT_REGS: {
     // Making the execution of this instruction serial by selecting one def
     // register to alias with one use register.
-    const AliasingConfigurations SelfAliasing(Variant.getInstr(),
-                                              Variant.getInstr());
+    const AliasingConfigurations SelfAliasing(
+        Variant.getInstr(), Variant.getInstr(), ForbiddenRegisters);
     assert(!SelfAliasing.empty() && !SelfAliasing.hasImplicitAliasing() &&
            "Instr must alias itself explicitly");
     // This is a self aliasing instruction so defs and uses are from the same
@@ -134,8 +134,9 @@ static void appendCodeTemplates(const LLVMState &State,
     // Select back-to-back non-memory instruction.
     for (const auto *OtherInstr : computeAliasingInstructions(
              State, &Instr, kMaxAliasingInstructions, ForbiddenRegisters)) {
-      const AliasingConfigurations Forward(Instr, *OtherInstr);
-      const AliasingConfigurations Back(*OtherInstr, Instr);
+      const AliasingConfigurations Forward(Instr, *OtherInstr,
+                                           ForbiddenRegisters);
+      const AliasingConfigurations Back(*OtherInstr, Instr, ForbiddenRegisters);
       InstructionTemplate ThisIT(Variant);
       InstructionTemplate OtherIT(OtherInstr);
       if (!Forward.hasImplicitAliasing())

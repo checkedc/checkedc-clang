@@ -152,7 +152,7 @@ struct ExitNode : public MatcherNode {
 /// matched. This does not terminate the matcher, as there may be multiple
 /// successful matches.
 struct SuccessNode : public MatcherNode {
-  explicit SuccessNode(pdl::PatternOp pattern,
+  explicit SuccessNode(pdl::PatternOp pattern, Value root,
                        std::unique_ptr<MatcherNode> failureNode);
 
   /// Returns if the given matcher node is an instance of this class, used to
@@ -164,10 +164,16 @@ struct SuccessNode : public MatcherNode {
   /// Return the high level pattern operation that is matched with this node.
   pdl::PatternOp getPattern() const { return pattern; }
 
+  /// Return the chosen root of the pattern.
+  Value getRoot() const { return root; }
+
 private:
   /// The high level pattern operation that was successfully matched with this
   /// node.
   pdl::PatternOp pattern;
+
+  /// The chosen root of the pattern.
+  Value root;
 };
 
 //===----------------------------------------------------------------------===//
@@ -190,13 +196,19 @@ struct SwitchNode : public MatcherNode {
   using ChildMapT = llvm::MapVector<Qualifier *, std::unique_ptr<MatcherNode>>;
   ChildMapT &getChildren() { return children; }
 
+  /// Returns the child at the given index.
+  std::pair<Qualifier *, std::unique_ptr<MatcherNode>> &getChild(unsigned i) {
+    assert(i < children.size() && "invalid child index");
+    return *std::next(children.begin(), i);
+  }
+
 private:
   /// Switch predicate "answers" select the child. Answers that are not found
   /// default to the failure node.
   ChildMapT children;
 };
 
-} // end namespace pdl_to_pdl_interp
-} // end namespace mlir
+} // namespace pdl_to_pdl_interp
+} // namespace mlir
 
 #endif // MLIR_CONVERSION_PDLTOPDLINTERP_PREDICATETREE_H_

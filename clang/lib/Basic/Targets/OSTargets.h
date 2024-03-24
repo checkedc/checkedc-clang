@@ -13,7 +13,6 @@
 #define LLVM_CLANG_LIB_BASIC_TARGETS_OSTARGETS_H
 
 #include "Targets.h"
-#include "llvm/MC/MCSectionMachO.h"
 
 namespace clang {
 namespace targets {
@@ -51,8 +50,7 @@ protected:
   }
 
 public:
-  CloudABITargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : OSTargetInfo<Target>(Triple, Opts) {}
+  using OSTargetInfo<Target>::OSTargetInfo;
 };
 
 // Ananas target
@@ -67,8 +65,7 @@ protected:
   }
 
 public:
-  AnanasTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : OSTargetInfo<Target>(Triple, Opts) {}
+  using OSTargetInfo<Target>::OSTargetInfo;
 };
 
 void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
@@ -109,18 +106,11 @@ public:
         this->TLSSupported = !Triple.isOSVersionLT(2);
       else
         this->TLSSupported = !Triple.isOSVersionLT(3);
+    } else if (Triple.isDriverKit()) {
+      // No TLS on DriverKit.
     }
 
     this->MCountName = "\01mcount";
-  }
-
-  std::string isValidSectionSpecifier(StringRef SR) const override {
-    // Let MCSectionMachO validate this.
-    StringRef Segment, Section;
-    unsigned TAA, StubSize;
-    bool HasTAA;
-    return llvm::MCSectionMachO::ParseSectionSpecifier(SR, Segment, Section,
-                                                       TAA, HasTAA, StubSize);
   }
 
   const char *getStaticInitSectionSpecifier() const override {
@@ -158,9 +148,7 @@ public:
       return 64;
     }
 
-    unsigned Major, Minor, Micro;
-    T.getOSVersion(Major, Minor, Micro);
-    if (llvm::VersionTuple(Major, Minor, Micro) < MinVersion)
+    if (T.getOSVersion() < MinVersion)
       return 64;
     return OSTargetInfo<Target>::getExnObjectAlignment();
   }
@@ -172,6 +160,10 @@ public:
                ? (IsSigned ? TargetInfo::SignedLongLong
                            : TargetInfo::UnsignedLongLong)
                : TargetInfo::getLeastIntTypeByWidth(BitWidth, IsSigned);
+  }
+
+  bool areDefaultedSMFStillPOD(const LangOptions &) const override {
+    return false;
   }
 };
 
@@ -189,6 +181,8 @@ protected:
     Builder.defineMacro("__KPRINTF_ATTRIBUTE__");
     Builder.defineMacro("__tune_i386__");
     DefineStd(Builder, "unix", Opts);
+    if (this->HasFloat128)
+      Builder.defineMacro("__FLOAT128__");
   }
 
 public:
@@ -198,6 +192,7 @@ public:
     default:
     case llvm::Triple::x86:
     case llvm::Triple::x86_64:
+      this->HasFloat128 = true;
       this->MCountName = ".mcount";
       break;
     }
@@ -261,6 +256,9 @@ public:
     case llvm::Triple::arm:
       this->MCountName = "__mcount";
       break;
+    case llvm::Triple::riscv32:
+    case llvm::Triple::riscv64:
+      break;
     }
   }
 };
@@ -284,8 +282,7 @@ protected:
   }
 
 public:
-  KFreeBSDTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : OSTargetInfo<Target>(Triple, Opts) {}
+  using OSTargetInfo<Target>::OSTargetInfo;
 };
 
 // Haiku Target
@@ -298,7 +295,7 @@ protected:
     Builder.defineMacro("__HAIKU__");
     Builder.defineMacro("__ELF__");
     DefineStd(Builder, "unix", Opts);
-    if (this->HasFloat128) 
+    if (this->HasFloat128)
       Builder.defineMacro("__FLOAT128__");
   }
 
@@ -340,8 +337,7 @@ protected:
       Builder.defineMacro("_GNU_SOURCE");
   }
 public:
-  HurdTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : OSTargetInfo<Target>(Triple, Opts) {}
+  using OSTargetInfo<Target>::OSTargetInfo;
 };
 
 // Minix Target
@@ -364,8 +360,7 @@ protected:
   }
 
 public:
-  MinixTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : OSTargetInfo<Target>(Triple, Opts) {}
+  using OSTargetInfo<Target>::OSTargetInfo;
 };
 
 // Linux target
@@ -380,10 +375,9 @@ protected:
     Builder.defineMacro("__ELF__");
     if (Triple.isAndroid()) {
       Builder.defineMacro("__ANDROID__", "1");
-      unsigned Maj, Min, Rev;
-      Triple.getEnvironmentVersion(Maj, Min, Rev);
       this->PlatformName = "android";
-      this->PlatformMinVersion = VersionTuple(Maj, Min, Rev);
+      this->PlatformMinVersion = Triple.getEnvironmentVersion();
+      const unsigned Maj = this->PlatformMinVersion.getMajor();
       if (Maj) {
         Builder.defineMacro("__ANDROID_MIN_SDK_VERSION__", Twine(Maj));
         // This historical but ambiguous name for the minSdkVersion macro. Keep
@@ -467,6 +461,9 @@ protected:
       Builder.defineMacro("_REENTRANT");
     if (this->HasFloat128)
       Builder.defineMacro("__FLOAT128__");
+
+    if (Opts.C11)
+      Builder.defineMacro("__STDC_NO_THREADS__");
   }
 
 public:
@@ -479,7 +476,7 @@ public:
     case llvm::Triple::x86:
     case llvm::Triple::x86_64:
       this->HasFloat128 = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       this->MCountName = "__mcount";
       break;
@@ -491,25 +488,11 @@ public:
     case llvm::Triple::sparcv9:
       this->MCountName = "_mcount";
       break;
+    case llvm::Triple::riscv32:
+    case llvm::Triple::riscv64:
+      break;
     }
   }
-};
-
-// PSP Target
-template <typename Target>
-class LLVM_LIBRARY_VISIBILITY PSPTargetInfo : public OSTargetInfo<Target> {
-protected:
-  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
-                    MacroBuilder &Builder) const override {
-    // PSP defines; list based on the output of the pspdev gcc toolchain.
-    Builder.defineMacro("PSP");
-    Builder.defineMacro("_PSP");
-    Builder.defineMacro("__psp__");
-    Builder.defineMacro("__ELF__");
-  }
-
-public:
-  PSPTargetInfo(const llvm::Triple &Triple) : OSTargetInfo<Target>(Triple) {}
 };
 
 // PS3 PPU Target
@@ -540,8 +523,9 @@ public:
   }
 };
 
+// Common base class for PS4/PS5 targets.
 template <typename Target>
-class LLVM_LIBRARY_VISIBILITY PS4OSTargetInfo : public OSTargetInfo<Target> {
+class LLVM_LIBRARY_VISIBILITY PSOSTargetInfo : public OSTargetInfo<Target> {
 protected:
   void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
                     MacroBuilder &Builder) const override {
@@ -551,33 +535,66 @@ protected:
     DefineStd(Builder, "unix", Opts);
     Builder.defineMacro("__ELF__");
     Builder.defineMacro("__SCE__");
-    Builder.defineMacro("__ORBIS__");
   }
 
 public:
-  PS4OSTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
+  PSOSTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : OSTargetInfo<Target>(Triple, Opts) {
     this->WCharType = TargetInfo::UnsignedShort;
 
-    // On PS4, TLS variable cannot be aligned to more than 32 bytes (256 bits).
+    // On PS4/PS5, TLS variable cannot be aligned to more than 32 bytes (256
+    // bits).
     this->MaxTLSAlign = 256;
 
-    // On PS4, do not honor explicit bit field alignment,
+    // On PS4/PS5, do not honor explicit bit field alignment,
     // as in "__attribute__((aligned(2))) int b : 1;".
     this->UseExplicitBitFieldAlignment = false;
 
-    switch (Triple.getArch()) {
-    default:
-    case llvm::Triple::x86_64:
-      this->MCountName = ".mcount";
-      this->NewAlign = 256;
-      break;
-    }
+    this->MCountName = ".mcount";
+    this->NewAlign = 256;
+    this->SuitableAlign = 256;
   }
+
   TargetInfo::CallingConvCheckResult
   checkCallingConvention(CallingConv CC) const override {
     return (CC == CC_C) ? TargetInfo::CCCR_OK : TargetInfo::CCCR_Error;
   }
+
+  bool areDefaultedSMFStillPOD(const LangOptions &) const override {
+    return false;
+  }
+};
+
+// PS4 Target
+template <typename Target>
+class LLVM_LIBRARY_VISIBILITY PS4OSTargetInfo : public PSOSTargetInfo<Target> {
+protected:
+  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
+                    MacroBuilder &Builder) const override {
+    // Start with base class defines.
+    PSOSTargetInfo<Target>::getOSDefines(Opts, Triple, Builder);
+
+    Builder.defineMacro("__ORBIS__");
+  }
+
+public:
+  using PSOSTargetInfo<Target>::PSOSTargetInfo;
+};
+
+// PS5 Target
+template <typename Target>
+class LLVM_LIBRARY_VISIBILITY PS5OSTargetInfo : public PSOSTargetInfo<Target> {
+protected:
+  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
+                    MacroBuilder &Builder) const override {
+    // Start with base class defines.
+    PSOSTargetInfo<Target>::getOSDefines(Opts, Triple, Builder);
+
+    Builder.defineMacro("__PROSPERO__");
+  }
+
+public:
+  using PSOSTargetInfo<Target>::PSOSTargetInfo;
 };
 
 // RTEMS Target
@@ -677,28 +694,46 @@ protected:
     DefineStd(Builder, "unix", Opts);
     Builder.defineMacro("_IBMR2");
     Builder.defineMacro("_POWER");
+    Builder.defineMacro("__THW_BIG_ENDIAN__");
 
     Builder.defineMacro("_AIX");
+    Builder.defineMacro("__TOS_AIX__");
+    Builder.defineMacro("__HOS_AIX__");
+
+    if (Opts.C11) {
+      Builder.defineMacro("__STDC_NO_ATOMICS__");
+      Builder.defineMacro("__STDC_NO_THREADS__");
+    }
 
     if (Opts.EnableAIXExtendedAltivecABI)
       Builder.defineMacro("__EXTABI__");
 
-    unsigned Major, Minor, Micro;
-    Triple.getOSVersion(Major, Minor, Micro);
+    VersionTuple OsVersion = Triple.getOSVersion();
 
     // Define AIX OS-Version Macros.
     // Includes logic for legacy versions of AIX; no specific intent to support.
-    std::pair<int, int> OsVersion = {Major, Minor};
-    if (OsVersion >= std::make_pair(3, 2)) Builder.defineMacro("_AIX32");
-    if (OsVersion >= std::make_pair(4, 1)) Builder.defineMacro("_AIX41");
-    if (OsVersion >= std::make_pair(4, 3)) Builder.defineMacro("_AIX43");
-    if (OsVersion >= std::make_pair(5, 0)) Builder.defineMacro("_AIX50");
-    if (OsVersion >= std::make_pair(5, 1)) Builder.defineMacro("_AIX51");
-    if (OsVersion >= std::make_pair(5, 2)) Builder.defineMacro("_AIX52");
-    if (OsVersion >= std::make_pair(5, 3)) Builder.defineMacro("_AIX53");
-    if (OsVersion >= std::make_pair(6, 1)) Builder.defineMacro("_AIX61");
-    if (OsVersion >= std::make_pair(7, 1)) Builder.defineMacro("_AIX71");
-    if (OsVersion >= std::make_pair(7, 2)) Builder.defineMacro("_AIX72");
+    if (OsVersion >= VersionTuple(3, 2))
+      Builder.defineMacro("_AIX32");
+    if (OsVersion >= VersionTuple(4, 1))
+      Builder.defineMacro("_AIX41");
+    if (OsVersion >= VersionTuple(4, 3))
+      Builder.defineMacro("_AIX43");
+    if (OsVersion >= VersionTuple(5, 0))
+      Builder.defineMacro("_AIX50");
+    if (OsVersion >= VersionTuple(5, 1))
+      Builder.defineMacro("_AIX51");
+    if (OsVersion >= VersionTuple(5, 2))
+      Builder.defineMacro("_AIX52");
+    if (OsVersion >= VersionTuple(5, 3))
+      Builder.defineMacro("_AIX53");
+    if (OsVersion >= VersionTuple(6, 1))
+      Builder.defineMacro("_AIX61");
+    if (OsVersion >= VersionTuple(7, 1))
+      Builder.defineMacro("_AIX71");
+    if (OsVersion >= VersionTuple(7, 2))
+      Builder.defineMacro("_AIX72");
+    if (OsVersion >= VersionTuple(7, 3))
+      Builder.defineMacro("_AIX73");
 
     // FIXME: Do not define _LONG_LONG when -fno-long-long is specified.
     Builder.defineMacro("_LONG_LONG");
@@ -721,6 +756,7 @@ protected:
 public:
   AIXTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : OSTargetInfo<Target>(Triple, Opts) {
+    this->MCountName = "__mcount";
     this->TheCXXABI.set(TargetCXXABI::XL);
 
     if (this->PointerWidth == 64) {
@@ -732,10 +768,15 @@ public:
   }
 
   // AIX sets FLT_EVAL_METHOD to be 1.
-  unsigned getFloatEvalMethod() const override { return 1; }
-  bool hasInt128Type() const override { return false; }
+  LangOptions::FPEvalMethodKind getFPEvalMethod() const override {
+    return LangOptions::FPEvalMethodKind::FEM_Double;
+  }
 
   bool defaultsToAIXPowerAlignment() const override { return true; }
+
+  bool areDefaultedSMFStillPOD(const LangOptions &) const override {
+    return false;
+  }
 };
 
 // z/OS target
@@ -788,11 +829,15 @@ public:
   ZOSTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : OSTargetInfo<Target>(Triple, Opts) {
     this->WCharType = TargetInfo::UnsignedInt;
+    this->MaxAlignedAttribute = 128;
     this->UseBitFieldTypeAlignment = false;
     this->UseZeroLengthBitfieldAlignment = true;
+    this->UseLeadingZeroLengthBitfield = false;
     this->ZeroLengthBitfieldBoundary = 32;
-    this->MinGlobalAlign = 0;
-    this->DefaultAlignForAttributeAligned = 128;
+  }
+
+  bool areDefaultedSMFStillPOD(const LangOptions &) const override {
+    return false;
   }
 };
 
@@ -880,6 +925,9 @@ protected:
     // Required by the libc++ locale support.
     if (Opts.CPlusPlus)
       Builder.defineMacro("_GNU_SOURCE");
+    Builder.defineMacro("__Fuchsia_API_level__", Twine(Opts.FuchsiaAPILevel));
+    this->PlatformName = "fuchsia";
+    this->PlatformMinVersion = VersionTuple(Opts.FuchsiaAPILevel);
   }
 
 public:
@@ -928,8 +976,7 @@ class LLVM_LIBRARY_VISIBILITY WASITargetInfo
   }
 
 public:
-  explicit WASITargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : WebAssemblyOSTargetInfo<Target>(Triple, Opts) {}
+  using WebAssemblyOSTargetInfo<Target>::WebAssemblyOSTargetInfo;
 };
 
 // Emscripten target
@@ -939,12 +986,23 @@ class LLVM_LIBRARY_VISIBILITY EmscriptenTargetInfo
   void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
                     MacroBuilder &Builder) const final {
     WebAssemblyOSTargetInfo<Target>::getOSDefines(Opts, Triple, Builder);
+    DefineStd(Builder, "unix", Opts);
     Builder.defineMacro("__EMSCRIPTEN__");
+    if (Opts.POSIXThreads)
+      Builder.defineMacro("__EMSCRIPTEN_PTHREADS__");
   }
 
 public:
-  explicit EmscriptenTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : WebAssemblyOSTargetInfo<Target>(Triple, Opts) {}
+  explicit EmscriptenTargetInfo(const llvm::Triple &Triple,
+                                const TargetOptions &Opts)
+      : WebAssemblyOSTargetInfo<Target>(Triple, Opts) {
+    // Keeping the alignment of long double to 8 bytes even though its size is
+    // 16 bytes allows emscripten to have an 8-byte-aligned max_align_t which
+    // in turn gives is a 8-byte aligned malloc.
+    // Emscripten's ABI is unstable and we may change this back to 128 to match
+    // the WebAssembly default in the future.
+    this->LongDoubleAlign = 64;
+  }
 };
 
 } // namespace targets

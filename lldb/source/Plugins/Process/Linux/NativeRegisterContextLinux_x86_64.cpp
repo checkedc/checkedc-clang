@@ -9,17 +9,17 @@
 #if defined(__i386__) || defined(__x86_64__)
 
 #include "NativeRegisterContextLinux_x86_64.h"
-
+#include "Plugins/Process/Linux/NativeThreadLinux.h"
+#include "Plugins/Process/Utility/RegisterContextLinux_i386.h"
+#include "Plugins/Process/Utility/RegisterContextLinux_x86_64.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
-
-#include "Plugins/Process/Utility/RegisterContextLinux_i386.h"
-#include "Plugins/Process/Utility/RegisterContextLinux_x86_64.h"
 #include <cpuid.h>
 #include <linux/elf.h>
+#include <optional>
 
 // Newer toolchains define __get_cpuid_count in cpuid.h, but some
 // older-but-still-supported ones (e.g. gcc 5.4.0) don't, so we
@@ -250,9 +250,15 @@ static inline unsigned int fxsr_regset(const ArchSpec &arch) {
 
 std::unique_ptr<NativeRegisterContextLinux>
 NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
-    const ArchSpec &target_arch, NativeThreadProtocol &native_thread) {
+    const ArchSpec &target_arch, NativeThreadLinux &native_thread) {
   return std::unique_ptr<NativeRegisterContextLinux>(
       new NativeRegisterContextLinux_x86_64(target_arch, native_thread));
+}
+
+llvm::Expected<ArchSpec>
+NativeRegisterContextLinux::DetermineArchitecture(lldb::tid_t tid) {
+  return DetermineArchitectureViaGPR(
+      tid, RegisterContextLinux_x86_64::GetGPRSizeStatic());
 }
 
 // NativeRegisterContextLinux_x86_64 members.
@@ -292,6 +298,8 @@ NativeRegisterContextLinux_x86_64::NativeRegisterContextLinux_x86_64(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
     : NativeRegisterContextRegisterInfo(
           native_thread, CreateRegisterInfoInterface(target_arch)),
+      NativeRegisterContextLinux(native_thread),
+      NativeRegisterContextDBReg_x86(native_thread),
       m_xstate_type(XStateType::Invalid), m_ymm_set(), m_mpx_set(),
       m_reg_info(), m_gpr_x86_64() {
   // Set up data about ranges of valid registers.
@@ -450,7 +458,7 @@ NativeRegisterContextLinux_x86_64::ReadRegister(const RegisterInfo *reg_info,
       // then use the type specified by reg_info rather than the uint64_t
       // default
       if (reg_value.GetByteSize() > reg_info->byte_size)
-        reg_value.SetType(reg_info);
+        reg_value.SetType(*reg_info);
     }
     return error;
   }
@@ -687,7 +695,7 @@ Status NativeRegisterContextLinux_x86_64::WriteRegister(
 }
 
 Status NativeRegisterContextLinux_x86_64::ReadAllRegisterValues(
-    lldb::DataBufferSP &data_sp) {
+    lldb::WritableDataBufferSP &data_sp) {
   Status error;
 
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));
@@ -778,7 +786,7 @@ Status NativeRegisterContextLinux_x86_64::WriteAllRegisterValues(
     return error;
   }
 
-  uint8_t *src = data_sp->GetBytes();
+  const uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
     error.SetErrorStringWithFormat("NativeRegisterContextLinux_x86_64::%s "
                                    "DataBuffer::GetBytes() returned a null "
@@ -1032,7 +1040,7 @@ NativeRegisterContextLinux_x86_64::GetPtraceOffset(uint32_t reg_index) {
          (IsMPX(reg_index) ? 128 : 0);
 }
 
-llvm::Optional<NativeRegisterContextLinux::SyscallData>
+std::optional<NativeRegisterContextLinux::SyscallData>
 NativeRegisterContextLinux_x86_64::GetSyscallData() {
   switch (GetRegisterInfoInterface().GetTargetArchitecture().GetMachine()) {
   case llvm::Triple::x86: {
@@ -1054,7 +1062,7 @@ NativeRegisterContextLinux_x86_64::GetSyscallData() {
   }
 }
 
-llvm::Optional<NativeRegisterContextLinux::MmapData>
+std::optional<NativeRegisterContextLinux::MmapData>
 NativeRegisterContextLinux_x86_64::GetMmapData() {
   switch (GetRegisterInfoInterface().GetTargetArchitecture().GetMachine()) {
   case llvm::Triple::x86:

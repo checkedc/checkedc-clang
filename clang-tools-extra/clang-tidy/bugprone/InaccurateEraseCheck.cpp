@@ -13,34 +13,25 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void InaccurateEraseCheck::registerMatchers(MatchFinder *Finder) {
   const auto EndCall =
       callExpr(
           callee(functionDecl(hasAnyName("remove", "remove_if", "unique"))),
           hasArgument(
-              1,
-              anyOf(cxxConstructExpr(has(ignoringImplicit(
-                        cxxMemberCallExpr(callee(cxxMethodDecl(hasName("end"))))
-                            .bind("end")))),
-                    anything())))
+              1, optionally(cxxMemberCallExpr(callee(cxxMethodDecl(hasName("end"))))
+                           .bind("end"))))
           .bind("alg");
 
   const auto DeclInStd = type(hasUnqualifiedDesugaredType(
       tagType(hasDeclaration(decl(isInStdNamespace())))));
   Finder->addMatcher(
-      traverse(
-          TK_AsIs,
-          cxxMemberCallExpr(
-              on(anyOf(hasType(DeclInStd), hasType(pointsTo(DeclInStd)))),
-              callee(cxxMethodDecl(hasName("erase"))), argumentCountIs(1),
-              hasArgument(0, has(ignoringImplicit(anyOf(
-                                 EndCall, has(ignoringImplicit(EndCall)))))),
-              unless(isInTemplateInstantiation()))
-              .bind("erase")),
+      cxxMemberCallExpr(
+          on(anyOf(hasType(DeclInStd), hasType(pointsTo(DeclInStd)))),
+          callee(cxxMethodDecl(hasName("erase"))), argumentCountIs(1),
+          hasArgument(0, EndCall))
+          .bind("erase"),
       this);
 }
 
@@ -68,6 +59,4 @@ void InaccurateEraseCheck::check(const MatchFinder::MatchResult &Result) {
       << Hint;
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

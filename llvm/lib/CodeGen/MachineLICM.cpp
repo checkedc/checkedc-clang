@@ -69,11 +69,6 @@ HoistCheapInsts("hoist-cheap-insts",
                 cl::init(false), cl::Hidden);
 
 static cl::opt<bool>
-SinkInstsToAvoidSpills("sink-insts-to-avoid-spills",
-                       cl::desc("MachineLICM should sink instructions into "
-                                "loops to avoid register spills"),
-                       cl::init(false), cl::Hidden);
-static cl::opt<bool>
 HoistConstStores("hoist-const-stores",
                  cl::desc("Hoist invariant stores"),
                  cl::init(true), cl::Hidden);
@@ -235,6 +230,8 @@ namespace {
 
     bool IsGuaranteedToExecute(MachineBasicBlock *BB);
 
+    bool isTriviallyReMaterializable(const MachineInstr &MI) const;
+
     void EnterScope(MachineBasicBlock *MBB);
 
     void ExitScope(MachineBasicBlock *MBB);
@@ -242,11 +239,9 @@ namespace {
     void ExitScopeIfDone(
         MachineDomTreeNode *Node,
         DenseMap<MachineDomTreeNode *, unsigned> &OpenChildren,
-        DenseMap<MachineDomTreeNode *, MachineDomTreeNode *> &ParentMap);
+        const DenseMap<MachineDomTreeNode *, MachineDomTreeNode *> &ParentMap);
 
     void HoistOutOfLoop(MachineDomTreeNode *HeaderN);
-
-    void SinkIntoLoop();
 
     void InitRegPressure(MachineBasicBlock *BB);
 
@@ -395,9 +390,6 @@ bool MachineLICMBase::runOnMachineFunction(MachineFunction &MF) {
       FirstInLoop = true;
       HoistOutOfLoop(N);
       CSEMap.clear();
-
-      if (SinkInstsToAvoidSpills)
-        SinkIntoLoop();
     }
   }
 
@@ -460,8 +452,7 @@ void MachineLICMBase::ProcessMI(MachineInstr *MI,
     Register Reg = MO.getReg();
     if (!Reg)
       continue;
-    assert(Register::isPhysicalRegister(Reg) &&
-           "Not expecting virtual register!");
+    assert(Reg.isPhysical() && "Not expecting virtual register!");
 
     if (!MO.isDef()) {
       if (Reg && (PhysRegDefs.test(Reg) || PhysRegClobbers.test(Reg)))
@@ -669,6 +660,23 @@ bool MachineLICMBase::IsGuaranteedToExecute(MachineBasicBlock *BB) {
   return true;
 }
 
+/// Check if \p MI is trivially remateralizable and if it does not have any
+/// virtual register uses. Even though rematerializable RA might not actually
+/// rematerialize it in this scenario. In that case we do not want to hoist such
+/// instruction out of the loop in a belief RA will sink it back if needed.
+bool MachineLICMBase::isTriviallyReMaterializable(
+    const MachineInstr &MI) const {
+  if (!TII->isTriviallyReMaterializable(MI))
+    return false;
+
+  for (const MachineOperand &MO : MI.operands()) {
+    if (MO.isReg() && MO.isUse() && MO.getReg().isVirtual())
+      return false;
+  }
+
+  return true;
+}
+
 void MachineLICMBase::EnterScope(MachineBasicBlock *MBB) {
   LLVM_DEBUG(dbgs() << "Entering " << printMBBReference(*MBB) << '\n');
 
@@ -686,19 +694,16 @@ void MachineLICMBase::ExitScope(MachineBasicBlock *MBB) {
 /// destroy ancestors which are now done.
 void MachineLICMBase::ExitScopeIfDone(MachineDomTreeNode *Node,
     DenseMap<MachineDomTreeNode*, unsigned> &OpenChildren,
-    DenseMap<MachineDomTreeNode*, MachineDomTreeNode*> &ParentMap) {
+    const DenseMap<MachineDomTreeNode*, MachineDomTreeNode*> &ParentMap) {
   if (OpenChildren[Node])
     return;
 
-  // Pop scope.
-  ExitScope(Node->getBlock());
-
-  // Now traverse upwards to pop ancestors whose offsprings are all done.
-  while (MachineDomTreeNode *Parent = ParentMap[Node]) {
-    unsigned Left = --OpenChildren[Parent];
-    if (Left != 0)
+  for(;;) {
+    ExitScope(Node->getBlock());
+    // Now traverse upwards to pop ancestors whose offsprings are all done.
+    MachineDomTreeNode *Parent = ParentMap.lookup(Node);
+    if (!Parent || --OpenChildren[Parent] != 0)
       break;
-    ExitScope(Parent->getBlock());
     Node = Parent;
   }
 }
@@ -771,101 +776,15 @@ void MachineLICMBase::HoistOutOfLoop(MachineDomTreeNode *HeaderN) {
 
     // Process the block
     SpeculationState = SpeculateUnknown;
-    for (MachineBasicBlock::iterator
-         MII = MBB->begin(), E = MBB->end(); MII != E; ) {
-      MachineBasicBlock::iterator NextMII = MII; ++NextMII;
-      MachineInstr *MI = &*MII;
-      if (!Hoist(MI, Preheader))
-        UpdateRegPressure(MI);
+    for (MachineInstr &MI : llvm::make_early_inc_range(*MBB)) {
+      if (!Hoist(&MI, Preheader))
+        UpdateRegPressure(&MI);
       // If we have hoisted an instruction that may store, it can only be a
       // constant store.
-      MII = NextMII;
     }
 
     // If it's a leaf node, it's done. Traverse upwards to pop ancestors.
     ExitScopeIfDone(Node, OpenChildren, ParentMap);
-  }
-}
-
-/// Sink instructions into loops if profitable. This especially tries to prevent
-/// register spills caused by register pressure if there is little to no
-/// overhead moving instructions into loops.
-void MachineLICMBase::SinkIntoLoop() {
-  MachineBasicBlock *Preheader = getCurPreheader();
-  if (!Preheader)
-    return;
-
-  SmallVector<MachineInstr *, 8> Candidates;
-  for (MachineBasicBlock::instr_iterator I = Preheader->instr_begin();
-       I != Preheader->instr_end(); ++I) {
-    // We need to ensure that we can safely move this instruction into the loop.
-    // As such, it must not have side-effects, e.g. such as a call has.
-    LLVM_DEBUG(dbgs() << "LICM: Analysing sink candidate: " << *I);
-    if (IsLoopInvariantInst(*I) && !HasLoopPHIUse(&*I)) {
-      LLVM_DEBUG(dbgs() << "LICM: Added as sink candidate.\n");
-      Candidates.push_back(&*I);
-      continue;
-    }
-    LLVM_DEBUG(dbgs() << "LICM: Not added as sink candidate.\n");
-  }
-
-  for (MachineInstr *I : Candidates) {
-    const MachineOperand &MO = I->getOperand(0);
-    if (!MO.isDef() || !MO.isReg() || !MO.getReg())
-      continue;
-    if (!MRI->hasOneDef(MO.getReg()))
-      continue;
-    bool CanSink = true;
-    MachineBasicBlock *SinkBlock = nullptr;
-    LLVM_DEBUG(dbgs() << "LICM: Try sinking: " << *I);
-
-    for (MachineInstr &MI : MRI->use_instructions(MO.getReg())) {
-      LLVM_DEBUG(dbgs() << "LICM:    Analysing use: "; MI.dump());
-      // FIXME: Come up with a proper cost model that estimates whether sinking
-      // the instruction (and thus possibly executing it on every loop
-      // iteration) is more expensive than a register.
-      // For now assumes that copies are cheap and thus almost always worth it.
-      if (!MI.isCopy()) {
-        CanSink = false;
-        break;
-      }
-      if (!SinkBlock) {
-        SinkBlock = MI.getParent();
-        LLVM_DEBUG(dbgs() << "LICM:   Setting sink block to: "
-                          << printMBBReference(*SinkBlock) << "\n");
-        continue;
-      }
-      SinkBlock = DT->findNearestCommonDominator(SinkBlock, MI.getParent());
-      if (!SinkBlock) {
-        LLVM_DEBUG(dbgs() << "LICM:   Can't find nearest dominator\n");
-        CanSink = false;
-        break;
-      }
-      LLVM_DEBUG(dbgs() << "LICM:   Setting nearest common dom block: " <<
-                 printMBBReference(*SinkBlock) << "\n");
-    }
-    if (!CanSink) {
-      LLVM_DEBUG(dbgs() << "LICM: Can't sink instruction.\n");
-      continue;
-    }
-    if (!SinkBlock) {
-      LLVM_DEBUG(dbgs() << "LICM: Not sinking, can't find sink block.\n");
-      continue;
-    }
-    if (SinkBlock == Preheader) {
-      LLVM_DEBUG(dbgs() << "LICM: Not sinking, sink block is the preheader\n");
-      continue;
-    }
-
-    LLVM_DEBUG(dbgs() << "LICM: Sinking to " << printMBBReference(*SinkBlock)
-                      << " from " << printMBBReference(*I->getParent())
-                      << ": " << *I);
-    SinkBlock->splice(SinkBlock->getFirstNonPHI(), Preheader, I);
-
-    // The instruction is moved from its basic block, so do not retain the
-    // debug information.
-    assert(!I->isDebugInstr() && "Should not sink debug inst");
-    I->setDebugLoc(DebugLoc());
   }
 }
 
@@ -924,7 +843,7 @@ MachineLICMBase::calcRegisterCost(const MachineInstr *MI, bool ConsiderSeen,
     if (!MO.isReg() || MO.isImplicit())
       continue;
     Register Reg = MO.getReg();
-    if (!Register::isVirtualRegister(Reg))
+    if (!Reg.isVirtual())
       continue;
 
     // FIXME: It seems bad to use RegSeen only for some of these calculations.
@@ -996,9 +915,9 @@ static bool isInvariantStore(const MachineInstr &MI,
       Register Reg = MO.getReg();
       // If operand is a virtual register, check if it comes from a copy of a
       // physical register.
-      if (Register::isVirtualRegister(Reg))
+      if (Reg.isVirtual())
         Reg = TRI->lookThruCopyLike(MO.getReg(), MRI);
-      if (Register::isVirtualRegister(Reg))
+      if (Reg.isVirtual())
         return false;
       if (!TRI->isCallerPreservedPhysReg(Reg.asMCReg(), *MI.getMF()))
         return false;
@@ -1027,7 +946,7 @@ static bool isCopyFeedingInvariantStore(const MachineInstr &MI,
   const MachineFunction *MF = MI.getMF();
   // Check that we are copying a constant physical register.
   Register CopySrcReg = MI.getOperand(1).getReg();
-  if (Register::isVirtualRegister(CopySrcReg))
+  if (CopySrcReg.isVirtual())
     return false;
 
   if (!TRI->isCallerPreservedPhysReg(CopySrcReg.asMCReg(), *MF))
@@ -1035,8 +954,7 @@ static bool isCopyFeedingInvariantStore(const MachineInstr &MI,
 
   Register CopyDstReg = MI.getOperand(0).getReg();
   // Check if any of the uses of the copy are invariant stores.
-  assert(Register::isVirtualRegister(CopyDstReg) &&
-         "copy dst is not a virtual reg");
+  assert(CopyDstReg.isVirtual() && "copy dst is not a virtual reg");
 
   for (MachineInstr &UseMI : MRI->use_instructions(CopyDstReg)) {
     if (UseMI.mayStore() && isInvariantStore(UseMI, TRI, MRI))
@@ -1056,11 +974,11 @@ bool MachineLICMBase::IsLICMCandidate(MachineInstr &I) {
     return false;
   }
 
-  // If it is load then check if it is guaranteed to execute by making sure that
-  // it dominates all exiting blocks. If it doesn't, then there is a path out of
-  // the loop which does not execute this load, so we can't hoist it. Loads
-  // from constant memory are not safe to speculate all the time, for example
-  // indexed load from a jump table.
+  // If it is a load then check if it is guaranteed to execute by making sure
+  // that it dominates all exiting blocks. If it doesn't, then there is a path
+  // out of the loop which does not execute this load, so we can't hoist it.
+  // Loads from constant memory are safe to speculate, for example indexed load
+  // from a jump table.
   // Stores and side effects are already checked by isSafeToMove.
   if (I.mayLoad() && !mayLoadFromGOTOrConstantPool(I) &&
       !IsGuaranteedToExecute(I.getParent())) {
@@ -1073,6 +991,9 @@ bool MachineLICMBase::IsLICMCandidate(MachineInstr &I) {
   // control flows. It is not safe to hoist or sink such operations across
   // control flow.
   if (I.isConvergent())
+    return false;
+
+  if (!TII->shouldHoist(I, CurLoop))
     return false;
 
   return true;
@@ -1097,7 +1018,7 @@ bool MachineLICMBase::HasLoopPHIUse(const MachineInstr *MI) const {
       if (!MO.isReg() || !MO.isDef())
         continue;
       Register Reg = MO.getReg();
-      if (!Register::isVirtualRegister(Reg))
+      if (!Reg.isVirtual())
         continue;
       for (MachineInstr &UseMI : MRI->use_instructions(Reg)) {
         // A PHI may cause a copy to be inserted.
@@ -1167,7 +1088,7 @@ bool MachineLICMBase::IsCheapInstruction(MachineInstr &MI) const {
       continue;
     --NumDefs;
     Register Reg = DefMO.getReg();
-    if (Register::isPhysicalRegister(Reg))
+    if (Reg.isPhysical())
       continue;
 
     if (!TII->hasLowDefLatency(SchedModel, MI, i))
@@ -1248,9 +1169,9 @@ bool MachineLICMBase::IsProfitableToHoist(MachineInstr &MI) {
     return false;
   }
 
-  // Rematerializable instructions should always be hoisted since the register
-  // allocator can just pull them down again when needed.
-  if (TII->isTriviallyReMaterializable(MI, AA))
+  // Rematerializable instructions should always be hoisted providing the
+  // register allocator can just pull them down again when needed.
+  if (isTriviallyReMaterializable(MI))
     return true;
 
   // FIXME: If there are long latency loop-invariant instructions inside the
@@ -1260,7 +1181,7 @@ bool MachineLICMBase::IsProfitableToHoist(MachineInstr &MI) {
     if (!MO.isReg() || MO.isImplicit())
       continue;
     Register Reg = MO.getReg();
-    if (!Register::isVirtualRegister(Reg))
+    if (!Reg.isVirtual())
       continue;
     if (MO.isDef() && HasHighOperandLatency(MI, i, Reg)) {
       LLVM_DEBUG(dbgs() << "Hoist High Latency: " << MI);
@@ -1303,8 +1224,8 @@ bool MachineLICMBase::IsProfitableToHoist(MachineInstr &MI) {
 
   // High register pressure situation, only hoist if the instruction is going
   // to be remat'ed.
-  if (!TII->isTriviallyReMaterializable(MI, AA) &&
-      !MI.isDereferenceableInvariantLoad(AA)) {
+  if (!isTriviallyReMaterializable(MI) &&
+      !MI.isDereferenceableInvariantLoad()) {
     LLVM_DEBUG(dbgs() << "Can't remat / high reg-pressure: " << MI);
     return false;
   }
@@ -1323,7 +1244,7 @@ MachineInstr *MachineLICMBase::ExtractHoistableLoad(MachineInstr *MI) {
   // If not, we may be able to unfold a load and hoist that.
   // First test whether the instruction is loading from an amenable
   // memory location.
-  if (!MI->isDereferenceableInvariantLoad(AA))
+  if (!MI->isDereferenceableInvariantLoad())
     return nullptr;
 
   // Next determine the register class for a temporary register.
@@ -1417,13 +1338,11 @@ bool MachineLICMBase::EliminateCSE(
       const MachineOperand &MO = MI->getOperand(i);
 
       // Physical registers may not differ here.
-      assert((!MO.isReg() || MO.getReg() == 0 ||
-              !Register::isPhysicalRegister(MO.getReg()) ||
+      assert((!MO.isReg() || MO.getReg() == 0 || !MO.getReg().isPhysical() ||
               MO.getReg() == Dup->getOperand(i).getReg()) &&
              "Instructions with different phys regs are not identical!");
 
-      if (MO.isReg() && MO.isDef() &&
-          !Register::isPhysicalRegister(MO.getReg()))
+      if (MO.isReg() && MO.isDef() && !MO.getReg().isPhysical())
         Defs.push_back(i);
     }
 

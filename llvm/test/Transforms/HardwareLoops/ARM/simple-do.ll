@@ -5,7 +5,7 @@
 ; DISABLED-NOT: llvm.{{.*}}.loop.iterations
 ; DISABLED-NOT: llvm.loop.decrement
 
-@g = common local_unnamed_addr global i32* null, align 4
+@g = common local_unnamed_addr global ptr null, align 4
 
 ; CHECK-LABEL: do_copy
 ; CHECK: [[START:%[^ ]+]] = call i32 @llvm.start.loop.iterations.i32(i32 %n)
@@ -24,19 +24,19 @@
 ; CHECK-LLC:        le lr, [[LOOP_HEADER]]
 ; CHECK-LLC-NOT:    b [[LOOP_EXIT:\.LBB[0-9._]+]]
 ; CHECK-LLC:      @ %while.end
-define i32 @do_copy(i32 %n, i32* nocapture %p, i32* nocapture readonly %q) {
+define i32 @do_copy(i32 %n, ptr nocapture %p, ptr nocapture readonly %q) {
 entry:
   br label %while.body
 
 while.body:
-  %q.addr.05 = phi i32* [ %incdec.ptr, %while.body ], [ %q, %entry ]
-  %p.addr.04 = phi i32* [ %incdec.ptr1, %while.body ], [ %p, %entry ]
+  %q.addr.05 = phi ptr [ %incdec.ptr, %while.body ], [ %q, %entry ]
+  %p.addr.04 = phi ptr [ %incdec.ptr1, %while.body ], [ %p, %entry ]
   %x.addr.03 = phi i32 [ %dec, %while.body ], [ %n, %entry ]
   %dec = add nsw i32 %x.addr.03, -1
-  %incdec.ptr = getelementptr inbounds i32, i32* %q.addr.05, i32 1
-  %0 = load i32, i32* %q.addr.05, align 4
-  %incdec.ptr1 = getelementptr inbounds i32, i32* %p.addr.04, i32 1
-  store i32 %0, i32* %p.addr.04, align 4
+  %incdec.ptr = getelementptr inbounds i32, ptr %q.addr.05, i32 1
+  %0 = load i32, ptr %q.addr.05, align 4
+  %incdec.ptr1 = getelementptr inbounds i32, ptr %p.addr.04, i32 1
+  store i32 %0, ptr %p.addr.04, align 4
   %tobool = icmp eq i32 %dec, 0
   br i1 %tobool, label %while.end, label %while.body
 
@@ -46,13 +46,15 @@ while.end:
 
 ; CHECK-LABEL: do_inc1
 ; CHECK: entry:
-; CHECK: [[TEST:%[^ ]+]] = call i1 @llvm.test.set.loop.iterations.i32(i32 %n)
-; CHECK: br i1 [[TEST]], label %while.body.lr.ph, label %while.end
+; CHECK: [[TEST:%[^ ]+]] = call { i32, i1 } @llvm.test.start.loop.iterations.i32(i32 %n)
+; CHECK: [[TEST1:%[^ ]+]] = extractvalue { i32, i1 } [[TEST]], 1
+; CHECK: [[TEST0:%[^ ]+]] = extractvalue { i32, i1 } [[TEST]], 0
+; CHECK: br i1 [[TEST1]], label %while.body.lr.ph, label %while.end
 
 ; CHECK: while.body.lr.ph:
 ; CHECK: br label %while.body
 
-; CHECK: [[REM:%[^ ]+]] = phi i32 [ %n, %while.body.lr.ph ], [ [[LOOP_DEC:%[^ ]+]], %while.body ]
+; CHECK: [[REM:%[^ ]+]] = phi i32 [ [[TEST0]], %while.body.lr.ph ], [ [[LOOP_DEC:%[^ ]+]], %while.body ]
 ; CHECK: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32(i32 [[REM]], i32 1)
 ; CHECK: [[CMP:%[^ ]+]] = icmp ne i32 [[LOOP_DEC]], 0
 ; CHECK: br i1 [[CMP]], label %while.body, label %while.end.loopexit
@@ -71,14 +73,14 @@ entry:
   br i1 %cmp7, label %while.end, label %while.body.lr.ph
 
 while.body.lr.ph:
-  %0 = load i32*, i32** @g, align 4
+  %0 = load ptr, ptr @g, align 4
   br label %while.body
 
 while.body:
   %i.09 = phi i32 [ 0, %while.body.lr.ph ], [ %inc1, %while.body ]
   %res.08 = phi i32 [ 0, %while.body.lr.ph ], [ %add, %while.body ]
-  %arrayidx = getelementptr inbounds i32, i32* %0, i32 %i.09
-  %1 = load i32, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %0, i32 %i.09
+  %1 = load i32, ptr %arrayidx, align 4
   %add = add nsw i32 %1, %res.08
   %inc1 = add nuw i32 %i.09, 1
   %exitcond = icmp eq i32 %inc1, %n
@@ -109,7 +111,8 @@ while.end:
 
 ; CHECK-LLC:      do_inc2:
 ; CHECK-LLC-NOT:    mov lr,
-; CHECK-LLC:        dls lr, {{.*}}
+; CHECK-LLC:        add.w lr,
+; CHECK-LLC-NOT:    dls lr,
 ; CHECK-LLC-NOT:    mov lr,
 ; CHECK-LLC:      [[LOOP_HEADER:\.LBB[0-9._]+]]:
 ; CHECK-LLC:        le lr, [[LOOP_HEADER]]
@@ -120,14 +123,14 @@ entry:
   br i1 %cmp7, label %while.body.lr.ph, label %while.end
 
 while.body.lr.ph:
-  %0 = load i32*, i32** @g, align 4
+  %0 = load ptr, ptr @g, align 4
   br label %while.body
 
 while.body:
   %i.09 = phi i32 [ 0, %while.body.lr.ph ], [ %add1, %while.body ]
   %res.08 = phi i32 [ 0, %while.body.lr.ph ], [ %add, %while.body ]
-  %arrayidx = getelementptr inbounds i32, i32* %0, i32 %i.09
-  %1 = load i32, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %0, i32 %i.09
+  %1 = load i32, ptr %arrayidx, align 4
   %add = add nsw i32 %1, %res.08
   %add1 = add nuw nsw i32 %i.09, 2
   %cmp = icmp slt i32 %add1, %n
@@ -145,8 +148,7 @@ while.end:
 
 ; CHECK: entry:
 ; CHECK: [[ROUND:%[^ ]+]] = add i32 %n, 1
-; CHECK: [[CMP:%[^ ]+]] = icmp slt i32 %n, 2
-; CHECK: [[SMIN:%[^ ]+]] = select i1 [[CMP]], i32 %n, i32 2
+; CHECK: [[SMIN:%[^ ]+]] = call i32 @llvm.smin.i32(i32 %n, i32 2)
 ; CHECK: [[SUB:%[^ ]+]] = sub i32 [[ROUND]], [[SMIN]]
 ; CHECK: [[HALVE:%[^ ]+]] = lshr i32 [[SUB]], 1
 ; CHECK: [[COUNT:%[^ ]+]] = add nuw i32 [[HALVE]], 1
@@ -162,7 +164,8 @@ while.end:
 
 ; CHECK-LLC:      do_dec2
 ; CHECK-LLC-NOT:    mov lr,
-; CHECK-LLC:        dls lr, {{.*}}
+; CHECK-LLC:        add.w lr,
+; CHECK-LLC-NOT:    dls lr,
 ; CHECK-LLC-NOT:    mov lr,
 ; CHECK-LLC:      [[LOOP_HEADER:\.LBB[0-9_]+]]:
 ; CHECK-LLC:        le lr, [[LOOP_HEADER]]
@@ -173,14 +176,14 @@ entry:
   br i1 %cmp6, label %while.body.lr.ph, label %while.end
 
 while.body.lr.ph:
-  %0 = load i32*, i32** @g, align 4
+  %0 = load ptr, ptr @g, align 4
   br label %while.body
 
 while.body:
   %i.08 = phi i32 [ %n, %while.body.lr.ph ], [ %sub, %while.body ]
   %res.07 = phi i32 [ 0, %while.body.lr.ph ], [ %add, %while.body ]
-  %arrayidx = getelementptr inbounds i32, i32* %0, i32 %i.08
-  %1 = load i32, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %0, i32 %i.08
+  %1 = load i32, ptr %arrayidx, align 4
   %add = add nsw i32 %1, %res.07
   %sub = add nsw i32 %i.08, -2
   %cmp = icmp sgt i32 %i.08, 2

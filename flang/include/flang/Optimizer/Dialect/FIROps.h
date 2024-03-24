@@ -6,45 +6,48 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef OPTIMIZER_DIALECT_FIROPS_H
-#define OPTIMIZER_DIALECT_FIROPS_H
+#ifndef FORTRAN_OPTIMIZER_DIALECT_FIROPS_H
+#define FORTRAN_OPTIMIZER_DIALECT_FIROPS_H
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "flang/Optimizer/Dialect/FIRAttr.h"
+#include "flang/Optimizer/Dialect/FIRType.h"
+#include "flang/Optimizer/Dialect/FortranVariableInterface.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
-
-using namespace mlir;
 
 namespace fir {
 
 class FirEndOp;
-class LoopOp;
+class DoLoopOp;
 class RealAttr;
 
-void buildCmpFOp(mlir::OpBuilder &builder, mlir::OperationState &result,
-                 mlir::CmpFPredicate predicate, mlir::Value lhs,
-                 mlir::Value rhs);
 void buildCmpCOp(mlir::OpBuilder &builder, mlir::OperationState &result,
-                 mlir::CmpFPredicate predicate, mlir::Value lhs,
+                 mlir::arith::CmpFPredicate predicate, mlir::Value lhs,
                  mlir::Value rhs);
 unsigned getCaseArgumentOffset(llvm::ArrayRef<mlir::Attribute> cases,
                                unsigned dest);
-LoopOp getForInductionVarOwner(mlir::Value val);
-bool isReferenceLike(mlir::Type type);
+DoLoopOp getForInductionVarOwner(mlir::Value val);
 mlir::ParseResult isValidCaseAttr(mlir::Attribute attr);
-mlir::ParseResult parseCmpfOp(mlir::OpAsmParser &parser,
-                              mlir::OperationState &result);
 mlir::ParseResult parseCmpcOp(mlir::OpAsmParser &parser,
                               mlir::OperationState &result);
 mlir::ParseResult parseSelector(mlir::OpAsmParser &parser,
                                 mlir::OperationState &result,
-                                mlir::OpAsmParser::OperandType &selector,
+                                mlir::OpAsmParser::UnresolvedOperand &selector,
                                 mlir::Type &type);
+
+static constexpr llvm::StringRef getAdaptToByRefAttrName() {
+  return "adapt.valuebyref";
+}
+
+static constexpr llvm::StringRef getNormalizedLowerBoundAttrName() {
+  return "normalized.lb";
+}
 
 } // namespace fir
 
 #define GET_OP_CLASSES
 #include "flang/Optimizer/Dialect/FIROps.h.inc"
 
-
-#endif // OPTIMIZER_DIALECT_FIROPS_H
+#endif // FORTRAN_OPTIMIZER_DIALECT_FIROPS_H

@@ -5,11 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+/// \file
 /// This contains common code to allow clients to notify changes to machine
 /// instr.
-//
+///
 //===----------------------------------------------------------------------===//
+
 #ifndef LLVM_CODEGEN_GLOBALISEL_GISELCHANGEOBSERVER_H
 #define LLVM_CODEGEN_GLOBALISEL_GISELCHANGEOBSERVER_H
 
@@ -29,7 +30,7 @@ class GISelChangeObserver {
   SmallPtrSet<MachineInstr *, 4> ChangingAllUsesOfReg;
 
 public:
-  virtual ~GISelChangeObserver() {}
+  virtual ~GISelChangeObserver() = default;
 
   /// An instruction is about to be erased.
   virtual void erasingInstr(MachineInstr &MI) = 0;
@@ -75,7 +76,7 @@ public:
   // Removes an observer from the list and does nothing if observer is not
   // present.
   void removeObserver(GISelChangeObserver *O) {
-    auto It = std::find(Observers.begin(), Observers.end(), O);
+    auto It = llvm::find(Observers, O);
     if (It != Observers.end())
       Observers.erase(It);
   }

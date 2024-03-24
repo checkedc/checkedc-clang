@@ -17,6 +17,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
+#include <optional>
 using namespace clang::CodeGen;
 using namespace llvm;
 
@@ -37,7 +38,7 @@ MDNode *LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
                                            bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.PipelineDisabled)
     Enabled = false;
   else if (Attrs.PipelineInitiationInterval != 0)
@@ -82,11 +83,11 @@ LoopInfo::createPartialUnrollMetadata(const LoopAttributes &Attrs,
                                       bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
-    Enabled = None;
+    Enabled = std::nullopt;
   else if (Attrs.UnrollEnable != LoopAttributes::Unspecified ||
            Attrs.UnrollCount != 0)
     Enabled = true;
@@ -144,7 +145,7 @@ LoopInfo::createUnrollAndJamMetadata(const LoopAttributes &Attrs,
                                      bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollAndJamEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollAndJamEnable == LoopAttributes::Enable ||
@@ -212,7 +213,7 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
                                       bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.VectorizeEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.VectorizeEnable != LoopAttributes::Unspecified ||
@@ -250,12 +251,10 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
   Args.push_back(nullptr);
   Args.append(LoopProperties.begin(), LoopProperties.end());
 
-  // Setting vectorize.predicate
+  // Setting vectorize.predicate when it has been specified and vectorization
+  // has not been disabled.
   bool IsVectorPredicateEnabled = false;
-  if (Attrs.VectorizePredicateEnable != LoopAttributes::Unspecified &&
-      Attrs.VectorizeEnable != LoopAttributes::Disable &&
-      Attrs.VectorizeWidth < 1) {
-
+  if (Attrs.VectorizePredicateEnable != LoopAttributes::Unspecified) {
     IsVectorPredicateEnabled =
         (Attrs.VectorizePredicateEnable == LoopAttributes::Enable);
 
@@ -303,7 +302,8 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
   //    explicitly requested fixed-width vectorization, i.e.
   //    vectorize.scalable.enable is false.
   if (Attrs.VectorizeEnable != LoopAttributes::Unspecified ||
-      IsVectorPredicateEnabled || Attrs.VectorizeWidth > 1 ||
+      (IsVectorPredicateEnabled && Attrs.VectorizeWidth != 1) ||
+      Attrs.VectorizeWidth > 1 ||
       Attrs.VectorizeScalable == LoopAttributes::Enable ||
       (Attrs.VectorizeScalable == LoopAttributes::Disable &&
        Attrs.VectorizeWidth != 1)) {
@@ -331,7 +331,7 @@ LoopInfo::createLoopDistributeMetadata(const LoopAttributes &Attrs,
                                        bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.DistributeEnable == LoopAttributes::Disable)
     Enabled = false;
   if (Attrs.DistributeEnable == LoopAttributes::Enable)
@@ -381,7 +381,7 @@ MDNode *LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
                                            bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
@@ -497,7 +497,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       !EndLoc && !Attrs.MustProgress)
     return;
 
-  TempLoopID = MDNode::getTemporary(Header->getContext(), None);
+  TempLoopID = MDNode::getTemporary(Header->getContext(), std::nullopt);
 }
 
 void LoopInfo::finish() {

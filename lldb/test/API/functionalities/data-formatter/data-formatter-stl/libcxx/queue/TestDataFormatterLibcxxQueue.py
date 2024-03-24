@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class TestDataFormatterLibcxxQueue(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         TestBase.setUp(self)
         self.namespace = 'std'
@@ -23,7 +21,7 @@ class TestDataFormatterLibcxxQueue(TestBase):
         self.assertTrue(var.IsValid())
 
         queue = self.namespace + '::queue'
-        self.assertTrue(queue in var.GetDisplayTypeName())
+        self.assertIn(queue, var.GetDisplayTypeName())
         self.assertEqual(var.GetNumChildren(), 5)
         for i in range(5):
             ch = var.GetChildAtIndex(i)

@@ -11,9 +11,7 @@
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 class MacroParenthesesPPCallbacks : public PPCallbacks {
@@ -158,6 +156,9 @@ void MacroParenthesesPPCallbacks::argument(const Token &MacroNameTok,
   // Skip variable declaration.
   bool VarDecl = possibleVarDecl(MI, MI->tokens_begin());
 
+  // Skip the goto argument with an arbitrary number of subsequent stars.
+  bool FoundGoto = false;
+
   for (auto TI = MI->tokens_begin(), TE = MI->tokens_end(); TI != TE; ++TI) {
     // First token.
     if (TI == MI->tokens_begin())
@@ -179,9 +180,17 @@ void MacroParenthesesPPCallbacks::argument(const Token &MacroNameTok,
       continue;
     }
 
-    // Only interested in identifiers.
-    if (!Tok.isOneOf(tok::identifier, tok::raw_identifier))
+    // There should not be extra parentheses for the goto argument.
+    if (Tok.is(tok::kw_goto)) {
+      FoundGoto = true;
       continue;
+    }
+
+    // Only interested in identifiers.
+    if (!Tok.isOneOf(tok::identifier, tok::raw_identifier)) {
+      FoundGoto = false;
+      continue;
+    }
 
     // Only interested in macro arguments.
     if (MI->getParameterNum(Tok.getIdentifierInfo()) < 0)
@@ -239,12 +248,16 @@ void MacroParenthesesPPCallbacks::argument(const Token &MacroNameTok,
     if (MI->isVariadic())
       continue;
 
-    Check->diag(Tok.getLocation(), "macro argument should be enclosed in "
-                                   "parentheses")
-        << FixItHint::CreateInsertion(Tok.getLocation(), "(")
-        << FixItHint::CreateInsertion(Tok.getLocation().getLocWithOffset(
-                                          PP->getSpelling(Tok).length()),
-                                      ")");
+    if (!FoundGoto) {
+      Check->diag(Tok.getLocation(), "macro argument should be enclosed in "
+                                     "parentheses")
+          << FixItHint::CreateInsertion(Tok.getLocation(), "(")
+          << FixItHint::CreateInsertion(Tok.getLocation().getLocWithOffset(
+                                            PP->getSpelling(Tok).length()),
+                                        ")");
+    }
+
+    FoundGoto = false;
   }
 }
 
@@ -253,6 +266,4 @@ void MacroParenthesesCheck::registerPPCallbacks(
   PP->addPPCallbacks(std::make_unique<MacroParenthesesPPCallbacks>(PP, this));
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

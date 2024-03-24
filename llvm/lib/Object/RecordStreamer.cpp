@@ -106,13 +106,13 @@ bool RecordStreamer::emitSymbolAttribute(MCSymbol *Symbol,
 }
 
 void RecordStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
-                                  uint64_t Size, unsigned ByteAlignment,
+                                  uint64_t Size, Align ByteAlignment,
                                   SMLoc Loc) {
   markDefined(*Symbol);
 }
 
 void RecordStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                                      unsigned ByteAlignment) {
+                                      Align ByteAlignment) {
   markDefined(*Symbol);
 }
 
@@ -123,9 +123,10 @@ RecordStreamer::State RecordStreamer::getSymbolState(const MCSymbol *Sym) {
   return SI->second;
 }
 
-void RecordStreamer::emitELFSymverDirective(StringRef AliasName,
-                                            const MCSymbol *Aliasee) {
-  SymverAliasMap[Aliasee].push_back(AliasName);
+void RecordStreamer::emitELFSymverDirective(const MCSymbol *OriginalSym,
+                                            StringRef Name,
+                                            bool KeepOriginalSym) {
+  SymverAliasMap[OriginalSym].push_back(Name);
 }
 
 iterator_range<RecordStreamer::const_symver_iterator>

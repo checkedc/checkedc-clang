@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 void InefficientStringConcatenationCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
@@ -69,7 +67,7 @@ void InefficientStringConcatenationCheck::check(
   const auto *LhsStr = Result.Nodes.getNodeAs<DeclRefExpr>("lhsStr");
   const auto *PlusOperator =
       Result.Nodes.getNodeAs<CXXOperatorCallExpr>("plusOperator");
-  const auto DiagMsg =
+  const char *DiagMsg =
       "string concatenation results in allocation of unnecessary temporary "
       "strings; consider using 'operator+=' or 'string::append()' instead";
 
@@ -79,6 +77,4 @@ void InefficientStringConcatenationCheck::check(
     diag(PlusOperator->getExprLoc(), DiagMsg);
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

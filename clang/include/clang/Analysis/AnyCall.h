@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 //
-#ifndef LLVM_CLANG_ANALYSIS_ANY_CALL_H
-#define LLVM_CLANG_ANALYSIS_ANY_CALL_H
+#ifndef LLVM_CLANG_ANALYSIS_ANYCALL_H
+#define LLVM_CLANG_ANALYSIS_ANYCALL_H
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
+#include <optional>
 
 namespace clang {
 
@@ -107,9 +108,9 @@ public:
 
   }
 
-  /// If {@code E} is a generic call (to ObjC method /function/block/etc),
-  /// return a constructed {@code AnyCall} object. Return None otherwise.
-  static Optional<AnyCall> forExpr(const Expr *E) {
+  /// If @c E is a generic call (to ObjC method /function/block/etc),
+  /// return a constructed @c AnyCall object. Return std::nullopt otherwise.
+  static std::optional<AnyCall> forExpr(const Expr *E) {
     if (const auto *ME = dyn_cast<ObjCMessageExpr>(E)) {
       return AnyCall(ME);
     } else if (const auto *CE = dyn_cast<CallExpr>(E)) {
@@ -123,26 +124,26 @@ public:
     } else if (const auto *CXCIE = dyn_cast<CXXInheritedCtorInitExpr>(E)) {
       return AnyCall(CXCIE);
     } else {
-      return None;
+      return std::nullopt;
     }
   }
 
-  /// If {@code D} is a callable (Objective-C method or a function), return
-  /// a constructed {@code AnyCall} object. Return None otherwise.
+  /// If @c D is a callable (Objective-C method or a function), return
+  /// a constructed @c AnyCall object. Return std::nullopt otherwise.
   // FIXME: block support.
-  static Optional<AnyCall> forDecl(const Decl *D) {
+  static std::optional<AnyCall> forDecl(const Decl *D) {
     if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
       return AnyCall(FD);
     } else if (const auto *MD = dyn_cast<ObjCMethodDecl>(D)) {
       return AnyCall(MD);
     }
-    return None;
+    return std::nullopt;
   }
 
   /// \returns formal parameters for direct calls (including virtual calls)
   ArrayRef<ParmVarDecl *> parameters() const {
     if (!D)
-      return None;
+      return std::nullopt;
 
     if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
       return FD->parameters();
@@ -151,7 +152,7 @@ public:
     } else if (const auto *BD = dyn_cast<BlockDecl>(D)) {
       return BD->parameters();
     } else {
-      return None;
+      return std::nullopt;
     }
   }
 
@@ -186,7 +187,7 @@ public:
   }
 
   /// \returns Function identifier if it is a named declaration,
-  /// {@code nullptr} otherwise.
+  /// @c nullptr otherwise.
   const IdentifierInfo *getIdentifier() const {
     if (const auto *ND = dyn_cast_or_null<NamedDecl>(D))
       return ND->getIdentifier();
@@ -215,4 +216,4 @@ public:
 
 }
 
-#endif // LLVM_CLANG_ANALYSIS_ANY_CALL_H
+#endif // LLVM_CLANG_ANALYSIS_ANYCALL_H

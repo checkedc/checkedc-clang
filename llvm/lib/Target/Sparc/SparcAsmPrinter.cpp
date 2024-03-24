@@ -29,7 +29,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
@@ -55,8 +55,8 @@ namespace {
     void emitFunctionBodyStart() override;
     void emitInstruction(const MachineInstr *MI) override;
 
-    static const char *getRegisterName(unsigned RegNo) {
-      return SparcInstPrinter::getRegisterName(RegNo);
+    static const char *getRegisterName(MCRegister Reg) {
+      return SparcInstPrinter::getRegisterName(Reg);
     }
 
     bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
@@ -250,6 +250,8 @@ void SparcAsmPrinter::LowerGETPCXAndEmitMCInsts(const MachineInstr *MI,
 }
 
 void SparcAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  Sparc_MC::verifyInstructionPredicates(MI->getOpcode(),
+                                        getSubtargetInfo().getFeatureBits());
 
   switch (MI->getOpcode()) {
   default: break;
@@ -303,6 +305,7 @@ void SparcAsmPrinter::printOperand(const MachineInstr *MI, int opNum,
       assert((TF == SparcMCExpr::VK_Sparc_HI
               || TF == SparcMCExpr::VK_Sparc_H44
               || TF == SparcMCExpr::VK_Sparc_HH
+              || TF == SparcMCExpr::VK_Sparc_LM
               || TF == SparcMCExpr::VK_Sparc_TLS_GD_HI22
               || TF == SparcMCExpr::VK_Sparc_TLS_LDM_HI22
               || TF == SparcMCExpr::VK_Sparc_TLS_LDO_HIX22

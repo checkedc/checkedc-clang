@@ -221,8 +221,8 @@
 // mark " indicates that the node is a shadow.
 //
 
-#ifndef LLVM_LIB_TARGET_HEXAGON_RDFGRAPH_H
-#define LLVM_LIB_TARGET_HEXAGON_RDFGRAPH_H
+#ifndef LLVM_CODEGEN_RDFGRAPH_H
+#define LLVM_CODEGEN_RDFGRAPH_H
 
 #include "RDFRegisters.h"
 #include "llvm/ADT/SmallVector.h"
@@ -233,6 +233,7 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <set>
 #include <unordered_map>
 #include <utility>
@@ -644,6 +645,9 @@ namespace rdf {
   struct DataFlowGraph {
     DataFlowGraph(MachineFunction &mf, const TargetInstrInfo &tii,
         const TargetRegisterInfo &tri, const MachineDominatorTree &mdt,
+        const MachineDominanceFrontier &mdf);
+    DataFlowGraph(MachineFunction &mf, const TargetInstrInfo &tii,
+        const TargetRegisterInfo &tri, const MachineDominatorTree &mdt,
         const MachineDominanceFrontier &mdf, const TargetOperandInfo &toi);
 
     NodeBase *ptr(NodeId N) const;
@@ -749,7 +753,6 @@ namespace rdf {
 
     RegisterRef makeRegRef(unsigned Reg, unsigned Sub) const;
     RegisterRef makeRegRef(const MachineOperand &Op) const;
-    RegisterRef restrictRef(RegisterRef AR, RegisterRef BR) const;
 
     NodeAddr<RefNode*> getNextRelated(NodeAddr<InstrNode*> IA,
         NodeAddr<RefNode*> RA) const;
@@ -862,6 +865,9 @@ namespace rdf {
       IA.Addr->removeMember(RA, *this);
     }
 
+    // Default TOI object, if not given in the constructor.
+    std::unique_ptr<TargetOperandInfo> DefaultTOI;
+
     MachineFunction &MF;
     const TargetInstrInfo &TII;
     const TargetRegisterInfo &TRI;
@@ -928,6 +934,8 @@ namespace rdf {
     const DataFlowGraph &G;
   };
 
+  template <typename T> Print(const T &, const DataFlowGraph &) -> Print<T>;
+
   template <typename T>
   struct PrintNode : Print<NodeAddr<T>> {
     PrintNode(const NodeAddr<T> &x, const DataFlowGraph &g)
@@ -961,4 +969,4 @@ namespace rdf {
 
 } // end namespace llvm
 
-#endif // LLVM_LIB_TARGET_HEXAGON_RDFGRAPH_H
+#endif // LLVM_CODEGEN_RDFGRAPH_H

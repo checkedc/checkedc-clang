@@ -29,21 +29,18 @@ TEST(AllocSize, AllocationBuiltinsTest) {
       FunctionType::get(Type::getInt8PtrTy(Context), {ArgTy}, false),
       GlobalValue::ExternalLinkage, "F", &M);
 
-  AllocSizeFn->addFnAttr(Attribute::getWithAllocSizeArgs(Context, 1, None));
+  AllocSizeFn->addFnAttr(
+      Attribute::getWithAllocSizeArgs(Context, 1, std::nullopt));
 
   // 100 is arbitrary.
   std::unique_ptr<CallInst> Caller(
       CallInst::Create(AllocSizeFn, {ConstantInt::get(ArgTy, 100)}));
 
   const TargetLibraryInfo *TLI = nullptr;
-  EXPECT_FALSE(isNoAliasFn(Caller.get(), TLI));
-  EXPECT_FALSE(isMallocLikeFn(Caller.get(), TLI));
-  EXPECT_FALSE(isCallocLikeFn(Caller.get(), TLI));
   EXPECT_FALSE(isAllocLikeFn(Caller.get(), TLI));
 
   // FIXME: We might be able to treat allocsize functions as general allocation
-  // functions. For the moment, being conservative seems better (and we'd have
-  // to plumb stuff around `isNoAliasFn`).
+  // functions.
   EXPECT_FALSE(isAllocationFn(Caller.get(), TLI));
 }
 }

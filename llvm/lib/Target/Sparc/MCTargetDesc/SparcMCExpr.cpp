@@ -17,6 +17,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectStreamer.h"
 #include "llvm/MC/MCSymbolELF.h"
+#include "llvm/Support/Casting.h"
 
 using namespace llvm;
 
@@ -50,6 +51,7 @@ bool SparcMCExpr::printVariantKind(raw_ostream &OS, VariantKind Kind)
   case VK_Sparc_L44:      OS << "%l44("; return true;
   case VK_Sparc_HH:       OS << "%hh(";  return true;
   case VK_Sparc_HM:       OS << "%hm(";  return true;
+  case VK_Sparc_LM:       OS << "%lm(";  return true;
     // FIXME: use %pc22/%pc10, if system assembler supports them.
   case VK_Sparc_PC22:     OS << "%hi("; return true;
   case VK_Sparc_PC10:     OS << "%lo("; return true;
@@ -79,6 +81,11 @@ bool SparcMCExpr::printVariantKind(raw_ostream &OS, VariantKind Kind)
   case VK_Sparc_TLS_IE_ADD:    OS << "%tie_add(";    return true;
   case VK_Sparc_TLS_LE_HIX22:  OS << "%tle_hix22(";  return true;
   case VK_Sparc_TLS_LE_LOX10:  OS << "%tle_lox10(";  return true;
+  case VK_Sparc_HIX22:         OS << "%hix(";        return true;
+  case VK_Sparc_LOX10:         OS << "%lox(";        return true;
+  case VK_Sparc_GOTDATA_HIX22: OS << "%gdop_hix22("; return true;
+  case VK_Sparc_GOTDATA_LOX10: OS << "%gdop_lox10("; return true;
+  case VK_Sparc_GOTDATA_OP:    OS << "%gdop(";       return true;
   }
   llvm_unreachable("Unhandled SparcMCExpr::VariantKind");
 }
@@ -93,6 +100,7 @@ SparcMCExpr::VariantKind SparcMCExpr::parseVariantKind(StringRef name)
     .Case("l44", VK_Sparc_L44)
     .Case("hh",  VK_Sparc_HH)
     .Case("hm",  VK_Sparc_HM)
+    .Case("lm",  VK_Sparc_LM)
     .Case("pc22",  VK_Sparc_PC22)
     .Case("pc10",  VK_Sparc_PC10)
     .Case("got22", VK_Sparc_GOT22)
@@ -117,6 +125,11 @@ SparcMCExpr::VariantKind SparcMCExpr::parseVariantKind(StringRef name)
     .Case("tie_add",    VK_Sparc_TLS_IE_ADD)
     .Case("tle_hix22",  VK_Sparc_TLS_LE_HIX22)
     .Case("tle_lox10",  VK_Sparc_TLS_LE_LOX10)
+    .Case("hix",        VK_Sparc_HIX22)
+    .Case("lox",        VK_Sparc_LOX10)
+    .Case("gdop_hix22", VK_Sparc_GOTDATA_HIX22)
+    .Case("gdop_lox10", VK_Sparc_GOTDATA_LOX10)
+    .Case("gdop",       VK_Sparc_GOTDATA_OP)
     .Default(VK_Sparc_None);
 }
 
@@ -130,6 +143,7 @@ Sparc::Fixups SparcMCExpr::getFixupKind(SparcMCExpr::VariantKind Kind) {
   case VK_Sparc_L44:      return Sparc::fixup_sparc_l44;
   case VK_Sparc_HH:       return Sparc::fixup_sparc_hh;
   case VK_Sparc_HM:       return Sparc::fixup_sparc_hm;
+  case VK_Sparc_LM:       return Sparc::fixup_sparc_lm;
   case VK_Sparc_PC22:     return Sparc::fixup_sparc_pc22;
   case VK_Sparc_PC10:     return Sparc::fixup_sparc_pc10;
   case VK_Sparc_GOT22:    return Sparc::fixup_sparc_got22;
@@ -156,6 +170,11 @@ Sparc::Fixups SparcMCExpr::getFixupKind(SparcMCExpr::VariantKind Kind) {
   case VK_Sparc_TLS_IE_ADD:    return Sparc::fixup_sparc_tls_ie_add;
   case VK_Sparc_TLS_LE_HIX22:  return Sparc::fixup_sparc_tls_le_hix22;
   case VK_Sparc_TLS_LE_LOX10:  return Sparc::fixup_sparc_tls_le_lox10;
+  case VK_Sparc_HIX22:         return Sparc::fixup_sparc_hix22;
+  case VK_Sparc_LOX10:         return Sparc::fixup_sparc_lox10;
+  case VK_Sparc_GOTDATA_HIX22: return Sparc::fixup_sparc_gotdata_hix22;
+  case VK_Sparc_GOTDATA_LOX10: return Sparc::fixup_sparc_gotdata_lox10;
+  case VK_Sparc_GOTDATA_OP:    return Sparc::fixup_sparc_gotdata_op;
   }
 }
 
@@ -208,7 +227,7 @@ void SparcMCExpr::fixELFSymbolsInTLSFixups(MCAssembler &Asm) const {
     auto ELFSymbol = cast<MCSymbolELF>(Symbol);
     if (!ELFSymbol->isBindingSet())
       ELFSymbol->setBinding(ELF::STB_GLOBAL);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case VK_Sparc_TLS_GD_HI22:
   case VK_Sparc_TLS_GD_LO10:

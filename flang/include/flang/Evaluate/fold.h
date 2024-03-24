@@ -57,10 +57,8 @@ auto UnwrapConstantValue(EXPR &expr) -> common::Constify<Constant<T>, EXPR> * {
   if (auto *c{UnwrapExpr<Constant<T>>(expr)}) {
     return c;
   } else {
-    if constexpr (!std::is_same_v<T, SomeDerived>) {
-      if (auto *parens{UnwrapExpr<Parentheses<T>>(expr)}) {
-        return UnwrapConstantValue<T>(parens->left());
-      }
+    if (auto *parens{UnwrapExpr<Parentheses<T>>(expr)}) {
+      return UnwrapConstantValue<T>(parens->left());
     }
     return nullptr;
   }
@@ -69,7 +67,8 @@ auto UnwrapConstantValue(EXPR &expr) -> common::Constify<Constant<T>, EXPR> * {
 // GetScalarConstantValue() extracts the known scalar constant value of
 // an expression, if it has one.  The value can be parenthesized.
 template <typename T, typename EXPR>
-auto GetScalarConstantValue(const EXPR &expr) -> std::optional<Scalar<T>> {
+constexpr auto GetScalarConstantValue(const EXPR &expr)
+    -> std::optional<Scalar<T>> {
   if (const Constant<T> *constant{UnwrapConstantValue<T>(expr)}) {
     return constant->GetScalarValue();
   } else {
@@ -81,7 +80,7 @@ auto GetScalarConstantValue(const EXPR &expr) -> std::optional<Scalar<T>> {
 // Ensure that the expression has been folded beforehand when folding might
 // be required.
 template <int KIND>
-std::optional<std::int64_t> ToInt64(
+constexpr std::optional<std::int64_t> ToInt64(
     const Expr<Type<TypeCategory::Integer, KIND>> &expr) {
   if (auto scalar{
           GetScalarConstantValue<Type<TypeCategory::Integer, KIND>>(expr)}) {
@@ -93,6 +92,7 @@ std::optional<std::int64_t> ToInt64(
 
 std::optional<std::int64_t> ToInt64(const Expr<SomeInteger> &);
 std::optional<std::int64_t> ToInt64(const Expr<SomeType> &);
+std::optional<std::int64_t> ToInt64(const ActualArgument &);
 
 template <typename A>
 std::optional<std::int64_t> ToInt64(const std::optional<A> &x) {
@@ -103,12 +103,13 @@ std::optional<std::int64_t> ToInt64(const std::optional<A> &x) {
   }
 }
 
-template <typename A> std::optional<std::int64_t> ToInt64(const A *p) {
+template <typename A> std::optional<std::int64_t> ToInt64(A *p) {
   if (p) {
-    return ToInt64(*p);
+    return ToInt64(std::as_const(*p));
   } else {
     return std::nullopt;
   }
 }
+
 } // namespace Fortran::evaluate
 #endif // FORTRAN_EVALUATE_FOLD_H_

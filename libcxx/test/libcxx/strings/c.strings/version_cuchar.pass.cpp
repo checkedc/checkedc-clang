@@ -5,8 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// XFAIL: *
+
+// UNSUPPORTED: c++03
+
+// The system-provided <uchar.h> seems to be broken on AIX
+// XFAIL: LIBCXX-AIX-FIXME
 
 // <cuchar>
 

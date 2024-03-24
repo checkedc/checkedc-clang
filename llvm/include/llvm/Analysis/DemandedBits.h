@@ -18,15 +18,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_ANALYSIS_DEMANDED_BITS_H
-#define LLVM_ANALYSIS_DEMANDED_BITS_H
+#ifndef LLVM_ANALYSIS_DEMANDEDBITS_H
+#define LLVM_ANALYSIS_DEMANDEDBITS_H
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include <optional>
 
 namespace llvm {
 
@@ -52,6 +52,9 @@ public:
   /// Instructions that do not have integer or vector of integer type are
   /// accepted, but will always produce a mask with all bits set.
   APInt getDemandedBits(Instruction *I);
+
+  /// Return the bits demanded from use U.
+  APInt getDemandedBits(Use *U);
 
   /// Return true if, during analysis, I could not be reached.
   bool isInstructionDead(Instruction *I);
@@ -98,7 +101,7 @@ private:
 
 class DemandedBitsWrapperPass : public FunctionPass {
 private:
-  mutable Optional<DemandedBits> DB;
+  mutable std::optional<DemandedBits> DB;
 
 public:
   static char ID; // Pass identification, replacement for typeid
@@ -146,4 +149,4 @@ FunctionPass *createDemandedBitsWrapperPass();
 
 } // end namespace llvm
 
-#endif // LLVM_ANALYSIS_DEMANDED_BITS_H
+#endif // LLVM_ANALYSIS_DEMANDEDBITS_H

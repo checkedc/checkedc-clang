@@ -14,8 +14,7 @@
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 /// The core clang tidy plugin action. This just provides the AST consumer and
 /// command line flag parsing for using clang-tidy as a clang plugin.
@@ -39,9 +38,8 @@ public:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &Compiler,
                                                  StringRef File) override {
     // Create and set diagnostics engine
-    auto ExternalDiagEngine = &Compiler.getDiagnostics();
-    auto DiagConsumer =
-        new ClangTidyDiagnosticConsumer(*Context, ExternalDiagEngine);
+    auto *DiagConsumer =
+        new ClangTidyDiagnosticConsumer(*Context, &Compiler.getDiagnostics());
     auto DiagEngine = std::make_unique<DiagnosticsEngine>(
         new DiagnosticIDs, new DiagnosticOptions, DiagConsumer);
     Context->setDiagnosticsEngine(DiagEngine.get());
@@ -49,7 +47,7 @@ public:
     // Create the AST consumer.
     ClangTidyASTConsumerFactory Factory(*Context);
     std::vector<std::unique_ptr<ASTConsumer>> Vec;
-    Vec.push_back(Factory.CreateASTConsumer(Compiler, File));
+    Vec.push_back(Factory.createASTConsumer(Compiler, File));
 
     return std::make_unique<WrapConsumer>(
         std::move(Context), std::move(DiagEngine), std::move(Vec));
@@ -76,8 +74,7 @@ public:
 private:
   std::unique_ptr<ClangTidyContext> Context;
 };
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy
 
 // This anchor is used to force the linker to link in the generated object file
 // and thus register the clang-tidy plugin.

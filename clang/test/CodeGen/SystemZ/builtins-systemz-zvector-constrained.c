@@ -41,7 +41,7 @@ void test_core(void) {
   // CHECK-ASM: vlvgg
 
   vd = vec_insert_and_zero(cptrd);
-  // CHECK: [[ZVEC:%[^ ]+]] = insertelement <2 x double> <double poison, double 0.000000e+00>, double {{.*}}, i32 0
+  // CHECK: [[ZVEC:%[^ ]+]] = insertelement <2 x double> <double poison, double 0.000000e+00>, double {{.*}}, i64 0
   // CHECK-ASM: vllezg
 
   vd = vec_revb(vd);
@@ -66,16 +66,17 @@ void test_core(void) {
   // CHECK-ASM: vsceg %{{.*}}, 0(%{{.*}},%{{.*}}), 1
 
   vd = vec_xl(idx, cptrd);
-  // CHECK-ASM: vl
+  // CHECK-ASM-NEXT: lgf     %r5, 0(%r3)
+  // CHECK-ASM-NEXT: lg      %r13, 0(%r4)
+  // CHECK-ASM-NEXT: vl      %v0, 0(%r5,%r13){{$}}
+  // CHECK-ASM-NEXT: vst
 
   vd = vec_xld2(idx, cptrd);
-  // CHECK-ASM: vl
+  // CHECK-ASM:      vst
 
   vec_xst(vd, idx, ptrd);
-  // CHECK-ASM: vst
 
   vec_xstd2(vd, idx, ptrd);
-  // CHECK-ASM: vst
 
   vd = vec_splat(vd, 0);
   // CHECK: shufflevector <2 x double> %{{.*}}, <2 x double> poison, <2 x i32> zeroinitializer
@@ -221,12 +222,12 @@ void test_float(void) {
   // CHECK-ASM: vfsqdb
 
   vd = vec_ld2f(cptrf);
-  // CHECK: [[VAL:%[^ ]+]] = load <2 x float>, <2 x float>* %{{.*}}
+  // CHECK: [[VAL:%[^ ]+]] = load <2 x float>, ptr %{{.*}}
   // CHECK: call <2 x double> @llvm.experimental.constrained.fpext.v2f64.v2f32(<2 x float> [[VAL]], metadata !{{.*}})
   // (emulated)
   vec_st2f(vd, ptrf);
   // CHECK: [[VAL:%[^ ]+]] = tail call <2 x float> @llvm.experimental.constrained.fptrunc.v2f32.v2f64(<2 x double> %{{.*}}, metadata !{{.*}})
-  // CHECK: store <2 x float> [[VAL]], <2 x float>* %{{.*}}
+  // CHECK: store <2 x float> [[VAL]], ptr %{{.*}}
   // (emulated)
 
   vd = vec_ctd(vsl, 0);

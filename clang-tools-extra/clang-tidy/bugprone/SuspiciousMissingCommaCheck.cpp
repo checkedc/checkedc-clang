@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 
@@ -73,7 +71,7 @@ SuspiciousMissingCommaCheck::SuspiciousMissingCommaCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       SizeThreshold(Options.get("SizeThreshold", 5U)),
-      RatioThreshold(std::stod(Options.get("RatioThreshold", ".2"))),
+      RatioThreshold(std::stod(Options.get("RatioThreshold", ".2").str())),
       MaxConcatenatedTokens(Options.get("MaxConcatenatedTokens", 5U)) {}
 
 void SuspiciousMissingCommaCheck::storeOptions(
@@ -108,8 +106,8 @@ void SuspiciousMissingCommaCheck::check(
 
   // Count the number of occurrence of concatenated string literal.
   unsigned int Count = 0;
-  for (unsigned int i = 0; i < Size; ++i) {
-    const Expr *Child = InitializerList->getInit(i)->IgnoreImpCasts();
+  for (unsigned int I = 0; I < Size; ++I) {
+    const Expr *Child = InitializerList->getInit(I)->IgnoreImpCasts();
     if (const auto *Literal = dyn_cast<StringLiteral>(Child)) {
       if (Literal->getNumConcatenated() > 1)
         ++Count;
@@ -125,6 +123,4 @@ void SuspiciousMissingCommaCheck::check(
        "suspicious string literal, probably missing a comma");
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

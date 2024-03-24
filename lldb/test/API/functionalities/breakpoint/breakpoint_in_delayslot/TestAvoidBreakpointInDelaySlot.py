@@ -2,10 +2,7 @@
 Test specific to MIPS
 """
 
-from __future__ import print_function
-
 import re
-import unittest2
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 
 class AvoidBreakpointInDelaySlotAPITestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     @skipIf(archs=no_match(re.compile('mips*')))
     def test(self):
@@ -38,9 +33,9 @@ class AvoidBreakpointInDelaySlotAPITestCase(TestBase):
         self.assertTrue(process, PROCESS_IS_VALID)
 
         list = target.FindFunctions('foo', lldb.eFunctionNameTypeAuto)
-        self.assertTrue(list.GetSize() == 1)
+        self.assertEqual(list.GetSize(), 1)
         sc = list.GetContextAtIndex(0)
-        self.assertTrue(sc.GetSymbol().GetName() == "foo")
+        self.assertEqual(sc.GetSymbol().GetName(), "foo")
         function = sc.GetFunction()
         self.assertTrue(function)
         self.function(function, target)
@@ -75,7 +70,7 @@ class AvoidBreakpointInDelaySlotAPITestCase(TestBase):
 
                 # Breakpoint address should be adjusted to the address of
                 # branch instruction.
-                self.assertTrue(branchinstaddress == bpaddr)
+                self.assertEqual(branchinstaddress, bpaddr)
                 i += 1
             else:
                 i += 1

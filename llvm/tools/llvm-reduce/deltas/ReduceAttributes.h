@@ -1,4 +1,4 @@
-//===- ReduceAttributes.h - Specialized Delta Pass ------------------------===//
+//===- ReduceAttributes.h - Specialized Delta Pass --------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,10 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLVM_TOOLS_LLVM_REDUCE_DELTAS_REDUCEATTRIBUTES_H
+#define LLVM_TOOLS_LLVM_REDUCE_DELTAS_REDUCEATTRIBUTES_H
+
 namespace llvm {
-
 class TestRunner;
-
 void reduceAttributesDeltaPass(TestRunner &Test);
-
 } // namespace llvm
+
+#endif

@@ -41,9 +41,9 @@ class TargetRegisterClass;
                          const TargetRegisterClass *RC);
 
     bool allowsMisalignedMemoryAccesses(
-        EVT VT, unsigned AS = 0, unsigned Align = 1,
+        EVT VT, unsigned AS = 0, Align Alignment = Align(1),
         MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
-        bool *Fast = nullptr) const override;
+        unsigned *Fast = nullptr) const override;
 
     SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 

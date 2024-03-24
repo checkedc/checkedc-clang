@@ -12,19 +12,12 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Errno.h"
 #include "llvm/Support/FileSystem.h"
-
-#if defined(__GNUC__) && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 8))
-#ifndef _GLIBCXX_USE_NANOSLEEP
-#define _GLIBCXX_USE_NANOSLEEP
-#endif
-#endif
-
 #include <functional>
 #include <thread>
 
-#include <errno.h>
+#include <cerrno>
+#include <climits>
 #include <fcntl.h>
-#include <limits.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -45,12 +38,10 @@ enum PIPES { READ, WRITE }; // Constants 0 and 1 for READ and WRITE
 #define PIPE2_SUPPORTED 0
 #endif
 
-namespace {
-
-constexpr auto OPEN_WRITER_SLEEP_TIMEOUT_MSECS = 100;
+static constexpr auto OPEN_WRITER_SLEEP_TIMEOUT_MSECS = 100;
 
 #if defined(FD_CLOEXEC) && !PIPE2_SUPPORTED
-bool SetCloexecFlag(int fd) {
+static bool SetCloexecFlag(int fd) {
   int flags = ::fcntl(fd, F_GETFD);
   if (flags == -1)
     return false;
@@ -58,10 +49,9 @@ bool SetCloexecFlag(int fd) {
 }
 #endif
 
-std::chrono::time_point<std::chrono::steady_clock> Now() {
+static std::chrono::time_point<std::chrono::steady_clock> Now() {
   return std::chrono::steady_clock::now();
 }
-} // namespace
 
 PipePosix::PipePosix()
     : m_fds{PipePosix::kInvalidDescriptor, PipePosix::kInvalidDescriptor} {}

@@ -1,4 +1,4 @@
-//===------------------------- chrono.cpp ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "chrono"
-#include "cerrno"        // errno
-#include "system_error"  // __throw_system_error
+#if defined(__MVS__)
+// As part of monotonic clock support on z/OS we need macro _LARGE_TIME_API
+// to be defined before any system header to include definition of struct timespec64.
+#define _LARGE_TIME_API
+#endif
+
+#include <cerrno>        // errno
+#include <chrono>
+#include <system_error>  // __throw_system_error
+
+#if defined(__MVS__)
+#include <__support/ibm/gettod_zos.h> // gettimeofdayMonotonic
+#endif
+
 #include <time.h>        // clock_gettime and CLOCK_{MONOTONIC,REALTIME,MONOTONIC_RAW}
 #include "include/apple_availability.h"
 
@@ -20,7 +31,7 @@
 # include <sys/time.h> // for gettimeofday and timeval
 #endif
 
-#if !defined(__APPLE__) && _POSIX_TIMERS > 0
+#if !defined(__APPLE__) && defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0
 # define _LIBCPP_USE_CLOCK_GETTIME
 #endif
 
@@ -32,6 +43,10 @@
 #    include <winapifamily.h>
 #  endif
 #endif // defined(_LIBCPP_WIN32API)
+
+#if defined(__Fuchsia__)
+#  include <zircon/syscalls.h>
+#endif
 
 #if __has_include(<mach/mach_time.h>)
 # include <mach/mach_time.h>
@@ -52,6 +67,30 @@ namespace chrono
 
 #if defined(_LIBCPP_WIN32API)
 
+#if _WIN32_WINNT < _WIN32_WINNT_WIN8
+
+namespace {
+
+typedef void(WINAPI *GetSystemTimeAsFileTimePtr)(LPFILETIME);
+
+class GetSystemTimeInit {
+public:
+  GetSystemTimeInit() {
+    fp = (GetSystemTimeAsFileTimePtr)GetProcAddress(
+        GetModuleHandleW(L"kernel32.dll"), "GetSystemTimePreciseAsFileTime");
+    if (fp == nullptr)
+      fp = GetSystemTimeAsFileTime;
+  }
+  GetSystemTimeAsFileTimePtr fp;
+};
+
+// Pretend we're inside a system header so the compiler doesn't flag the use of the init_priority
+// attribute with a value that's reserved for the implementation (we're the implementation).
+#include "chrono_system_time_init.h"
+} // namespace
+
+#endif
+
 static system_clock::time_point __libcpp_system_clock_now() {
   // FILETIME is in 100ns units
   using filetime_duration =
@@ -63,10 +102,13 @@ static system_clock::time_point __libcpp_system_clock_now() {
   static _LIBCPP_CONSTEXPR const seconds nt_to_unix_epoch{11644473600};
 
   FILETIME ft;
-#if _WIN32_WINNT >= _WIN32_WINNT_WIN8 && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8 && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)) || \
+    (_WIN32_WINNT >= _WIN32_WINNT_WIN10)
   GetSystemTimePreciseAsFileTime(&ft);
-#else
+#elif !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
   GetSystemTimeAsFileTime(&ft);
+#else
+  GetSystemTimeAsFileTimeFunc.fp(&ft);
 #endif
 
   filetime_duration d{(static_cast<__int64>(ft.dwHighDateTime) << 32) |
@@ -96,19 +138,19 @@ static system_clock::time_point __libcpp_system_clock_now() {
 const bool system_clock::is_steady;
 
 system_clock::time_point
-system_clock::now() _NOEXCEPT
+system_clock::now() noexcept
 {
     return __libcpp_system_clock_now();
 }
 
 time_t
-system_clock::to_time_t(const time_point& t) _NOEXCEPT
+system_clock::to_time_t(const time_point& t) noexcept
 {
     return time_t(duration_cast<seconds>(t.time_since_epoch()).count());
 }
 
 system_clock::time_point
-system_clock::from_time_t(time_t t) _NOEXCEPT
+system_clock::from_time_t(time_t t) noexcept
 {
     return system_clock::time_point(seconds(t));
 }
@@ -218,7 +260,28 @@ static steady_clock::time_point __libcpp_steady_clock_now() {
   return steady_clock::time_point(steady_clock::duration(dur));
 }
 
-#elif defined(CLOCK_MONOTONIC)
+#elif defined(__MVS__)
+
+static steady_clock::time_point __libcpp_steady_clock_now() {
+  struct timespec64 ts;
+  if (0 != gettimeofdayMonotonic(&ts))
+    __throw_system_error(errno, "failed to obtain time of day");
+
+  return steady_clock::time_point(seconds(ts.tv_sec) + nanoseconds(ts.tv_nsec));
+}
+
+#  elif defined(__Fuchsia__)
+
+static steady_clock::time_point __libcpp_steady_clock_now() noexcept {
+  // Implicitly link against the vDSO system call ABI without
+  // requiring the final link to specify -lzircon explicitly when
+  // statically linking libc++.
+#    pragma comment(lib, "zircon")
+
+  return steady_clock::time_point(nanoseconds(_zx_clock_get_monotonic()));
+}
+
+#  elif defined(CLOCK_MONOTONIC)
 
 static steady_clock::time_point __libcpp_steady_clock_now() {
     struct timespec tp;
@@ -227,14 +290,14 @@ static steady_clock::time_point __libcpp_steady_clock_now() {
     return steady_clock::time_point(seconds(tp.tv_sec) + nanoseconds(tp.tv_nsec));
 }
 
-#else
-#   error "Monotonic clock not implemented on this platform"
-#endif
+#  else
+#    error "Monotonic clock not implemented on this platform"
+#  endif
 
 const bool steady_clock::is_steady;
 
 steady_clock::time_point
-steady_clock::now() _NOEXCEPT
+steady_clock::now() noexcept
 {
     return __libcpp_steady_clock_now();
 }

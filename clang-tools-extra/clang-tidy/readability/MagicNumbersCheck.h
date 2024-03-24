@@ -14,14 +14,12 @@
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/SmallVector.h>
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 /// Detects magic numbers, integer and floating point literals embedded in code.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/readability-magic-numbers.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/readability/magic-numbers.html
 class MagicNumbersCheck : public ClangTidyCheck {
 public:
   MagicNumbersCheck(StringRef Name, ClangTidyContext *Context);
@@ -86,8 +84,8 @@ private:
   const bool IgnoreAllFloatingPointValues;
   const bool IgnoreBitFieldsWidths;
   const bool IgnorePowersOf2IntegerValues;
-  const std::string RawIgnoredIntegerValues;
-  const std::string RawIgnoredFloatingPointValues;
+  const StringRef RawIgnoredIntegerValues;
+  const StringRef RawIgnoredFloatingPointValues;
 
   constexpr static unsigned SensibleNumberOfMagicValueExceptions = 16;
 
@@ -102,8 +100,6 @@ private:
       IgnoredDoublePointValues;
 };
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_MAGICNUMBERSCHECK_H

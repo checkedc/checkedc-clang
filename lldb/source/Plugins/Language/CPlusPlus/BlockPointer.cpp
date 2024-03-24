@@ -17,6 +17,7 @@
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 using namespace lldb;
@@ -43,14 +44,15 @@ public:
     auto type_system_or_err = target_sp->GetScratchTypeSystemForLanguage(
         lldb::eLanguageTypeC_plus_plus);
     if (auto err = type_system_or_err.takeError()) {
-      LLDB_LOG_ERROR(
-          lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
-          std::move(err), "Failed to get scratch TypeSystemClang");
+      LLDB_LOG_ERROR(GetLog(LLDBLog::DataFormatters), std::move(err),
+                     "Failed to get scratch TypeSystemClang");
       return;
     }
 
-    TypeSystemClang *clang_ast_context =
-        llvm::cast<TypeSystemClang>(block_pointer_type.GetTypeSystem());
+    auto ts = block_pointer_type.GetTypeSystem();
+    auto clang_ast_context = ts.dyn_cast_or_null<TypeSystemClang>();
+    if (!clang_ast_context)
+      return;
 
     std::shared_ptr<ClangASTImporter> clang_ast_importer;
     auto *state = target_sp->GetPersistentExpressionStateForLanguage(
@@ -74,14 +76,12 @@ public:
     const CompilerType reserved_type =
         clang_ast_context->GetBasicType(lldb::eBasicTypeInt);
     const char *const FuncPtr_name("__FuncPtr");
-    const CompilerType FuncPtr_type =
-        clang_ast_importer->CopyType(*clang_ast_context, function_pointer_type);
 
     m_block_struct_type = clang_ast_context->CreateStructForIdentifier(
         ConstString(), {{isa_name, isa_type},
                         {flags_name, flags_type},
                         {reserved_name, reserved_type},
-                        {FuncPtr_name, FuncPtr_type}});
+                        {FuncPtr_name, function_pointer_type}});
   }
 
   ~BlockPointerSyntheticFrontEnd() override = default;

@@ -9,20 +9,24 @@
 #ifndef LLD_MACHO_SYMBOL_TABLE_H
 #define LLD_MACHO_SYMBOL_TABLE_H
 
+#include "Symbols.h"
+
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Object/Archive.h"
 
-namespace lld {
-namespace macho {
+namespace lld::macho {
 
 class ArchiveFile;
 class DylibFile;
 class InputFile;
+class ObjFile;
 class InputSection;
 class MachHeaderSection;
 class Symbol;
+class Defined;
+class Undefined;
 
 /*
  * Note that the SymbolTable handles name collisions by calling
@@ -32,35 +36,51 @@ class Symbol;
  */
 class SymbolTable {
 public:
-  Symbol *addDefined(StringRef name, InputSection *isec, uint32_t value,
-                     bool isWeakDef, bool isPrivateExtern);
+  Defined *addDefined(StringRef name, InputFile *, InputSection *,
+                      uint64_t value, uint64_t size, bool isWeakDef,
+                      bool isPrivateExtern, bool isThumb,
+                      bool isReferencedDynamically, bool noDeadStrip,
+                      bool isWeakDefCanBeHidden);
 
-  Symbol *addUndefined(StringRef name, bool isWeakRef);
+  Defined *aliasDefined(Defined *src, StringRef target, InputFile *newFile,
+                        bool makePrivateExtern = false);
+
+  Symbol *addUndefined(StringRef name, InputFile *, bool isWeakRef);
 
   Symbol *addCommon(StringRef name, InputFile *, uint64_t size, uint32_t align,
                     bool isPrivateExtern);
 
   Symbol *addDylib(StringRef name, DylibFile *file, bool isWeakDef, bool isTlv);
+  Symbol *addDynamicLookup(StringRef name);
 
-  Symbol *addLazy(StringRef name, ArchiveFile *file,
-                  const llvm::object::Archive::Symbol &sym);
+  Symbol *addLazyArchive(StringRef name, ArchiveFile *file,
+                         const llvm::object::Archive::Symbol &sym);
+  Symbol *addLazyObject(StringRef name, InputFile &file);
 
-  Symbol *addDSOHandle(const MachHeaderSection *);
+  Defined *addSynthetic(StringRef name, InputSection *, uint64_t value,
+                        bool isPrivateExtern, bool includeInSymtab,
+                        bool referencedDynamically);
 
   ArrayRef<Symbol *> getSymbols() const { return symVector; }
-  Symbol *find(StringRef name);
+  Symbol *find(llvm::CachedHashStringRef name);
+  Symbol *find(StringRef name) { return find(llvm::CachedHashStringRef(name)); }
 
 private:
-  std::pair<Symbol *, bool> insert(StringRef name);
+  std::pair<Symbol *, bool> insert(StringRef name, const InputFile *);
   llvm::DenseMap<llvm::CachedHashStringRef, int> symMap;
   std::vector<Symbol *> symVector;
 };
 
-extern void treatUndefinedSymbol(StringRef symbolName, StringRef fileName);
+void reportPendingUndefinedSymbols();
+void reportPendingDuplicateSymbols();
 
-extern SymbolTable *symtab;
+// Call reportPendingUndefinedSymbols() to emit diagnostics.
+void treatUndefinedSymbol(const Undefined &, StringRef source);
+void treatUndefinedSymbol(const Undefined &, const InputSection *,
+                          uint64_t offset);
 
-} // namespace macho
-} // namespace lld
+extern std::unique_ptr<SymbolTable> symtab;
+
+} // namespace lld::macho
 
 #endif

@@ -8,7 +8,7 @@
 //
 // This file defines ObjCAutoreleaseWriteChecker which warns against writes
 // into autoreleased out parameters which cause crashes.
-// An example of a problematic write is a write to {@code error} in the example
+// An example of a problematic write is a write to @c error in the example
 // below:
 //
 // - (BOOL) mymethod:(NSError *__autoreleasing *)error list:(NSArray*) list {
@@ -98,11 +98,13 @@ private:
 };
 }
 
-static inline std::vector<llvm::StringRef> toRefs(std::vector<std::string> V) {
+static inline std::vector<llvm::StringRef>
+toRefs(const std::vector<std::string> &V) {
   return std::vector<llvm::StringRef>(V.begin(), V.end());
 }
 
-static decltype(auto) callsNames(std::vector<std::string> FunctionNames) {
+static decltype(auto)
+callsNames(const std::vector<std::string> &FunctionNames) {
   return callee(functionDecl(hasAnyName(toRefs(FunctionNames))));
 }
 

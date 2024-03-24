@@ -10,9 +10,9 @@
 #include "MipsInstrInfo.h"
 #include "TestBase.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
@@ -30,11 +30,6 @@ using llvm::unittest::TempDir;
 
 namespace llvm {
 namespace exegesis {
-
-bool operator==(const BenchmarkMeasure &A, const BenchmarkMeasure &B) {
-  return std::tie(A.Key, A.PerInstructionValue, A.PerSnippetValue) ==
-         std::tie(B.Key, B.PerInstructionValue, B.PerSnippetValue);
-}
 
 static std::string Dump(const MCInst &McInst) {
   std::string Buffer;
@@ -55,9 +50,9 @@ MATCHER(EqMCInst, "") {
 
 namespace {
 
-class BenchmarkResultTest : public MipsTestBase {};
+class MipsBenchmarkResultTest : public MipsTestBase {};
 
-TEST_F(BenchmarkResultTest, WriteToAndReadFromDisk) {
+TEST_F(MipsBenchmarkResultTest, WriteToAndReadFromDisk) {
   ExitOnError ExitOnErr;
 
   InstructionBenchmark ToDisk;
@@ -83,12 +78,23 @@ TEST_F(BenchmarkResultTest, WriteToAndReadFromDisk) {
   SmallString<64> Filename(TestDirectory.path());
   sys::path::append(Filename, "data.yaml");
   errs() << Filename << "-------\n";
-  ExitOnErr(ToDisk.writeYaml(State, Filename));
+  {
+    int ResultFD = 0;
+    // Create output file or open existing file and truncate it, once.
+    ExitOnErr(errorCodeToError(openFileForWrite(Filename, ResultFD,
+                                                sys::fs::CD_CreateAlways,
+                                                sys::fs::OF_TextWithCRLF)));
+    raw_fd_ostream FileOstr(ResultFD, true /*shouldClose*/);
+
+    ExitOnErr(ToDisk.writeYamlTo(State, FileOstr));
+  }
+  const std::unique_ptr<MemoryBuffer> Buffer =
+      std::move(*MemoryBuffer::getFile(Filename));
 
   {
     // One-element version.
     const auto FromDisk =
-        ExitOnErr(InstructionBenchmark::readYaml(State, Filename));
+        ExitOnErr(InstructionBenchmark::readYaml(State, *Buffer));
 
     EXPECT_THAT(FromDisk.Key.Instructions,
                 Pointwise(EqMCInst(), ToDisk.Key.Instructions));
@@ -104,9 +110,9 @@ TEST_F(BenchmarkResultTest, WriteToAndReadFromDisk) {
   {
     // Vector version.
     const auto FromDiskVector =
-        ExitOnErr(InstructionBenchmark::readYamls(State, Filename));
+        ExitOnErr(InstructionBenchmark::readYamls(State, *Buffer));
     ASSERT_EQ(FromDiskVector.size(), size_t{1});
-    const auto FromDisk = FromDiskVector[0];
+    const auto &FromDisk = FromDiskVector[0];
     EXPECT_THAT(FromDisk.Key.Instructions,
                 Pointwise(EqMCInst(), ToDisk.Key.Instructions));
     EXPECT_EQ(FromDisk.Key.Config, ToDisk.Key.Config);
@@ -120,7 +126,7 @@ TEST_F(BenchmarkResultTest, WriteToAndReadFromDisk) {
   }
 }
 
-TEST_F(BenchmarkResultTest, PerInstructionStats) {
+TEST_F(MipsBenchmarkResultTest, PerInstructionStats) {
   PerInstructionStats Stats;
   Stats.push(BenchmarkMeasure{"a", 0.5, 0.0});
   Stats.push(BenchmarkMeasure{"a", 1.5, 0.0});

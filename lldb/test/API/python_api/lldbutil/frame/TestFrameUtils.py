@@ -2,9 +2,6 @@
 Test utility functions for the frame object.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class FrameUtilsTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -22,7 +17,6 @@ class FrameUtilsTestCase(TestBase):
         self.line = line_number('main.c',
                                 "// Find the line number here.")
 
-    @add_test_categories(['pyapi'])
     def test_frame_utils(self):
         """Test utility functions for the frame object."""
         self.build()
@@ -40,8 +34,8 @@ class FrameUtilsTestCase(TestBase):
 
         if not process:
             self.fail("SBTarget.LaunchProcess() failed")
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
 
         import lldbsuite.test.lldbutil as lldbutil
         thread = lldbutil.get_stopped_thread(

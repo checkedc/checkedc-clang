@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class BreakpointAfterJoinTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -32,7 +30,7 @@ class BreakpointAfterJoinTestCase(TestBase):
     @expectedFailureNetBSD
     def test(self):
         """Test breakpoint handling after a thread join."""
-        self.build(dictionary=self.getBuildFlags())
+        self.build()
 
         exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
@@ -88,6 +86,6 @@ class BreakpointAfterJoinTestCase(TestBase):
             self.runCmd("process status")
 
         # At this point, the inferior process should have exited.
-        self.assertTrue(
-            process.GetState() == lldb.eStateExited,
+        self.assertEqual(
+            process.GetState(), lldb.eStateExited,
             PROCESS_EXITED)

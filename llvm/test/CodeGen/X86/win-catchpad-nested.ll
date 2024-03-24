@@ -4,7 +4,7 @@ declare void @ProcessCLRException()
 
 declare void @f()
 
-define void @test1() personality void ()* @ProcessCLRException {
+define void @test1() personality ptr @ProcessCLRException {
 entry:
   invoke void @f()
           to label %exit unwind label %catch.dispatch.1
@@ -32,8 +32,10 @@ inner.catch:
 ; CHECK-LABEL: test1: # @test1
 ; CHECK: [[Exit:^[^: ]+]]: # Block address taken
 ; CHECK-NEXT:              # %exit
+; CHECK-NEXT: $ehgcr_0_1:
 ; CHECK: [[OuterRet:^[^: ]+]]: # Block address taken
 ; CHECK-NEXT:                  # %outer.ret
+; CHECK-NEXT: $ehgcr_0_3:
 ; CHECK-NEXT: leaq [[Exit]](%rip), %rax
 ; CHECK:      retq   # CATCHRET
 ; CHECK: {{^[^: ]+}}: # %inner.catch

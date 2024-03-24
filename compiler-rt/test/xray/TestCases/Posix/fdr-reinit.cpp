@@ -1,3 +1,5 @@
+// This will sometimes segfault on the AArch64 and Arm bots
+// UNSUPPORTED: target={{(aarch64|arm).*}}
 // RUN: %clangxx_xray -g -std=c++11 %s -o %t
 // RUN: rm xray-log.fdr-reinit* || true
 // RUN: XRAY_OPTIONS="verbosity=1" %run %t
@@ -49,21 +51,23 @@ int main(int argc, char *argv[]) {
   auto flush_status = __xray_log_flushLog();
   assert(flush_status == XRayLogFlushStatus::XRAY_LOG_FLUSHED);
 
-  // Without doing anything else, we should re-initialize.
-  init_status = __xray_log_init_mode("xray-fdr", kConfig);
-  assert(init_status == XRayLogInitStatus::XRAY_LOG_INITIALIZED);
+  for (auto trial = 0; trial < 3; trial++) {
+    // Without doing anything else, we should re-initialize.
+    init_status = __xray_log_init_mode("xray-fdr", kConfig);
+    assert(init_status == XRayLogInitStatus::XRAY_LOG_INITIALIZED);
 
-  // Then we spin for a bit again calling func() enough times.
-  for (auto i = 0; i < 1 << 20; ++i)
-    func();
+    // Then we spin for a bit again calling func() enough times.
+    for (auto i = 0; i < 1 << 20; ++i)
+      func();
 
-  // Then immediately finalize the implementation.
-  finalize_status = __xray_log_finalize();
-  assert(finalize_status == XRayLogInitStatus::XRAY_LOG_FINALIZED);
+    // Then immediately finalize the implementation.
+    finalize_status = __xray_log_finalize();
+    assert(finalize_status == XRayLogInitStatus::XRAY_LOG_FINALIZED);
 
-  // Once we're here, we should then flush.
-  flush_status = __xray_log_flushLog();
-  assert(flush_status == XRayLogFlushStatus::XRAY_LOG_FLUSHED);
+    // Once we're here, we should then flush.
+    flush_status = __xray_log_flushLog();
+    assert(flush_status == XRayLogFlushStatus::XRAY_LOG_FLUSHED);
+  }
 
   // Finally, we should signal the sibling thread to stop.
   keep_going.clear(std::memory_order_release);

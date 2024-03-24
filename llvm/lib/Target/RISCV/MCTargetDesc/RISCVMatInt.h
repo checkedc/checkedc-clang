@@ -6,38 +6,61 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_RISCV_MATINT_H
-#define LLVM_LIB_TARGET_RISCV_MATINT_H
+#ifndef LLVM_LIB_TARGET_RISCV_MCTARGETDESC_MATINT_H
+#define LLVM_LIB_TARGET_RISCV_MCTARGETDESC_MATINT_H
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/MC/SubtargetFeature.h"
 #include <cstdint>
 
 namespace llvm {
 class APInt;
 
 namespace RISCVMatInt {
-struct Inst {
-  unsigned Opc;
-  int64_t Imm;
 
-  Inst(unsigned Opc, int64_t Imm) : Opc(Opc), Imm(Imm) {}
+enum OpndKind {
+  RegImm, // ADDI/ADDIW/SLLI/SRLI/BSETI/BCLRI
+  Imm,    // LUI
+  RegReg, // SH1ADD/SH2ADD/SH3ADD
+  RegX0,  // ADD_UW
+};
+
+class Inst {
+  unsigned Opc;
+  int32_t Imm; // The largest value we need to store is 20 bits.
+
+public:
+  Inst(unsigned Opc, int64_t I) : Opc(Opc), Imm(I) {
+    assert(I == Imm && "truncated");
+  }
+
+  unsigned getOpcode() const { return Opc; }
+  int64_t getImm() const { return Imm; }
+
+  OpndKind getOpndKind() const;
 };
 using InstSeq = SmallVector<Inst, 8>;
 
 // Helper to generate an instruction sequence that will materialise the given
-// immediate value into a register. A sequence of instructions represented by
-// a simple struct produced rather than directly emitting the instructions in
+// immediate value into a register. A sequence of instructions represented by a
+// simple struct is produced rather than directly emitting the instructions in
 // order to allow this helper to be used from both the MC layer and during
 // instruction selection.
-void generateInstSeq(int64_t Val, bool IsRV64, InstSeq &Res);
+InstSeq generateInstSeq(int64_t Val, const FeatureBitset &ActiveFeatures);
 
 // Helper to estimate the number of instructions required to materialise the
 // given immediate value into a register. This estimate does not account for
 // `Val` possibly fitting into an immediate, and so may over-estimate.
 //
 // This will attempt to produce instructions to materialise `Val` as an
-// `Size`-bit immediate. `IsRV64` should match the target architecture.
-int getIntMatCost(const APInt &Val, unsigned Size, bool IsRV64);
+// `Size`-bit immediate.
+//
+// If CompressionCost is true it will use a different cost calculation if RVC is
+// enabled. This should be used to compare two different sequences to determine
+// which is more compressible.
+int getIntMatCost(const APInt &Val, unsigned Size,
+                  const FeatureBitset &ActiveFeatures,
+                  bool CompressionCost = false);
 } // namespace RISCVMatInt
 } // namespace llvm
 #endif

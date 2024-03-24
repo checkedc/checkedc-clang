@@ -13,9 +13,6 @@ config.name = 'MLIR-Unit'
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = []
 
-# is_early; Request to run this suite early.
-config.is_early = True
-
 # test_source_root: The root path where tests are located.
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.mlir_obj_root, 'unittests')
@@ -36,7 +33,18 @@ if 'TEMP' in os.environ:
 if 'HOME' in os.environ:
     config.environment['HOME'] = os.environ['HOME']
 
-# Propagate path to symbolizer for ASan/MSan.
-for symbolizer in ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH']:
-    if symbolizer in os.environ:
-        config.environment[symbolizer] = os.environ[symbolizer]
+# Propagate sanitizer options.
+for var in [
+    'ASAN_SYMBOLIZER_PATH',
+    'HWASAN_SYMBOLIZER_PATH',
+    'MSAN_SYMBOLIZER_PATH',
+    'TSAN_SYMBOLIZER_PATH',
+    'UBSAN_SYMBOLIZER_PATH',
+    'ASAN_OPTIONS',
+    'HWASAN_OPTIONS',
+    'MSAN_OPTIONS',
+    'TSAN_OPTIONS',
+    'UBSAN_OPTIONS',
+]:
+    if var in os.environ:
+        config.environment[var] = os.environ[var]

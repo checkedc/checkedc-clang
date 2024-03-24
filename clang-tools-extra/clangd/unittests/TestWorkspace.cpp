@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestWorkspace.h"
+#include "index/FileIndex.h"
+#include "gtest/gtest.h"
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -18,7 +21,7 @@ std::unique_ptr<SymbolIndex> TestWorkspace::index() {
       continue;
     TU.Code = Input.second.Code;
     TU.Filename = Input.first().str();
-    TU.preamble([&](ASTContext &Ctx, std::shared_ptr<clang::Preprocessor> PP,
+    TU.preamble([&](ASTContext &Ctx, Preprocessor &PP,
                     const CanonicalIncludes &CanonIncludes) {
       Index->updatePreamble(testPath(Input.first()), "null", Ctx, PP,
                             CanonIncludes);
@@ -29,11 +32,11 @@ std::unique_ptr<SymbolIndex> TestWorkspace::index() {
   return Index;
 }
 
-Optional<ParsedAST> TestWorkspace::openFile(llvm::StringRef Filename) {
+std::optional<ParsedAST> TestWorkspace::openFile(llvm::StringRef Filename) {
   auto It = Inputs.find(Filename);
   if (It == Inputs.end()) {
     ADD_FAILURE() << "Accessing non-existing file: " << Filename;
-    return llvm::None;
+    return std::nullopt;
   }
   TU.Code = It->second.Code;
   TU.Filename = It->first().str();

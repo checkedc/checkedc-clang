@@ -6,8 +6,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestMembersAndLocalsWithSameName(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def test_when_stopped_in_method(self):
         self._load_exe()
 
@@ -38,15 +36,15 @@ class TestMembersAndLocalsWithSameName(TestBase):
             None, None, self.get_process_working_directory())
         self.assertTrue(self.process.IsValid(), PROCESS_IS_VALID)
 
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
 
         self._test_globals()
 
         self.process.Continue()
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             self.process, lldb.eStopReasonBreakpoint)
@@ -67,8 +65,8 @@ class TestMembersAndLocalsWithSameName(TestBase):
         self.assertEqual(val.GetValueAsUnsigned(), 34567)
 
         self.process.Continue()
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             self.process, lldb.eStopReasonBreakpoint)
@@ -89,8 +87,8 @@ class TestMembersAndLocalsWithSameName(TestBase):
         self.assertEqual(val.GetValueAsUnsigned(), 10003)
 
         self.process.Continue()
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             self.process, lldb.eStopReasonBreakpoint)
@@ -140,15 +138,15 @@ class TestMembersAndLocalsWithSameName(TestBase):
             None, None, self.get_process_working_directory())
         self.assertTrue(self.process.IsValid(), PROCESS_IS_VALID)
 
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
 
         self._test_globals()
 
         self.process.Continue()
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             self.process, lldb.eStopReasonBreakpoint)
@@ -171,8 +169,8 @@ class TestMembersAndLocalsWithSameName(TestBase):
         self.assertEqual(val.GetValueAsUnsigned(), 34567)
 
         self.process.Continue()
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             self.process, lldb.eStopReasonBreakpoint)
@@ -199,8 +197,8 @@ class TestMembersAndLocalsWithSameName(TestBase):
         self.assertEqual(val.GetValueAsUnsigned(), 1)
 
         self.process.Continue()
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             self.process, lldb.eStopReasonBreakpoint)
@@ -266,14 +264,10 @@ class TestMembersAndLocalsWithSameName(TestBase):
 
     def enable_expression_log(self):
         log_file = self.getBuildArtifact("expr.log")
-        if configuration.is_reproducer_replay():
-            log_file = self.getReproducerRemappedPath(log_file)
         self.runCmd("log enable  -f '%s' lldb expr" % (log_file))
 
     def disable_expression_log_and_check_for_locals(self, variables):
         log_file = self.getBuildArtifact("expr.log")
-        if configuration.is_reproducer_replay():
-            log_file = self.getReproducerRemappedPath(log_file)
         self.runCmd("log disable lldb expr")
         local_var_regex = re.compile(r".*__lldb_local_vars::(.*);")
         matched = []

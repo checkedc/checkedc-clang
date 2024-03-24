@@ -11,8 +11,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestTypeGetModule(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def find_module(self, target, name):
         num_modules = target.GetNumModules()
         index = 0
@@ -71,8 +69,8 @@ class TestTypeGetModule(TestBase):
 
         comp_unit = self.find_comp_unit(exe_module, 'compile_unit1.c')
         cu_type = self.find_type(comp_unit.GetTypes(), 'compile_unit1_type')
-        self.assertTrue(exe_module == cu_type.GetModule())
+        self.assertEqual(exe_module, cu_type.GetModule())
         
         comp_unit = self.find_comp_unit(exe_module, 'compile_unit2.c')
         cu_type = self.find_type(comp_unit.GetTypes(), 'compile_unit2_type')
-        self.assertTrue(exe_module == cu_type.GetModule())
+        self.assertEqual(exe_module, cu_type.GetModule())

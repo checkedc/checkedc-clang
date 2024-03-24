@@ -9,7 +9,7 @@
 #ifndef LLDB_API_SBDEBUGGER_H
 #define LLDB_API_SBDEBUGGER_H
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBPlatform.h"
@@ -33,6 +33,12 @@ public:
 
 class LLDB_API SBDebugger {
 public:
+  FLAGS_ANONYMOUS_ENUM(){
+      eBroadcastBitProgress = (1 << 0),
+      eBroadcastBitWarning = (1 << 1),
+      eBroadcastBitError = (1 << 2),
+  };
+
   SBDebugger();
 
   SBDebugger(const lldb::SBDebugger &rhs);
@@ -41,11 +47,54 @@ public:
 
   ~SBDebugger();
 
+  static const char *GetBroadcasterClass();
+
+  lldb::SBBroadcaster GetBroadcaster();
+
+  /// Get progress data from a SBEvent whose type is eBroadcastBitProgress.
+  ///
+  /// \param [in] event
+  ///   The event to extract the progress information from.
+  ///
+  /// \param [out] progress_id
+  ///   The unique integer identifier for the progress to report.
+  ///
+  /// \param [out] completed
+  ///   The amount of work completed. If \a completed is zero, then this event
+  ///   is a progress started event. If \a completed is equal to \a total, then
+  ///   this event is a progress end event. Otherwise completed indicates the
+  ///   current progress update.
+  ///
+  /// \param [out] total
+  ///   The total amount of work units that need to be completed. If this value
+  ///   is UINT64_MAX, then an indeterminate progress indicator should be
+  ///   displayed.
+  ///
+  /// \param [out] is_debugger_specific
+  ///   Set to true if this progress is specific to this debugger only. Many
+  ///   progress events are not specific to a debugger instance, like any
+  ///   progress events for loading information in modules since LLDB has a
+  ///   global module cache that all debuggers use.
+  ///
+  /// \return The message for the progress. If the returned value is NULL, then
+  ///   \a event was not a eBroadcastBitProgress event.
+  static const char *GetProgressFromEvent(const lldb::SBEvent &event,
+                                          uint64_t &progress_id,
+                                          uint64_t &completed, uint64_t &total,
+                                          bool &is_debugger_specific);
+
+  static lldb::SBStructuredData
+  GetDiagnosticFromEvent(const lldb::SBEvent &event);
+
   lldb::SBDebugger &operator=(const lldb::SBDebugger &rhs);
 
   static void Initialize();
 
   static lldb::SBError InitializeWithErrorHandling();
+
+  static void PrintStackTraceOnError();
+
+  static void PrintDiagnosticsOnError();
 
   static void Terminate();
 
@@ -68,6 +117,21 @@ public:
 
   void Clear();
 
+  /// Getting a specific setting value into SBStructuredData format.
+  /// Client can specify empty string or null to get all settings.
+  ///
+  /// Example usages:
+  /// lldb::SBStructuredData settings = debugger.GetSetting();
+  /// lldb::SBStructuredData settings = debugger.GetSetting(nullptr);
+  /// lldb::SBStructuredData settings = debugger.GetSetting("");
+  /// lldb::SBStructuredData settings = debugger.GetSetting("target.arg0");
+  /// lldb::SBStructuredData settings = debugger.GetSetting("target");
+  ///
+  /// \param[out] setting
+  ///   Property setting path to retrieve values. e.g "target.source-map"
+  ///
+  lldb::SBStructuredData GetSetting(const char *setting = nullptr);
+
   void SetAsync(bool b);
 
   bool GetAsync();
@@ -87,6 +151,8 @@ public:
   FILE *GetOutputFileHandle();
 
   FILE *GetErrorFileHandle();
+
+  SBError SetInputString(const char *data);
 
   SBError SetInputFile(SBFile file);
 
@@ -209,6 +275,8 @@ public:
 
   lldb::ScriptLanguage GetScriptingLanguage(const char *script_language_name);
 
+  SBStructuredData GetScriptInterpreterInfo(ScriptLanguage);
+
   static const char *GetVersionString();
 
   static const char *StateAsCString(lldb::StateType state);
@@ -263,6 +331,10 @@ public:
   lldb::ScriptLanguage GetScriptLanguage() const;
 
   void SetScriptLanguage(lldb::ScriptLanguage script_lang);
+
+  lldb::LanguageType GetREPLLanguage() const;
+
+  void SetREPLLanguage(lldb::LanguageType repl_lang);
 
   bool GetCloseInputOnEOF() const;
 
@@ -336,6 +408,17 @@ public:
 
   SBError RunREPL(lldb::LanguageType language, const char *repl_options);
 
+  /// Load a trace from a trace description file and create Targets,
+  /// Processes and Threads based on the contents of such file.
+  ///
+  /// \param[out] error
+  ///   An error if the trace could not be created.
+  ///
+  /// \param[in] trace_description_file
+  ///   The file containing the necessary information to load the trace.
+  SBTrace LoadTraceFromFile(SBError &error,
+                            const SBFileSpec &trace_description_file);
+
 private:
   friend class SBCommandInterpreter;
   friend class SBInputReader;
@@ -343,6 +426,7 @@ private:
   friend class SBProcess;
   friend class SBSourceManager;
   friend class SBTarget;
+  friend class SBTrace;
 
   lldb::SBTarget FindTargetWithLLDBProcess(const lldb::ProcessSP &processSP);
 

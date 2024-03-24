@@ -14,14 +14,17 @@
 #define LLVM_FILECHECK_FILECHECK_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Regex.h"
-#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/SMLoc.h"
 #include <bitset>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace llvm {
+class MemoryBuffer;
+class SourceMgr;
+template <typename T> class SmallVectorImpl;
 
 /// Contains info about various FileCheck options.
 struct FileCheckRequest {
@@ -45,6 +48,7 @@ namespace Check {
 
 enum FileCheckKind {
   CheckNone = 0,
+  CheckMisspelled,
   CheckPlain,
   CheckNext,
   CheckSame,
@@ -80,8 +84,7 @@ class FileCheckType {
   std::bitset<FileCheckKindModifier::Size> Modifiers;
 
 public:
-  FileCheckType(FileCheckKind Kind = CheckNone)
-      : Kind(Kind), Count(1), Modifiers() {}
+  FileCheckType(FileCheckKind Kind = CheckNone) : Kind(Kind), Count(1) {}
   FileCheckType(const FileCheckType &) = default;
   FileCheckType &operator=(const FileCheckType &) = default;
 
@@ -118,8 +121,6 @@ struct FileCheckDiag {
   /// depending on whether the pattern must have or must not have a match in
   /// order for the directive to succeed.  For example, a CHECK directive's
   /// pattern is expected, and a CHECK-NOT directive's pattern is excluded.
-  /// All match result types whose names end with "Excluded" are for excluded
-  /// patterns, and all others are for expected patterns.
   ///
   /// There might be more than one match result for a single pattern.  For
   /// example, there might be several discarded matches
@@ -136,18 +137,29 @@ struct FileCheckDiag {
     MatchFoundButWrongLine,
     /// Indicates a discarded match for an expected pattern.
     MatchFoundButDiscarded,
+    /// Indicates an error while processing a match after the match was found
+    /// for an expected or excluded pattern.  The error is specified by \c Note,
+    /// to which it should be appropriate to prepend "error: " later.  The full
+    /// match itself should be recorded in a preceding diagnostic of a different
+    /// \c MatchFound match type.
+    MatchFoundErrorNote,
     /// Indicates no match for an excluded pattern.
     MatchNoneAndExcluded,
     /// Indicates no match for an expected pattern, but this might follow good
     /// matches when multiple matches are expected for the pattern, or it might
     /// follow discarded matches for the pattern.
     MatchNoneButExpected,
+    /// Indicates no match due to an expected or excluded pattern that has
+    /// proven to be invalid at match time.  The exact problems are usually
+    /// reported in subsequent diagnostics of the same match type but with
+    /// \c Note set.
+    MatchNoneForInvalidPattern,
     /// Indicates a fuzzy match that serves as a suggestion for the next
     /// intended match for an expected pattern with too few or no good matches.
     MatchFuzzy,
   } MatchTy;
-  /// The search range if MatchTy is MatchNoneAndExcluded or
-  /// MatchNoneButExpected, or the match range otherwise.
+  /// The search range if MatchTy starts with MatchNone, or the match range
+  /// otherwise.
   unsigned InputStartLine;
   unsigned InputStartCol;
   unsigned InputEndLine;

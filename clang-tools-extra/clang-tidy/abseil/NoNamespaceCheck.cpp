@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 void NoNamespaceCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -25,14 +23,12 @@ void NoNamespaceCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void NoNamespaceCheck::check(const MatchFinder::MatchResult &Result) {
-  const auto *abslNamespaceDecl =
+  const auto *AbslNamespaceDecl =
       Result.Nodes.getNodeAs<NamespaceDecl>("abslNamespace");
 
-  diag(abslNamespaceDecl->getLocation(),
+  diag(AbslNamespaceDecl->getLocation(),
        "namespace 'absl' is reserved for implementation of the Abseil library "
        "and should not be opened in user code");
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

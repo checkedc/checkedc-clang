@@ -1,9 +1,9 @@
-; RUN: opt -verify-loop-info -irce -S < %s | FileCheck %s
+; RUN: opt -verify-loop-info -passes=irce -S < %s | FileCheck %s
 ; RUN: opt -verify-loop-info -passes='require<branch-prob>,irce' -S < %s | FileCheck %s
 
-define void @decrementing_loop(i32 *%arr, i32 *%a_len_ptr, i32 %n) {
+define void @decrementing_loop(ptr %arr, ptr %a_len_ptr, i32 %n) {
  entry:
-  %len = load i32, i32* %a_len_ptr, !range !0
+  %len = load i32, ptr %a_len_ptr, !range !0
   %first.itr.check = icmp sgt i32 %n, 0
   %start = sub i32 %n, 1
   br i1 %first.itr.check, label %loop, label %exit
@@ -17,8 +17,8 @@ define void @decrementing_loop(i32 *%arr, i32 *%a_len_ptr, i32 %n) {
   br i1 %abc, label %in.bounds, label %out.of.bounds, !prof !1
 
  in.bounds:
-  %addr = getelementptr i32, i32* %arr, i32 %idx
-  store i32 0, i32* %addr
+  %addr = getelementptr i32, ptr %arr, i32 %idx
+  store i32 0, ptr %addr
   %next = icmp sgt i32 %idx.dec, -1
   br i1 %next, label %loop, label %exit
 
@@ -29,17 +29,15 @@ define void @decrementing_loop(i32 *%arr, i32 *%a_len_ptr, i32 %n) {
   ret void
 
 ; CHECK: loop.preheader:
-; CHECK:   [[len_hiclamp_cmp:[^ ]+]] = icmp slt i32 %len, %n
-; CHECK:   [[len_hiclamp:[^ ]+]] = select i1 [[len_hiclamp_cmp]], i32 %len, i32 %n
-; CHECK:   [[not_exit_preloop_at_cmp:[^ ]+]] = icmp sgt i32 [[len_hiclamp]], 0
-; CHECK:   [[not_exit_preloop_at:[^ ]+]] = select i1 [[not_exit_preloop_at_cmp]], i32 [[len_hiclamp]], i32 0
+; CHECK:   [[len_hiclamp:[^ ]+]] = call i32 @llvm.smin.i32(i32 %len, i32 %n)
+; CHECK:   [[not_exit_preloop_at:[^ ]+]] = call i32 @llvm.smax.i32(i32 [[len_hiclamp]], i32 0)
 ; CHECK:   %exit.preloop.at = add nsw i32 [[not_exit_preloop_at]], -1
 }
 
 ; Make sure that we can eliminate the range check when the loop looks like:
 ; for (i = len.a - 1; i >= 0; --i)
 ;   b[i] = a[i];
-define void @test_01(i32* %a, i32* %b, i32* %a_len_ptr, i32* %b_len_ptr) {
+define void @test_01(ptr %a, ptr %b, ptr %a_len_ptr, ptr %b_len_ptr) {
 
 ; CHECK-LABEL: test_01
 ; CHECK:       mainloop:
@@ -49,8 +47,8 @@ define void @test_01(i32* %a, i32* %b, i32* %a_len_ptr, i32* %b_len_ptr) {
 ; CHECK:       loop.preloop:
 
  entry:
-  %len.a = load i32, i32* %a_len_ptr, !range !0
-  %len.b = load i32, i32* %b_len_ptr, !range !0
+  %len.a = load i32, ptr %a_len_ptr, !range !0
+  %len.b = load i32, ptr %b_len_ptr, !range !0
   %first.itr.check = icmp ne i32 %len.a, 0
   br i1 %first.itr.check, label %loop, label %exit
 
@@ -63,10 +61,10 @@ define void @test_01(i32* %a, i32* %b, i32* %a_len_ptr, i32* %b_len_ptr) {
   br i1 %rc, label %in.bounds, label %out.of.bounds, !prof !1
 
  in.bounds:
-  %el.a = getelementptr i32, i32* %a, i32 %idx.next
-  %el.b = getelementptr i32, i32* %b, i32 %idx.next
-  %v = load i32, i32* %el.a
-  store i32 %v, i32* %el.b
+  %el.a = getelementptr i32, ptr %a, i32 %idx.next
+  %el.b = getelementptr i32, ptr %b, i32 %idx.next
+  %v = load i32, ptr %el.a
+  store i32 %v, ptr %el.b
   %loop.cond = icmp slt i32 %idx, 2
   br i1 %loop.cond, label %exit, label %loop
 
@@ -78,7 +76,7 @@ define void @test_01(i32* %a, i32* %b, i32* %a_len_ptr, i32* %b_len_ptr) {
 }
 
 ; Same as test_01, but the latch condition is unsigned
-define void @test_02(i32* %a, i32* %b, i32* %a_len_ptr, i32* %b_len_ptr) {
+define void @test_02(ptr %a, ptr %b, ptr %a_len_ptr, ptr %b_len_ptr) {
 
 ; CHECK-LABEL: test_02
 ; CHECK:       mainloop:
@@ -88,8 +86,8 @@ define void @test_02(i32* %a, i32* %b, i32* %a_len_ptr, i32* %b_len_ptr) {
 ; CHECK:       loop.preloop:
 
  entry:
-  %len.a = load i32, i32* %a_len_ptr, !range !0
-  %len.b = load i32, i32* %b_len_ptr, !range !0
+  %len.a = load i32, ptr %a_len_ptr, !range !0
+  %len.b = load i32, ptr %b_len_ptr, !range !0
   %first.itr.check = icmp ne i32 %len.a, 0
   br i1 %first.itr.check, label %loop, label %exit
 
@@ -102,10 +100,10 @@ define void @test_02(i32* %a, i32* %b, i32* %a_len_ptr, i32* %b_len_ptr) {
   br i1 %rc, label %in.bounds, label %out.of.bounds, !prof !1
 
  in.bounds:
-  %el.a = getelementptr i32, i32* %a, i32 %idx.next
-  %el.b = getelementptr i32, i32* %b, i32 %idx.next
-  %v = load i32, i32* %el.a
-  store i32 %v, i32* %el.b
+  %el.a = getelementptr i32, ptr %a, i32 %idx.next
+  %el.b = getelementptr i32, ptr %b, i32 %idx.next
+  %v = load i32, ptr %el.a
+  store i32 %v, ptr %el.b
   %loop.cond = icmp ult i32 %idx, 2
   br i1 %loop.cond, label %exit, label %loop
 
@@ -118,7 +116,7 @@ define void @test_02(i32* %a, i32* %b, i32* %a_len_ptr, i32* %b_len_ptr) {
 
 ; Check that we can figure out that IV is non-negative via implication through
 ; Phi node.
-define void @test_03(i32* %a, i32* %a_len_ptr, i1 %cond) {
+define void @test_03(ptr %a, ptr %a_len_ptr, i1 %cond) {
 
 ; CHECK-LABEL: test_03
 ; CHECK:       mainloop:
@@ -128,7 +126,7 @@ define void @test_03(i32* %a, i32* %a_len_ptr, i1 %cond) {
 ; CHECK:       loop.preloop:
 
  entry:
-  %len.a = load i32, i32* %a_len_ptr, !range !0
+  %len.a = load i32, ptr %a_len_ptr, !range !0
   %len.minus.one = sub nsw i32 %len.a, 1
   %len.minus.two = sub nsw i32 %len.a, 2
   br i1 %cond, label %if.true, label %if.false
@@ -151,8 +149,8 @@ loop:
   br i1 %rc, label %in.bounds, label %out.of.bounds, !prof !1
 
 in.bounds:
-  %el.a = getelementptr i32, i32* %a, i32 %idx.next
-  %v = load i32, i32* %el.a
+  %el.a = getelementptr i32, ptr %a, i32 %idx.next
+  %v = load i32, ptr %el.a
   %loop.cond = icmp slt i32 %idx, 2
   br i1 %loop.cond, label %exit, label %loop
 
@@ -165,7 +163,7 @@ exit:
 
 ; Check that we can figure out that IV is non-negative via implication through
 ; two Phi nodes.
-define void @test_04(i32* %a, i32* %a_len_ptr, i1 %cond) {
+define void @test_04(ptr %a, ptr %a_len_ptr, i1 %cond) {
 
 ; CHECK-LABEL: test_04
 ; CHECK:       mainloop:
@@ -175,7 +173,7 @@ define void @test_04(i32* %a, i32* %a_len_ptr, i1 %cond) {
 ; CHECK:       loop.preloop:
 
  entry:
-  %len.a = load i32, i32* %a_len_ptr, !range !0
+  %len.a = load i32, ptr %a_len_ptr, !range !0
   %len.minus.one = sub nsw i32 %len.a, 1
   %len.plus.one = add nsw i32 %len.a, 1
   %len.minus.two = sub nsw i32 %len.a, 2
@@ -200,8 +198,8 @@ loop:
   br i1 %rc, label %in.bounds, label %out.of.bounds, !prof !1
 
 in.bounds:
-  %el.a = getelementptr i32, i32* %a, i32 %idx.next
-  %v = load i32, i32* %el.a
+  %el.a = getelementptr i32, ptr %a, i32 %idx.next
+  %v = load i32, ptr %el.a
   %loop.cond = icmp slt i32 %idx, 2
   br i1 %loop.cond, label %exit, label %loop
 
@@ -214,7 +212,7 @@ exit:
 
 ; Check that we can figure out that IV is non-negative via implication through
 ; two Phi nodes, one being AddRec.
-define void @test_05(i32* %a, i32* %a_len_ptr, i1 %cond) {
+define void @test_05(ptr %a, ptr %a_len_ptr, i1 %cond) {
 
 ; CHECK-LABEL: test_05
 ; CHECK:       mainloop:
@@ -224,7 +222,7 @@ define void @test_05(i32* %a, i32* %a_len_ptr, i1 %cond) {
 ; CHECK:       loop.preloop:
 
  entry:
-  %len.a = load i32, i32* %a_len_ptr, !range !0
+  %len.a = load i32, ptr %a_len_ptr, !range !0
   %len.minus.one = sub nsw i32 %len.a, 1
   %len.plus.one = add nsw i32 %len.a, 1
   %len.minus.two = sub nsw i32 %len.a, 2
@@ -247,8 +245,8 @@ loop:
   br i1 %rc, label %in.bounds, label %out.of.bounds, !prof !1
 
 in.bounds:
-  %el.a = getelementptr i32, i32* %a, i32 %idx.next
-  %v = load i32, i32* %el.a
+  %el.a = getelementptr i32, ptr %a, i32 %idx.next
+  %v = load i32, ptr %el.a
   %loop.cond = icmp slt i32 %idx, 2
   br i1 %loop.cond, label %exit, label %loop
 

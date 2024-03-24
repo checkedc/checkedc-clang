@@ -13,82 +13,60 @@
 #ifndef MLIR_DIALECT_LINALG_PASSES_H_
 #define MLIR_DIALECT_LINALG_PASSES_H_
 
+#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
-std::unique_ptr<OperationPass<FuncOp>> createConvertElementwiseToLinalgPass();
+namespace func {
+class FuncOp;
+} // namespace func
 
-std::unique_ptr<OperationPass<FuncOp>> createLinalgFoldUnitExtentDimsPass();
+namespace bufferization {
+struct OneShotBufferizationOptions;
+} // namespace bufferization
 
-std::unique_ptr<Pass> createLinalgFusionOfTensorOpsPass();
+#define GEN_PASS_DECL
+#include "mlir/Dialect/Linalg/Passes.h.inc"
+
+std::unique_ptr<Pass> createConvertElementwiseToLinalgPass();
+
+std::unique_ptr<Pass> createLinalgFoldUnitExtentDimsPass();
+
+std::unique_ptr<Pass> createLinalgElementwiseOpFusionPass();
 std::unique_ptr<Pass> createFoldReshapeOpsByLinearizationPass();
 
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgTilingPass(ArrayRef<int64_t> tileSizes = {});
+std::unique_ptr<Pass> createLinalgNamedOpConversionPass();
 
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgTilingToParallelLoopsPass(ArrayRef<int64_t> tileSizes = {});
-
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca);
-std::unique_ptr<OperationPass<FuncOp>> createLinalgPromotionPass();
+std::unique_ptr<OperationPass<func::FuncOp>>
+createLinalgInlineScalarOperandsPass();
 
 /// Create a pass to convert Linalg operations to scf.for loops and
-/// std.load/std.store accesses.
-std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToLoopsPass();
+/// memref.load/memref.store accesses.
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertLinalgToLoopsPass();
 
 /// Create a pass to convert Linalg operations to scf.parallel loops and
-/// std.load/std.store accesses.
-std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToParallelLoopsPass();
+/// memref.load/memref.store accesses.
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertLinalgToParallelLoopsPass();
 
 /// Create a pass to convert Linalg operations to affine.for loops and
 /// affine_load/affine_store accesses.
 /// Placeholder for now, this is NYI.
-std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToAffineLoopsPass();
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertLinalgToAffineLoopsPass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.
-std::unique_ptr<OperationPass<FuncOp>> createLinalgBufferizePass();
+std::unique_ptr<OperationPass<func::FuncOp>> createLinalgBufferizePass();
 
-/// Populate patterns that convert `ElementwiseMappable` ops to linalg
-/// parallel loops.
-void populateElementwiseToLinalgConversionPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *ctx);
-
-/// Create a pass to conver named Linalg operations to Linalg generic
+/// Create a pass to convert named Linalg operations to Linalg generic
 /// operations.
-std::unique_ptr<OperationPass<FuncOp>> createLinalgGeneralizationPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createLinalgGeneralizationPass();
 
-/// Patterns to fold an expanding (collapsing) tensor_reshape operation with its
-/// producer (consumer) generic operation by expanding the dimensionality of the
-/// loop in the generic op.
-void populateFoldReshapeOpsByExpansionPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns);
-
-/// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
-/// producer (consumer) generic/indexed_generic operation by linearizing the
-/// indexing map used to access the source (target) of the reshape operation in
-/// the generic/indexed_generic operation.
-void populateFoldReshapeOpsByLinearizationPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns);
-
-/// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
-/// producer (consumer) generic/indexed_generic operation by linearizing the
-/// indexing map used to access the source (target) of the reshape operation in
-/// the generic/indexed_generic operation. The patterns are applied only when
-/// the tensor reshape involved is collapsing (introducing) unit-extent
-/// dimensions.
-void populateFoldUnitDimsReshapeOpsByLinearizationPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns);
-
-/// Patterns for fusing linalg operation on tensors.
-void populateLinalgTensorOpsFusionPatterns(MLIRContext *context,
-                                           OwningRewritePatternList &patterns);
-
-/// Patterns to fold unit-extent dimensions in operands/results of linalg ops on
-/// tensors.
-void populateLinalgFoldUnitExtentDimsPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns);
+/// Create a pass to convert Linalg operations to equivalent operations that
+/// work on primitive types, if possible.
+std::unique_ptr<Pass> createLinalgDetensorizePass();
 
 //===----------------------------------------------------------------------===//
 // Registration

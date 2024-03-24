@@ -2,9 +2,6 @@
 Test lldb-vscode setBreakpoints request
 """
 
-from __future__ import print_function
-
-import unittest2
 import vscode
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -14,15 +11,13 @@ import lldbvscode_testcase
 
 class TestVSCode_console(lldbvscode_testcase.VSCodeTestCaseBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def check_lldb_command(self, lldb_command, contains_string, assert_msg):
         response = self.vscode.request_evaluate('`%s' % (lldb_command))
         output = response['body']['result']
-        self.assertTrue(contains_string in output,
-                        ("""Verify %s by checking the command output:\n"""
-                         """'''\n%s'''\nfor the string: "%s" """ % (
-                         assert_msg, output, contains_string)))
+        self.assertIn(contains_string, output,
+                      ("""Verify %s by checking the command output:\n"""
+                       """'''\n%s'''\nfor the string: "%s" """ % (
+                       assert_msg, output, contains_string)))
 
     @skipIfWindows
     @skipIfRemote
@@ -47,7 +42,7 @@ class TestVSCode_console(lldbvscode_testcase.VSCodeTestCaseBase):
         lines = [breakpoint1_line]
         # Set breakpoint in the thread function so we can step the threads
         breakpoint_ids = self.set_source_breakpoints(source, lines)
-        self.assertTrue(len(breakpoint_ids) == len(lines),
+        self.assertEqual(len(breakpoint_ids), len(lines),
                         "expect correct number of breakpoints")
         self.continue_to_breakpoints(breakpoint_ids)
         # Cause a "scopes" to be sent for frame zero which should update the

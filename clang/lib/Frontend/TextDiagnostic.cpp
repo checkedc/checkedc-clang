@@ -20,6 +20,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <optional>
 
 using namespace clang;
 
@@ -44,7 +45,7 @@ static const enum raw_ostream::Colors savedColor =
 /// Add highlights to differences in template strings.
 static void applyTemplateHighlighting(raw_ostream &OS, StringRef Str,
                                       bool &Normal, bool Bold) {
-  while (1) {
+  while (true) {
     size_t Pos = Str.find(ToggleHighlight);
     OS << Str.slice(0, Pos);
     if (Pos == StringRef::npos)
@@ -332,8 +333,7 @@ static void selectInterestingSourceRegion(std::string &SourceLine,
     return;
 
   // No special characters are allowed in CaretLine.
-  assert(CaretLine.end() ==
-         llvm::find_if(CaretLine, [](char c) { return c < ' ' || '~' < c; }));
+  assert(llvm::none_of(CaretLine, [](char c) { return c < ' ' || '~' < c; }));
 
   // Find the slice that we need to display the full caret line
   // correctly.
@@ -684,8 +684,7 @@ void TextDiagnostic::emitDiagnosticMessage(
     OS.resetColor();
 
   if (DiagOpts->ShowLevel)
-    printDiagnosticLevel(OS, Level, DiagOpts->ShowColors,
-                         DiagOpts->CLFallbackMode);
+    printDiagnosticLevel(OS, Level, DiagOpts->ShowColors);
   printDiagnosticMessage(OS,
                          /*IsSupplemental*/ Level == DiagnosticsEngine::Note,
                          Message, OS.tell() - StartOfLocationInfo,
@@ -695,8 +694,7 @@ void TextDiagnostic::emitDiagnosticMessage(
 /*static*/ void
 TextDiagnostic::printDiagnosticLevel(raw_ostream &OS,
                                      DiagnosticsEngine::Level Level,
-                                     bool ShowColors,
-                                     bool CLFallbackMode) {
+                                     bool ShowColors) {
   if (ShowColors) {
     // Print diagnostic category in bold and color
     switch (Level) {
@@ -713,21 +711,12 @@ TextDiagnostic::printDiagnosticLevel(raw_ostream &OS,
   switch (Level) {
   case DiagnosticsEngine::Ignored:
     llvm_unreachable("Invalid diagnostic type");
-  case DiagnosticsEngine::Note:    OS << "note"; break;
-  case DiagnosticsEngine::Remark:  OS << "remark"; break;
-  case DiagnosticsEngine::Warning: OS << "warning"; break;
-  case DiagnosticsEngine::Error:   OS << "error"; break;
-  case DiagnosticsEngine::Fatal:   OS << "fatal error"; break;
+  case DiagnosticsEngine::Note:    OS << "note: "; break;
+  case DiagnosticsEngine::Remark:  OS << "remark: "; break;
+  case DiagnosticsEngine::Warning: OS << "warning: "; break;
+  case DiagnosticsEngine::Error:   OS << "error: "; break;
+  case DiagnosticsEngine::Fatal:   OS << "fatal error: "; break;
   }
-
-  // In clang-cl /fallback mode, print diagnostics as "error(clang):". This
-  // makes it more clear whether a message is coming from clang or cl.exe,
-  // and it prevents MSBuild from concluding that the build failed just because
-  // there is an "error:" in the output.
-  if (CLFallbackMode)
-    OS << "(clang)";
-
-  OS << ": ";
 
   if (ShowColors)
     OS.resetColor();
@@ -809,8 +798,7 @@ void TextDiagnostic::emitDiagnosticLoc(FullSourceLoc Loc, PresumedLoc PLoc,
     // At least print the file name if available:
     FileID FID = Loc.getFileID();
     if (FID.isValid()) {
-      const FileEntry *FE = Loc.getFileEntry();
-      if (FE && FE->isValid()) {
+      if (const FileEntry *FE = Loc.getFileEntry()) {
         emitFilename(FE->getName(), Loc.getManager());
         OS << ": ";
       }
@@ -827,6 +815,7 @@ void TextDiagnostic::emitDiagnosticLoc(FullSourceLoc Loc, PresumedLoc PLoc,
 
   emitFilename(PLoc.getFilename(), Loc.getManager());
   switch (DiagOpts->getFormat()) {
+  case DiagnosticOptions::SARIF:
   case DiagnosticOptions::Clang:
     if (DiagOpts->ShowLine)
       OS << ':' << LineNo;
@@ -849,6 +838,7 @@ void TextDiagnostic::emitDiagnosticLoc(FullSourceLoc Loc, PresumedLoc PLoc,
       OS << ColNo;
     }
   switch (DiagOpts->getFormat()) {
+  case DiagnosticOptions::SARIF:
   case DiagnosticOptions::Clang:
   case DiagnosticOptions::Vi:    OS << ':';    break;
   case DiagnosticOptions::MSVC:
@@ -934,15 +924,16 @@ void TextDiagnostic::emitBuildingModuleLocation(FullSourceLoc Loc,
 }
 
 /// Find the suitable set of lines to show to include a set of ranges.
-static llvm::Optional<std::pair<unsigned, unsigned>>
+static std::optional<std::pair<unsigned, unsigned>>
 findLinesForRange(const CharSourceRange &R, FileID FID,
                   const SourceManager &SM) {
-  if (!R.isValid()) return None;
+  if (!R.isValid())
+    return std::nullopt;
 
   SourceLocation Begin = R.getBegin();
   SourceLocation End = R.getEnd();
   if (SM.getFileID(Begin) != FID || SM.getFileID(End) != FID)
-    return None;
+    return std::nullopt;
 
   return std::make_pair(SM.getExpansionLineNumber(Begin),
                         SM.getExpansionLineNumber(End));

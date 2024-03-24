@@ -2,20 +2,20 @@
 # RUN: llvm-mc -filetype=obj -triple=powerpc64le %s -o %t.o
 # RUN: ld.lld %t.o -o %t
 # RUN: llvm-readelf -s %t | FileCheck %s --check-prefix=SYMBOL
-# RUN: llvm-objdump -d --no-show-raw-insn --mcpu=pwr10 %t | FileCheck %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t | FileCheck %s
 
 # RUN: llvm-mc -filetype=obj -triple=powerpc64 %s -o %t.o
 # RUN: ld.lld %t.o -o %t
 # RUN: llvm-readelf -s %t | FileCheck %s --check-prefix=SYMBOL
-# RUN: llvm-objdump -d --no-show-raw-insn --mcpu=pwr10 %t | FileCheck %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t | FileCheck %s
 
 ## This test checks the LLD implementation of the Local Exec TLS model
 ## when using prefixed instructions like paddi.
 
 # SYMBOL:      Symbol table '.symtab' contains 6 entries:
-# SYMBOL:      3: 0000000000000000     0 TLS     LOCAL DEFAULT     2 x
-# SYMBOL-NEXT: 4: 0000000000000004     0 TLS     LOCAL DEFAULT     2 y
-# SYMBOL-NEXT: 5: 0000000000000008     0 TLS     LOCAL DEFAULT     2 z
+# SYMBOL:      0000000000000000     0 TLS     LOCAL DEFAULT     2 x
+# SYMBOL-NEXT: 0000000000000004     0 TLS     LOCAL DEFAULT     2 y
+# SYMBOL-NEXT: 0000000000000008     0 TLS     LOCAL DEFAULT     2 z
 
 # CHECK-LABEL: <LocalExecAddr>:
 # CHECK:       paddi 3, 13, -28672, 0

@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 AST_MATCHER(FunctionDecl, doesDeclarationForceExternallyVisibleDefinition) {
   return Node.doesDeclarationForceExternallyVisibleDefinition();
@@ -37,7 +35,7 @@ void RedundantDeclarationCheck::registerMatchers(MatchFinder *Finder) {
                       functionDecl(unless(anyOf(
                           isDefinition(), isDefaulted(),
                           doesDeclarationForceExternallyVisibleDefinition(),
-                          hasParent(friendDecl()))))))
+                          hasAncestor(friendDecl()))))))
           .bind("Decl"),
       this);
 }
@@ -68,7 +66,7 @@ void RedundantDeclarationCheck::check(const MatchFinder::MatchResult &Result) {
   bool MultiVar = false;
   if (const auto *VD = dyn_cast<VarDecl>(D)) {
     // Is this a multivariable declaration?
-    for (const auto Other : VD->getDeclContext()->decls()) {
+    for (const auto *Other : VD->getDeclContext()->decls()) {
       if (Other != D && Other->getBeginLoc() == VD->getBeginLoc()) {
         MultiVar = true;
         break;
@@ -86,6 +84,4 @@ void RedundantDeclarationCheck::check(const MatchFinder::MatchResult &Result) {
   }
   diag(Prev->getLocation(), "previously declared here", DiagnosticIDs::Note);
 }
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

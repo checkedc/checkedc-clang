@@ -20,15 +20,14 @@
 #include "CloexecInotifyInitCheck.h"
 #include "CloexecMemfdCreateCheck.h"
 #include "CloexecOpenCheck.h"
-#include "CloexecPipeCheck.h"
 #include "CloexecPipe2Check.h"
+#include "CloexecPipeCheck.h"
 #include "CloexecSocketCheck.h"
 #include "ComparisonInTempFailureRetryCheck.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace android {
 
 /// This module is for Android specific checks.
@@ -69,5 +68,4 @@ static ClangTidyModuleRegistry::Add<AndroidModule>
 // and thus register the AndroidModule.
 volatile int AndroidModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

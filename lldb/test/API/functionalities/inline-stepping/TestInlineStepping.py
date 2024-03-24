@@ -10,9 +10,8 @@ from lldbsuite.test import lldbutil
 
 class TestInlineStepping(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @add_test_categories(['pyapi'])
+    @skipIf(oslist=['windows'], archs=['aarch64']) # Flaky on buildbot
     @expectedFailureAll(
         compiler="icc",
         bugnumber="# Not really a bug.  ICC combines two inlined functions.")
@@ -197,8 +196,8 @@ class TestInlineStepping(TestBase):
 
         threads = lldbutil.continue_to_breakpoint(
             self.process, break_2_in_main)
-        self.assertTrue(
-            len(threads) == 1,
+        self.assertEqual(
+            len(threads), 1,
             "Successfully ran to call site of second caller_trivial_1 call.")
         self.thread = threads[0]
 
@@ -215,8 +214,8 @@ class TestInlineStepping(TestBase):
         value = frame.EvaluateExpression("function_to_call()")
         after_line_entry = frame.GetLineEntry()
 
-        self.assertTrue(
-            before_line_entry.GetLine() == after_line_entry.GetLine(),
+        self.assertEqual(
+            before_line_entry.GetLine(), after_line_entry.GetLine(),
             "Line entry before and after function calls are the same.")
 
         # Now make sure stepping OVER in the middle of the stack works, and
@@ -235,8 +234,8 @@ class TestInlineStepping(TestBase):
 
         threads = lldbutil.continue_to_breakpoint(
             self.process, break_3_in_main)
-        self.assertTrue(
-            len(threads) == 1,
+        self.assertEqual(
+            len(threads), 1,
             "Successfully ran to call site of first caller_ref_1 call.")
         self.thread = threads[0]
 

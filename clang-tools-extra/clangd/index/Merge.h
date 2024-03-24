@@ -9,7 +9,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_MERGE_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_MERGE_H
 
-#include "Index.h"
+#include "index/Index.h"
 
 namespace clang {
 namespace clangd {
@@ -41,7 +41,7 @@ public:
   void relations(const RelationsRequest &,
                  llvm::function_ref<void(const SymbolID &, const Symbol &)>)
       const override;
-  llvm::unique_function<bool(llvm::StringRef) const>
+  llvm::unique_function<IndexContents(llvm::StringRef) const>
   indexedFiles() const override;
   size_t estimateMemoryUsage() const override {
     return Dynamic->estimateMemoryUsage() + Static->estimateMemoryUsage();

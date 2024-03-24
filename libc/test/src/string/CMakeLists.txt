@@ -3,43 +3,35 @@ add_libc_testsuite(libc_string_unittests)
 add_subdirectory(memory_utils)
 
 add_libc_unittest(
-  strcat_test
+  bcopy_test
   SUITE
     libc_string_unittests
   SRCS
-    strcat_test.cpp
+    bcopy_test.cpp
   DEPENDS
-    libc.src.string.strcat
+    libc.src.string.bcopy
+  LINK_LIBRARIES
+    LibcMemoryHelpers
 )
 
 add_libc_unittest(
-  strcpy_test
+  memccpy_test
   SUITE
     libc_string_unittests
   SRCS
-    strcpy_test.cpp
+    memccpy_test.cpp
   DEPENDS
-    libc.src.string.strcpy
+    libc.src.string.memccpy
 )
 
 add_libc_unittest(
-  strlen_test
+  mempcpy_test
   SUITE
     libc_string_unittests
   SRCS
-    strlen_test.cpp
+    mempcpy_test.cpp
   DEPENDS
-    libc.src.string.strlen
-)
-
-add_libc_unittest(
-  strcmp_test
-  SUITE
-    libc_string_unittests
-  SRCS
-    strcmp_test.cpp
-  DEPENDS
-    libc.src.string.strcmp
+    libc.src.string.mempcpy
 )
 
 add_libc_unittest(
@@ -53,24 +45,43 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
-  memcmp_test
+  memrchr_test
   SUITE
     libc_string_unittests
   SRCS
-    memcmp_test.cpp
+    memrchr_test.cpp
   DEPENDS
-    libc.src.string.memcmp
+    libc.src.string.memrchr
 )
 
 add_libc_unittest(
-  memmove_test
+  stpcpy_test
   SUITE
     libc_string_unittests
   SRCS
-    memmove_test.cpp
+    stpcpy_test.cpp
   DEPENDS
-    libc.src.string.memcmp
-    libc.src.string.memmove
+    libc.src.string.stpcpy
+)
+
+add_libc_unittest(
+  stpncpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    stpncpy_test.cpp
+  DEPENDS
+    libc.src.string.stpncpy
+)
+
+add_libc_unittest(
+  strcat_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strcat_test.cpp
+  DEPENDS
+    libc.src.string.strcat
 )
 
 add_libc_unittest(
@@ -84,53 +95,43 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
-  strstr_test
+  strcmp_test
   SUITE
     libc_string_unittests
   SRCS
-    strstr_test.cpp
+    strcmp_test.cpp
   DEPENDS
-    libc.src.string.strstr
+    libc.src.string.strcmp
 )
 
 add_libc_unittest(
-  strncpy_test
+  strcasecmp_test
   SUITE
     libc_string_unittests
   SRCS
-    strncpy_test.cpp
+    strcasecmp_test.cpp
   DEPENDS
-    libc.src.string.strncpy
+    libc.src.string.strcasecmp
 )
 
 add_libc_unittest(
-  strnlen_test
+  strcoll_test
   SUITE
     libc_string_unittests
   SRCS
-    strnlen_test.cpp
+    strcoll_test.cpp
   DEPENDS
-    libc.src.string.strnlen
+    libc.src.string.strcoll
 )
 
 add_libc_unittest(
-  memrchr_test
+  strcpy_test
   SUITE
     libc_string_unittests
   SRCS
-    memrchr_test.cpp
+    strcpy_test.cpp
   DEPENDS
-    libc.src.string.memrchr
-)
-
-add_libc_unittest(
-  strrchr_test
-  SUITE
-    libc_string_unittests
-  SRCS
-    strrchr_test.cpp
-  DEPENDS
-    libc.src.string.strrchr
+    libc.src.string.strcpy
 )
 
 add_libc_unittest(
@@ -144,13 +145,128 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
-  strspn_test
+  strdup_test
   SUITE
     libc_string_unittests
   SRCS
-    strspn_test.cpp
+    strdup_test.cpp
   DEPENDS
-    libc.src.string.strspn
+    libc.include.errno
+    libc.include.stdlib
+    libc.src.string.strdup
+    libc.src.errno.errno
+)
+
+add_libc_unittest(
+  strerror_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strerror_test.cpp
+  DEPENDS
+    libc.src.string.strerror
+)
+
+
+add_libc_unittest(
+  strerror_r_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strerror_r_test.cpp
+  DEPENDS
+    libc.src.string.strerror_r
+)
+
+add_libc_unittest(
+  strlcat_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strlcat_test.cpp
+  DEPENDS
+    libc.src.string.strlcat
+)
+
+add_libc_unittest(
+  strlcpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strlcpy_test.cpp
+  DEPENDS
+    libc.src.string.strlcpy
+)
+
+add_libc_unittest(
+  strlen_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strlen_test.cpp
+  DEPENDS
+    libc.src.string.strlen
+)
+
+add_libc_unittest(
+  strncat_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strncat_test.cpp
+  DEPENDS
+    libc.src.string.strncat
+)
+
+add_libc_unittest(
+  strncmp_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strncmp_test.cpp
+  DEPENDS
+    libc.src.string.strncmp
+)
+
+add_libc_unittest(
+  strncasecmp_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strncasecmp_test.cpp
+  DEPENDS
+    libc.src.string.strncasecmp
+)
+
+add_libc_unittest(
+  strncpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strncpy_test.cpp
+  DEPENDS
+    libc.src.string.strncpy
+)
+
+add_libc_unittest(
+  strndup_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strndup_test.cpp
+  DEPENDS
+    libc.include.stdlib
+    libc.src.string.strndup
+)
+
+add_libc_unittest(
+  strnlen_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strnlen_test.cpp
+  DEPENDS
+    libc.src.string.strnlen
 )
 
 add_libc_unittest(
@@ -161,6 +277,46 @@ add_libc_unittest(
     strpbrk_test.cpp
   DEPENDS
     libc.src.string.strpbrk
+)
+
+add_libc_unittest(
+  strrchr_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strrchr_test.cpp
+  DEPENDS
+    libc.src.string.strrchr
+)
+
+add_libc_unittest(
+  strsignal_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strsignal_test.cpp
+  DEPENDS
+    libc.src.string.strsignal
+)
+
+add_libc_unittest(
+  strspn_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strspn_test.cpp
+  DEPENDS
+    libc.src.string.strspn
+)
+
+add_libc_unittest(
+  strstr_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strstr_test.cpp
+  DEPENDS
+    libc.src.string.strstr
 )
 
 add_libc_unittest(
@@ -183,27 +339,35 @@ add_libc_unittest(
     libc.src.string.strtok_r
 )
 
-# Tests all implementations that can run on the host.
+# Tests all implementations that can run on the target CPU.
 function(add_libc_multi_impl_test name)
   get_property(fq_implementations GLOBAL PROPERTY ${name}_implementations)
   foreach(fq_config_name IN LISTS fq_implementations)
     get_target_property(required_cpu_features ${fq_config_name} REQUIRE_CPU_FEATURES)
-    host_supports(can_run "${required_cpu_features}")
+    cpu_supports(can_run "${required_cpu_features}")
     if(can_run)
       add_libc_unittest(
         ${fq_config_name}_test
         SUITE
           libc_string_unittests
+        COMPILE_OPTIONS
+          ${LIBC_COMPILE_OPTIONS_NATIVE}
+        LINK_LIBRARIES
+          LibcMemoryHelpers
+        ${ARGN}
         DEPENDS
           ${fq_config_name}
-        ${ARGN}
       )
+      get_fq_target_name(${fq_config_name}_test fq_target_name)
     else()
       message(STATUS "Skipping test for '${fq_config_name}' insufficient host cpu features '${required_cpu_features}'")
     endif()
   endforeach()
 endfunction()
 
-add_libc_multi_impl_test(memcpy SRCS memcpy_test.cpp)
-add_libc_multi_impl_test(memset SRCS memset_test.cpp)
+add_libc_multi_impl_test(bcmp SRCS bcmp_test.cpp)
 add_libc_multi_impl_test(bzero SRCS bzero_test.cpp)
+add_libc_multi_impl_test(memcmp SRCS memcmp_test.cpp)
+add_libc_multi_impl_test(memcpy SRCS memcpy_test.cpp)
+add_libc_multi_impl_test(memmove SRCS memmove_test.cpp)
+add_libc_multi_impl_test(memset SRCS memset_test.cpp)

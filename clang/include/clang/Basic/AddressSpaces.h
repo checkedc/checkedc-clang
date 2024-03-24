@@ -44,10 +44,20 @@ enum class LangAS : unsigned {
   cuda_constant,
   cuda_shared,
 
+  // SYCL specific address spaces.
+  sycl_global,
+  sycl_global_device,
+  sycl_global_host,
+  sycl_local,
+  sycl_private,
+
   // Pointer size and extension address spaces.
   ptr32_sptr,
   ptr32_uptr,
   ptr64,
+
+  // HLSL specific address spaces.
+  hlsl_groupshared,
 
   // This denotes the count of language-specific address spaces and also
   // the offset added to the target-specific address spaces, which are usually

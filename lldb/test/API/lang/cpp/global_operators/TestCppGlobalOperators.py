@@ -9,8 +9,6 @@ from lldbsuite.test import lldbutil
 
 class TestCppGlobalOperators(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def prepare_executable_and_get_frame(self):
         self.build()
 
@@ -41,8 +39,8 @@ class TestCppGlobalOperators(TestBase):
         self.assertTrue(process.IsValid(), PROCESS_IS_VALID)
 
         # Get the thread of the process
-        self.assertTrue(
-            process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)

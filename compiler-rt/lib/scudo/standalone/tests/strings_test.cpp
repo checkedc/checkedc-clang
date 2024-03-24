@@ -12,8 +12,14 @@
 
 #include <limits.h>
 
+TEST(ScudoStringsTest, Constructor) {
+  scudo::ScopedString Str;
+  EXPECT_EQ(0ul, Str.length());
+  EXPECT_EQ('\0', *Str.data());
+}
+
 TEST(ScudoStringsTest, Basic) {
-  scudo::ScopedString Str(128);
+  scudo::ScopedString Str;
   Str.append("a%db%zdc%ue%zuf%xh%zxq%pe%sr", static_cast<int>(-1),
              static_cast<scudo::uptr>(-2), static_cast<unsigned>(-4),
              static_cast<scudo::uptr>(5), static_cast<unsigned>(10),
@@ -28,8 +34,27 @@ TEST(ScudoStringsTest, Basic) {
   EXPECT_STREQ(expectedString.c_str(), Str.data());
 }
 
+TEST(ScudoStringsTest, Clear) {
+  scudo::ScopedString Str;
+  Str.append("123");
+  Str.clear();
+  EXPECT_EQ(0ul, Str.length());
+  EXPECT_EQ('\0', *Str.data());
+}
+
+TEST(ScudoStringsTest, ClearLarge) {
+  constexpr char appendString[] = "123";
+  scudo::ScopedString Str;
+  Str.reserve(sizeof(appendString) * 10000);
+  for (int i = 0; i < 10000; ++i)
+    Str.append(appendString);
+  Str.clear();
+  EXPECT_EQ(0ul, Str.length());
+  EXPECT_EQ('\0', *Str.data());
+}
+
 TEST(ScudoStringsTest, Precision) {
-  scudo::ScopedString Str(128);
+  scudo::ScopedString Str;
   Str.append("%.*s", 3, "12345");
   EXPECT_EQ(Str.length(), strlen(Str.data()));
   EXPECT_STREQ("123", Str.data());
@@ -52,7 +77,8 @@ TEST(ScudoStringTest, PotentialOverflows) {
   // Use a ScopedString that spans a page, and attempt to write past the end
   // of it with variations of append. The expectation is for nothing to crash.
   const scudo::uptr PageSize = scudo::getPageSizeCached();
-  scudo::ScopedString Str(PageSize);
+  scudo::ScopedString Str;
+  Str.reserve(2 * PageSize);
   Str.clear();
   fillString(Str, 2 * PageSize);
   Str.clear();
@@ -68,7 +94,7 @@ TEST(ScudoStringTest, PotentialOverflows) {
 
 template <typename T>
 static void testAgainstLibc(const char *Format, T Arg1, T Arg2) {
-  scudo::ScopedString Str(128);
+  scudo::ScopedString Str;
   Str.append(Format, Arg1, Arg2);
   char Buffer[128];
   snprintf(Buffer, sizeof(Buffer), Format, Arg1, Arg2);

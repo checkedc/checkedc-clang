@@ -1,4 +1,3 @@
-add_custom_target(MLIRUnitTests)
 set_target_properties(MLIRUnitTests PROPERTIES FOLDER "MLIR Tests")
 
 function(add_mlir_unittest test_dirname)
@@ -6,8 +5,17 @@ function(add_mlir_unittest test_dirname)
 endfunction()
 
 add_subdirectory(Analysis)
+add_subdirectory(Conversion)
 add_subdirectory(Dialect)
+add_subdirectory(Interfaces)
 add_subdirectory(IR)
+add_subdirectory(Parser)
 add_subdirectory(Pass)
-add_subdirectory(SDBM)
+add_subdirectory(Support)
+add_subdirectory(Rewrite)
 add_subdirectory(TableGen)
+add_subdirectory(Transforms)
+
+if(MLIR_ENABLE_EXECUTION_ENGINE)
+  add_subdirectory(ExecutionEngine)
+endif()

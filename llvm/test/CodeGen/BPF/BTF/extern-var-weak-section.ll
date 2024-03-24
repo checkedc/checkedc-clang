@@ -15,7 +15,7 @@
 define dso_local i32 @test() local_unnamed_addr #0 !dbg !16 {
 entry:
   %call = tail call i32 @global_func(i8 signext 0) #2, !dbg !19
-  %0 = load i8, i8* @ch, align 1, !dbg !20, !tbaa !21
+  %0 = load i8, ptr @ch, align 1, !dbg !20, !tbaa !21
   %conv = sext i8 %0 to i32, !dbg !20
   %add = add nsw i32 %call, %conv, !dbg !24
   ret i32 %add, !dbg !25
@@ -28,8 +28,8 @@ declare !dbg !6 extern_weak dso_local i32 @global_func(i8 signext) local_unnamed
 ; CHECK-NEXT:        .byte   0
 ; CHECK-NEXT:        .long   24
 ; CHECK-NEXT:        .long   0
-; CHECK-NEXT:        .long   128
-; CHECK-NEXT:        .long   128
+; CHECK-NEXT:        .long   140
+; CHECK-NEXT:        .long   140
 ; CHECK-NEXT:        .long   79
 ; CHECK-NEXT:        .long   0                       # BTF_KIND_FUNC_PROTO(id = 1)
 ; CHECK-NEXT:        .long   218103808               # 0xd000000
@@ -58,7 +58,10 @@ declare !dbg !6 extern_weak dso_local i32 @global_func(i8 signext) local_unnamed
 ; CHECK-NEXT:        .long   5
 ; CHECK-NEXT:        .long   2
 ; CHECK-NEXT:        .long   75                      # BTF_KIND_DATASEC(id = 8)
-; CHECK-NEXT:        .long   251658241               # 0xf000001
+; CHECK-NEXT:        .long   251658242               # 0xf000002
+; CHECK-NEXT:        .long   0
+; CHECK-NEXT:        .long   6
+; CHECK-NEXT:        .long   global_func
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   7
 ; CHECK-NEXT:        .long   ch

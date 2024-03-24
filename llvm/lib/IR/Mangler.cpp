@@ -98,12 +98,16 @@ static void addByteCountSuffix(raw_ostream &OS, const Function *F,
 
   const unsigned PtrSize = DL.getPointerSize();
 
-  for (Function::const_arg_iterator AI = F->arg_begin(), AE = F->arg_end();
-       AI != AE; ++AI) {
+  for (const Argument &A : F->args()) {
+    // For the purposes of the byte count suffix, structs returned by pointer
+    // do not count as function arguments.
+    if (A.hasStructRetAttr())
+      continue;
+
     // 'Dereference' type in case of byval or inalloca parameter attribute.
-    uint64_t AllocSize = AI->hasPassPointeeByValueCopyAttr() ?
-      AI->getPassPointeeByValueCopySize(DL) :
-      DL.getTypeAllocSize(AI->getType());
+    uint64_t AllocSize = A.hasPassPointeeByValueCopyAttr() ?
+      A.getPassPointeeByValueCopySize(DL) :
+      DL.getTypeAllocSize(A.getType());
 
     // Size should be aligned to pointer size.
     ArgWords += alignTo(AllocSize, PtrSize);
@@ -140,7 +144,7 @@ void Mangler::getNameWithPrefix(raw_ostream &OS, const GlobalValue *GV,
 
   // Mangle functions with Microsoft calling conventions specially.  Only do
   // this mangling for x86_64 vectorcall and 32-bit x86.
-  const Function *MSFunc = dyn_cast<Function>(GV);
+  const Function *MSFunc = dyn_cast_or_null<Function>(GV->getAliaseeObject());
 
   // Don't add byte count suffixes when '\01' or '?' are in the first
   // character.
@@ -187,7 +191,7 @@ void Mangler::getNameWithPrefix(SmallVectorImpl<char> &OutName,
 
 // Check if the name needs quotes to be safe for the linker to interpret.
 static bool canBeUnquotedInDirective(char C) {
-  return isAlnum(C) || C == '_' || C == '$' || C == '.' || C == '@';
+  return isAlnum(C) || C == '_' || C == '@';
 }
 
 static bool canBeUnquotedInDirective(StringRef Name) {
@@ -206,18 +210,46 @@ static bool canBeUnquotedInDirective(StringRef Name) {
 
 void llvm::emitLinkerFlagsForGlobalCOFF(raw_ostream &OS, const GlobalValue *GV,
                                         const Triple &TT, Mangler &Mangler) {
-  if (!GV->hasDLLExportStorageClass() || GV->isDeclaration())
-    return;
+  if (GV->hasDLLExportStorageClass() && !GV->isDeclaration()) {
 
-  if (TT.isWindowsMSVCEnvironment())
-    OS << " /EXPORT:";
-  else
-    OS << " -export:";
+    if (TT.isWindowsMSVCEnvironment())
+      OS << " /EXPORT:";
+    else
+      OS << " -export:";
 
-  bool NeedQuotes = GV->hasName() && !canBeUnquotedInDirective(GV->getName());
-  if (NeedQuotes)
-    OS << "\"";
-  if (TT.isWindowsGNUEnvironment() || TT.isWindowsCygwinEnvironment()) {
+    bool NeedQuotes = GV->hasName() && !canBeUnquotedInDirective(GV->getName());
+    if (NeedQuotes)
+      OS << "\"";
+    if (TT.isWindowsGNUEnvironment() || TT.isWindowsCygwinEnvironment()) {
+      std::string Flag;
+      raw_string_ostream FlagOS(Flag);
+      Mangler.getNameWithPrefix(FlagOS, GV, false);
+      FlagOS.flush();
+      if (Flag[0] == GV->getParent()->getDataLayout().getGlobalPrefix())
+        OS << Flag.substr(1);
+      else
+        OS << Flag;
+    } else {
+      Mangler.getNameWithPrefix(OS, GV, false);
+    }
+    if (NeedQuotes)
+      OS << "\"";
+
+    if (!GV->getValueType()->isFunctionTy()) {
+      if (TT.isWindowsMSVCEnvironment())
+        OS << ",DATA";
+      else
+        OS << ",data";
+    }
+  }
+  if (GV->hasHiddenVisibility() && !GV->isDeclaration() && TT.isOSCygMing()) {
+
+    OS << " -exclude-symbols:";
+
+    bool NeedQuotes = GV->hasName() && !canBeUnquotedInDirective(GV->getName());
+    if (NeedQuotes)
+      OS << "\"";
+
     std::string Flag;
     raw_string_ostream FlagOS(Flag);
     Mangler.getNameWithPrefix(FlagOS, GV, false);
@@ -226,17 +258,9 @@ void llvm::emitLinkerFlagsForGlobalCOFF(raw_ostream &OS, const GlobalValue *GV,
       OS << Flag.substr(1);
     else
       OS << Flag;
-  } else {
-    Mangler.getNameWithPrefix(OS, GV, false);
-  }
-  if (NeedQuotes)
-    OS << "\"";
 
-  if (!GV->getValueType()->isFunctionTy()) {
-    if (TT.isWindowsMSVCEnvironment())
-      OS << ",DATA";
-    else
-      OS << ",data";
+    if (NeedQuotes)
+      OS << "\"";
   }
 }
 

@@ -10,9 +10,10 @@
 #include "support/Cancellation.h"
 #include "support/Logger.h"
 #include "support/Shutdown.h"
+#include "support/ThreadCrashReporter.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/Support/Errno.h"
 #include "llvm/Support/Error.h"
+#include <optional>
 #include <system_error>
 
 namespace clang {
@@ -53,7 +54,7 @@ llvm::json::Object encodeError(llvm::Error E) {
 }
 
 llvm::Error decodeError(const llvm::json::Object &O) {
-  llvm::StringRef Msg = O.getString("message").getValueOr("Unspecified error");
+  llvm::StringRef Msg = O.getString("message").value_or("Unspecified error");
   if (auto Code = O.getInteger("code"))
     return llvm::make_error<LSPError>(Msg.str(), ErrorCode(*Code));
   return error(Msg.str());
@@ -109,6 +110,11 @@ public:
         return llvm::errorCodeToError(
             std::error_code(errno, std::system_category()));
       if (readRawMessage(JSON)) {
+        ThreadCrashReporter ScopedReporter([&JSON]() {
+          auto &OS = llvm::errs();
+          OS << "Signalled while processing message:\n";
+          OS << JSON << "\n";
+        });
         if (auto Doc = llvm::json::parse(JSON)) {
           vlog(Pretty ? "<<< {0:2}\n" : "<<< {0}\n", *Doc);
           if (!handleMessage(std::move(*Doc), Handler))
@@ -158,12 +164,12 @@ bool JSONTransport::handleMessage(llvm::json::Value Message,
   // Message must be an object with "jsonrpc":"2.0".
   auto *Object = Message.getAsObject();
   if (!Object ||
-      Object->getString("jsonrpc") != llvm::Optional<llvm::StringRef>("2.0")) {
+      Object->getString("jsonrpc") != std::optional<llvm::StringRef>("2.0")) {
     elog("Not a JSON-RPC 2.0 message: {0:2}", Message);
     return false;
   }
   // ID may be any JSON value. If absent, this is a notification.
-  llvm::Optional<llvm::json::Value> ID;
+  std::optional<llvm::json::Value> ID;
   if (auto *I = Object->get("id"))
     ID = std::move(*I);
   auto Method = Object->getString("method");
@@ -187,8 +193,7 @@ bool JSONTransport::handleMessage(llvm::json::Value Message,
 
   if (ID)
     return Handler.onCall(*Method, std::move(Params), std::move(*ID));
-  else
-    return Handler.onNotify(*Method, std::move(Params));
+  return Handler.onNotify(*Method, std::move(Params));
 }
 
 // Tries to read a line up to and including \n.
@@ -230,7 +235,7 @@ bool JSONTransport::readStandardMessage(std::string &JSON) {
       return false;
     InMirror << Line;
 
-    llvm::StringRef LineRef(Line);
+    llvm::StringRef LineRef = Line;
 
     // We allow comments in headers. Technically this isn't part
 
@@ -247,14 +252,14 @@ bool JSONTransport::readStandardMessage(std::string &JSON) {
       }
       llvm::getAsUnsignedInteger(LineRef.trim(), 0, ContentLength);
       continue;
-    } else if (!LineRef.trim().empty()) {
-      // It's another header, ignore it.
-      continue;
-    } else {
-      // An empty line indicates the end of headers.
-      // Go ahead and read the JSON.
-      break;
     }
+
+    // An empty line indicates the end of headers.
+    // Go ahead and read the JSON.
+    if (LineRef.trim().empty())
+      break;
+
+    // It's another header, ignore it.
   }
 
   // The fuzzer likes crashing us by sending "Content-Length: 9999999999999999"
@@ -298,7 +303,7 @@ bool JSONTransport::readDelimitedMessage(std::string &JSON) {
   llvm::SmallString<128> Line;
   while (readLine(In, Line)) {
     InMirror << Line;
-    auto LineRef = llvm::StringRef(Line).trim();
+    auto LineRef = Line.str().trim();
     if (LineRef.startswith("#")) // comment
       continue;
 

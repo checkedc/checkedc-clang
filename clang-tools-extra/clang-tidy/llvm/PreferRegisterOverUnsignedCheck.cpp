@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace llvm_check {
+namespace clang::tidy::llvm_check {
 
 void PreferRegisterOverUnsignedCheck::registerMatchers(MatchFinder *Finder) {
   auto RegisterClassMatch = hasType(
@@ -38,29 +36,27 @@ void PreferRegisterOverUnsignedCheck::check(
   const auto *VarType = Result.Nodes.getNodeAs<QualType>("varType");
   const auto *UserVarDecl = Result.Nodes.getNodeAs<VarDecl>("var");
 
-  StringRef Replacement = "llvm::Register";
+  bool NeedsQualification = true;
   const DeclContext *Context = UserVarDecl->getDeclContext();
   while (Context) {
     if (const auto *Namespace = dyn_cast<NamespaceDecl>(Context))
       if (isa<TranslationUnitDecl>(Namespace->getDeclContext()) &&
           Namespace->getName() == "llvm")
-        Replacement = "Register";
+        NeedsQualification = false;
     for (const auto *UsingDirective : Context->using_directives()) {
       const NamespaceDecl *Namespace = UsingDirective->getNominatedNamespace();
       if (isa<TranslationUnitDecl>(Namespace->getDeclContext()) &&
           Namespace->getName() == "llvm")
-        Replacement = "Register";
+        NeedsQualification = false;
     }
     Context = Context->getParent();
   }
   diag(UserVarDecl->getLocation(),
-       "variable %0 declared as %1; use '%2' instead")
-      << UserVarDecl << *VarType << Replacement
+       "variable %0 declared as %1; use '%select{|llvm::}2Register' instead")
+      << UserVarDecl << *VarType << NeedsQualification
       << FixItHint::CreateReplacement(
              UserVarDecl->getTypeSourceInfo()->getTypeLoc().getSourceRange(),
-             Replacement);
+             NeedsQualification ? "llvm::Register" : "Register");
 }
 
-} // namespace llvm_check
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::llvm_check

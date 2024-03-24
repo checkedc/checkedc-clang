@@ -12,14 +12,12 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 AST_MATCHER(StringLiteral, containsNul) {
-  for (size_t i = 0; i < Node.getLength(); ++i)
-    if (Node.getCodeUnit(i) == '\0')
+  for (size_t I = 0; I < Node.getLength(); ++I)
+    if (Node.getCodeUnit(I) == '\0')
       return true;
   return false;
 }
@@ -79,6 +77,4 @@ void StringLiteralWithEmbeddedNulCheck::check(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

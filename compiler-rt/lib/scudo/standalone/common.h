@@ -13,6 +13,7 @@
 
 #include "fuchsia.h"
 #include "linux.h"
+#include "trusty.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -100,7 +101,7 @@ template <typename T> inline void shuffle(T *A, u32 N, u32 *RandState) {
 
 // Hardware specific inlinable functions.
 
-inline void yieldProcessor(u8 Count) {
+inline void yieldProcessor(UNUSED u8 Count) {
 #if defined(__i386__) || defined(__x86_64__)
   __asm__ __volatile__("" ::: "memory");
   for (u8 I = 0; I < Count; I++)
@@ -131,6 +132,8 @@ u32 getNumberOfCPUs();
 
 const char *getEnv(const char *Name);
 
+uptr GetRSS();
+
 u64 getMonotonicTime();
 
 u32 getThreadID();
@@ -146,6 +149,7 @@ bool getRandom(void *Buffer, uptr Length, bool Blocking = false);
 #define MAP_NOACCESS (1U << 1)
 #define MAP_RESIZABLE (1U << 2)
 #define MAP_MEMTAG (1U << 3)
+#define MAP_PRECOMMIT (1U << 4)
 
 // Our platform memory mapping use is restricted to 3 scenarios:
 // - reserve memory at a random address (MAP_NOACCESS);
@@ -165,11 +169,15 @@ void *map(void *Addr, uptr Size, const char *Name, uptr Flags = 0,
 void unmap(void *Addr, uptr Size, uptr Flags = 0,
            MapPlatformData *Data = nullptr);
 
+void setMemoryPermission(uptr Addr, uptr Size, uptr Flags,
+                         MapPlatformData *Data = nullptr);
+
 void releasePagesToOS(uptr BaseAddress, uptr Offset, uptr Size,
                       MapPlatformData *Data = nullptr);
 
-// Internal map & unmap fatal error. This must not call map().
-void NORETURN dieOnMapUnmapError(bool OutOfMemory = false);
+// Internal map & unmap fatal error. This must not call map(). SizeIfOOM shall
+// hold the requested size on an out-of-memory error, 0 otherwise.
+void NORETURN dieOnMapUnmapError(uptr SizeIfOOM = 0);
 
 // Logging related functions.
 

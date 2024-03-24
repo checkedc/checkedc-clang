@@ -2,10 +2,6 @@
 Test lldb Python API SBValue::Cast(SBType) for C++ types.
 """
 
-from __future__ import print_function
-
-
-import unittest2
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,8 +9,6 @@ from lldbsuite.test import lldbutil
 
 
 class CppValueCastTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     @skipIf(bugnumber="llvm.org/PR36714")
     @add_test_categories(['pyapi'])
@@ -63,8 +57,8 @@ class CppValueCastTestCase(TestBase):
         process = target.LaunchSimple(
             None, None, self.get_process_working_directory())
 
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
 
         # Find DerivedA and DerivedB types.
         typeA = target.FindFirstType('DerivedA')
@@ -78,14 +72,14 @@ class CppValueCastTestCase(TestBase):
         # First stop is for DerivedA instance.
         threads = lldbutil.get_threads_stopped_at_breakpoint(
             process, breakpoint)
-        self.assertTrue(len(threads) == 1)
+        self.assertEqual(len(threads), 1)
         thread = threads[0]
         frame0 = thread.GetFrameAtIndex(0)
 
         tellerA = frame0.FindVariable('teller', lldb.eNoDynamicValues)
         self.DebugSBValue(tellerA)
-        self.assertTrue(tellerA.GetChildMemberWithName(
-            'm_base_val').GetValueAsUnsigned(error, 0) == 20)
+        self.assertEqual(
+            tellerA.GetChildMemberWithName('m_base_val').GetValueAsUnsigned(error, 0), 20)
 
         if self.TraceOn():
             for child in tellerA:
@@ -103,18 +97,18 @@ class CppValueCastTestCase(TestBase):
                 print(child)
         a_member_val = instanceA.GetChildMemberWithName('m_a_val')
         self.DebugSBValue(a_member_val)
-        self.assertTrue(a_member_val.GetValueAsUnsigned(error, 0) == 10)
+        self.assertEqual(a_member_val.GetValueAsUnsigned(error, 0), 10)
 
         # Second stop is for DerivedB instance.
         threads = lldbutil.continue_to_breakpoint(process, breakpoint)
-        self.assertTrue(len(threads) == 1)
+        self.assertEqual(len(threads), 1)
         thread = threads[0]
         frame0 = thread.GetFrameAtIndex(0)
 
         tellerB = frame0.FindVariable('teller', lldb.eNoDynamicValues)
         self.DebugSBValue(tellerB)
-        self.assertTrue(tellerB.GetChildMemberWithName(
-            'm_base_val').GetValueAsUnsigned(error, 0) == 12)
+        self.assertEqual(
+            tellerB.GetChildMemberWithName('m_base_val').GetValueAsUnsigned(error, 0), 12)
 
         if self.TraceOn():
             for child in tellerB:
@@ -132,4 +126,4 @@ class CppValueCastTestCase(TestBase):
                 print(child)
         b_member_val = instanceB.GetChildMemberWithName('m_b_val')
         self.DebugSBValue(b_member_val)
-        self.assertTrue(b_member_val.GetValueAsUnsigned(error, 0) == 36)
+        self.assertEqual(b_member_val.GetValueAsUnsigned(error, 0), 36)

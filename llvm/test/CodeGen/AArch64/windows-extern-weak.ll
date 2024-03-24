@@ -10,7 +10,7 @@ define void @func() {
 ; CHECK-NEXT: adrp x8, .refptr.weakfunc
 ; CHECK-NEXT: ldr x8, [x8, :lo12:.refptr.weakfunc]
 ; CHECK-NEXT: cbz     x8, .LBB0_2
-; CHECK-NEXT: ; %bb.1:
+; CHECK-NEXT: // %bb.1:
 ; CHECK-NEXT: blr     x8
 ; CHECK-NEXT: .LBB0_2:
 ; CHECK-NEXT: .seh_startepilogue
@@ -19,7 +19,7 @@ define void @func() {
 ; CHECK-NEXT: .seh_endepilogue
 ; CHECK-NEXT: ret
 
-  br i1 icmp ne (void ()* @weakfunc, void ()* null), label %1, label %2
+  br i1 icmp ne (ptr @weakfunc, ptr null), label %1, label %2
 
 1:
   call void @weakfunc()

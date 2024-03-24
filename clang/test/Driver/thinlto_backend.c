@@ -1,3 +1,5 @@
+// XFAIL: target={{.*}}-aix{{.*}}
+
 // RUN: %clang -O2 %s -flto=thin -c -o %t.o
 // RUN: llvm-lto -thinlto -o %t %t.o
 

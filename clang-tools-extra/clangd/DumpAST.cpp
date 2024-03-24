@@ -13,7 +13,6 @@
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
-#include "clang/AST/ExternalASTSource.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -24,6 +23,7 @@
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -88,11 +88,11 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
   // Range: most nodes have getSourceRange(), with a couple of exceptions.
   // We only return it if it's valid at both ends and there are no macros.
 
-  template <typename T> llvm::Optional<Range> getRange(const T &Node) {
+  template <typename T> std::optional<Range> getRange(const T &Node) {
     SourceRange SR = getSourceRange(Node);
     auto Spelled = Tokens.spelledForExpanded(Tokens.expandedTokens(SR));
     if (!Spelled)
-      return llvm::None;
+      return std::nullopt;
     return halfOpenToRange(
         Tokens.sourceManager(),
         CharSourceRange::getCharRange(Spelled->front().location(),
@@ -112,7 +112,7 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
   // Attr just uses a weird method name. Maybe we should fix it instead?
   SourceRange getSourceRange(const Attr *Node) { return Node->getRange(); }
 
-  // Kind is usualy the class name, without the suffix ("Type" etc).
+  // Kind is usually the class name, without the suffix ("Type" etc).
   // Where there's a set of variants instead, we use the 'Kind' enum values.
 
   std::string getKind(const Decl *D) { return D->getDeclKindName(); }
@@ -185,6 +185,7 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
       TEMPLATE_KIND(DependentTemplate);
       TEMPLATE_KIND(SubstTemplateTemplateParm);
       TEMPLATE_KIND(SubstTemplateTemplateParmPack);
+      TEMPLATE_KIND(UsingTemplate);
 #undef TEMPLATE_KIND
     }
     llvm_unreachable("Unhandled NameKind enum");
@@ -290,12 +291,12 @@ class DumpVisitor : public RecursiveASTVisitor<DumpVisitor> {
   }
   std::string getDetail(const TemplateArgumentLoc &TAL) {
     if (TAL.getArgument().getKind() == TemplateArgument::Integral)
-      return TAL.getArgument().getAsIntegral().toString(10);
+      return toString(TAL.getArgument().getAsIntegral(), 10);
     return "";
   }
   std::string getDetail(const TemplateName &TN) {
     return toString([&](raw_ostream &OS) {
-      TN.print(OS, Ctx.getPrintingPolicy(), /*SuppressNNS=*/true);
+      TN.print(OS, Ctx.getPrintingPolicy(), TemplateName::Qualified::None);
     });
   }
   std::string getDetail(const Attr *A) {
@@ -335,6 +336,7 @@ public:
 
   // Override traversal to record the nodes we care about.
   // Generally, these are nodes with position information (TypeLoc, not Type).
+
   bool TraverseDecl(Decl *D) {
     return !D || isInjectedClassName(D) ||
            traverseNode("declaration", D, [&] { Base::TraverseDecl(D); });

@@ -36,9 +36,7 @@ static Token getTokenAtLoc(SourceLocation Loc,
   return Tok;
 }
 
-namespace tidy {
-namespace google {
-namespace runtime {
+namespace tidy::google::runtime {
 
 IntegerTypesCheck::IntegerTypesCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
@@ -129,7 +127,7 @@ void IntegerTypesCheck::check(const MatchFinder::MatchResult &Result) {
   const StringRef Port = "unsigned short port";
   const char *Data = Result.SourceManager->getCharacterData(Loc);
   if (!std::strncmp(Data, Port.data(), Port.size()) &&
-      !isIdentifierBody(Data[Port.size()]))
+      !isAsciiIdentifierContinue(Data[Port.size()]))
     return;
 
   std::string Replacement =
@@ -144,7 +142,5 @@ void IntegerTypesCheck::check(const MatchFinder::MatchResult &Result) {
                                                << Replacement;
 }
 
-} // namespace runtime
-} // namespace google
-} // namespace tidy
+} // namespace tidy::google::runtime
 } // namespace clang

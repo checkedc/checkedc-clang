@@ -6,22 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CODEGEN_DBGVALUEHISTORYCALCULATOR_H
-#define LLVM_CODEGEN_DBGVALUEHISTORYCALCULATOR_H
+#ifndef LLVM_CODEGEN_DBGENTITYHISTORYCALCULATOR_H
+#define LLVM_CODEGEN_DBGENTITYHISTORYCALCULATOR_H
 
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/CodeGen/LexicalScopes.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include <utility>
 
 namespace llvm {
 
-class DILocalVariable;
 class DILocation;
+class LexicalScopes;
 class DINode;
 class MachineFunction;
-class MachineInstr;
 class TargetRegisterInfo;
 
 /// Record instruction ordering so we can query their relative positions within
@@ -110,6 +109,10 @@ public:
     return Entries[Index];
   }
 
+  /// Test whether a vector of entries features any non-empty locations. It
+  /// could have no entries, or only DBG_VALUE $noreg entries.
+  bool hasNonEmptyLocation(const Entries &Entries) const;
+
   /// Drop location ranges which exist entirely outside each variable's scope.
   void trimLocationRanges(const MachineFunction &MF, LexicalScopes &LScopes,
                           const InstructionOrdering &Ordering);
@@ -150,4 +153,4 @@ void calculateDbgEntityHistory(const MachineFunction *MF,
 
 } // end namespace llvm
 
-#endif // LLVM_CODEGEN_DBGVALUEHISTORYCALCULATOR_H
+#endif // LLVM_CODEGEN_DBGENTITYHISTORYCALCULATOR_H

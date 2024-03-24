@@ -1,13 +1,9 @@
-// RUN: %libomptarget-compile-aarch64-unknown-linux-gnu && env LIBOMPTARGET_DEBUG=1 %libomptarget-run-aarch64-unknown-linux-gnu 2>&1 | %fcheck-aarch64-unknown-linux-gnu -allow-empty -check-prefix=DEBUG
-// RUN: %libomptarget-compile-powerpc64-ibm-linux-gnu && env LIBOMPTARGET_DEBUG=1 %libomptarget-run-powerpc64-ibm-linux-gnu 2>&1 | %fcheck-powerpc64-ibm-linux-gnu -allow-empty -check-prefix=DEBUG
-// RUN: %libomptarget-compile-powerpc64le-ibm-linux-gnu && env LIBOMPTARGET_DEBUG=1 %libomptarget-run-powerpc64le-ibm-linux-gnu 2>&1 | %fcheck-powerpc64le-ibm-linux-gnu -allow-empty -check-prefix=DEBUG
-// RUN: %libomptarget-compile-x86_64-pc-linux-gnu && env LIBOMPTARGET_DEBUG=1 %libomptarget-run-x86_64-pc-linux-gnu 2>&1 | %fcheck-x86_64-pc-linux-gnu -allow-empty -check-prefix=DEBUG
-// RUN: %libomptarget-compile-nvptx64-nvidia-cuda && env LIBOMPTARGET_DEBUG=1 %libomptarget-run-nvptx64-nvidia-cuda 2>&1 | %fcheck-nvptx64-nvidia-cuda -allow-empty -check-prefix=DEBUG
+// RUN: %libomptarget-compile-generic && env LIBOMPTARGET_DEBUG=1 %libomptarget-run-generic 2>&1 | %fcheck-generic -allow-empty -check-prefix=DEBUG
 // REQUIRES: libomptarget-debug
 
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
-#include <cassert>
 
 // Data structure definitions copied from OpenMP RTL.
 struct __tgt_target_non_contig {
@@ -16,9 +12,7 @@ struct __tgt_target_non_contig {
   int64_t stride;
 };
 
-enum tgt_map_type {
-  OMP_TGT_MAPTYPE_NON_CONTIG      = 0x100000000000
-};
+enum tgt_map_type { OMP_TGT_MAPTYPE_NON_CONTIG = 0x100000000000 };
 
 // OpenMP RTL interfaces
 #ifdef __cplusplus
@@ -63,7 +57,6 @@ int main() {
   // DEBUG: offset 744
   // DEBUG: offset 864
 
-
   // case 2
   // double darr[3][4][5];
   // #pragma omp target update to(darr[0:2:2][2:2][:2:2])
@@ -98,4 +91,3 @@ int main() {
   // DEBUG: offset 456
   return 0;
 }
-

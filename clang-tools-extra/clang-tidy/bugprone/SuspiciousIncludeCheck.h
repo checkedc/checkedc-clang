@@ -12,9 +12,7 @@
 #include "../ClangTidyCheck.h"
 #include "../utils/FileExtensionsUtils.h"
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 /// Warns on inclusion of files whose names suggest that they're implementation
 /// files, instead of headers. E.g:
@@ -34,7 +32,7 @@ namespace bugprone {
 ///     filename extensions of implementation files. "c;cc;cpp;cxx" by default.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone-suspicious-include.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/suspicious-include.html
 class SuspiciousIncludeCheck : public ClangTidyCheck {
 public:
   SuspiciousIncludeCheck(StringRef Name, ClangTidyContext *Context);
@@ -46,12 +44,10 @@ public:
   utils::FileExtensionsSet ImplementationFileExtensions;
 
 private:
-  const std::string RawStringHeaderFileExtensions;
-  const std::string RawStringImplementationFileExtensions;
+  const StringRef RawStringHeaderFileExtensions;
+  const StringRef RawStringImplementationFileExtensions;
 };
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_SUSPICIOUSINCLUDECHECK_H

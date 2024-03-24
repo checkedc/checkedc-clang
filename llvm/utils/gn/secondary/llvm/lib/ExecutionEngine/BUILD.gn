@@ -6,10 +6,12 @@ static_library("ExecutionEngine") {
     "//llvm/include/llvm/Config:llvm-config",
   ]
   deps = [
+    "//llvm/lib/ExecutionEngine/Orc/TargetProcess",
     "//llvm/lib/IR",
     "//llvm/lib/MC",
     "//llvm/lib/Object",
     "//llvm/lib/Target",
+    "//llvm/lib/TargetParser",
   ]
   sources = [
     "ExecutionEngine.cpp",

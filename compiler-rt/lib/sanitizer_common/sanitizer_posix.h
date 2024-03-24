@@ -20,10 +20,7 @@
 #include "sanitizer_platform_limits_posix.h"
 #include "sanitizer_platform_limits_solaris.h"
 
-#if !SANITIZER_POSIX
-// Make it hard to accidentally use any of functions declared in this file:
-#error This file should only be included on POSIX
-#endif
+#if SANITIZER_POSIX
 
 namespace __sanitizer {
 
@@ -40,6 +37,10 @@ uptr internal_write(fd_t fd, const void *buf, uptr count);
 uptr internal_mmap(void *addr, uptr length, int prot, int flags,
                    int fd, u64 offset);
 uptr internal_munmap(void *addr, uptr length);
+#if SANITIZER_LINUX
+uptr internal_mremap(void *old_address, uptr old_size, uptr new_size, int flags,
+                     void *new_address);
+#endif
 int internal_mprotect(void *addr, uptr length, int prot);
 int internal_madvise(uptr addr, uptr length, int advice);
 
@@ -121,5 +122,7 @@ void DecorateMapping(uptr addr, uptr size, const char *name);
 
 
 }  // namespace __sanitizer
+
+#endif  // SANITIZER_POSIX
 
 #endif  // SANITIZER_POSIX_H

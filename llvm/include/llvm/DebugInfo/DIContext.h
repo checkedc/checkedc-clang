@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -36,10 +37,11 @@ struct DILineInfo {
   std::string FileName;
   std::string FunctionName;
   std::string StartFileName;
-  Optional<StringRef> Source;
+  std::optional<StringRef> Source;
   uint32_t Line = 0;
   uint32_t Column = 0;
   uint32_t StartLine = 0;
+  std::optional<uint64_t> StartAddress;
 
   // DWARF-specific.
   uint32_t Discriminator = 0;
@@ -55,9 +57,7 @@ struct DILineInfo {
            Discriminator == RHS.Discriminator;
   }
 
-  bool operator!=(const DILineInfo &RHS) const {
-    return !(*this == RHS);
-  }
+  bool operator!=(const DILineInfo &RHS) const { return !(*this == RHS); }
 
   bool operator<(const DILineInfo &RHS) const {
     return std::tie(FileName, FunctionName, StartFileName, Line, Column,
@@ -91,7 +91,9 @@ class DIInliningInfo {
 public:
   DIInliningInfo() = default;
 
-  const DILineInfo & getFrame(unsigned Index) const {
+  /// Returns the frame at `Index`. Frames are stored in bottom-up
+  /// (leaf-to-root) order with increasing index.
+  const DILineInfo &getFrame(unsigned Index) const {
     assert(Index < Frames.size());
     return Frames[Index];
   }
@@ -101,17 +103,11 @@ public:
     return &Frames[Index];
   }
 
-  uint32_t getNumberOfFrames() const {
-    return Frames.size();
-  }
+  uint32_t getNumberOfFrames() const { return Frames.size(); }
 
-  void addFrame(const DILineInfo &Frame) {
-    Frames.push_back(Frame);
-  }
+  void addFrame(const DILineInfo &Frame) { Frames.push_back(Frame); }
 
-  void resize(unsigned i) {
-    Frames.resize(i);
-  }
+  void resize(unsigned i) { Frames.resize(i); }
 };
 
 /// Container for description of a global variable.
@@ -119,6 +115,8 @@ struct DIGlobal {
   std::string Name;
   uint64_t Start = 0;
   uint64_t Size = 0;
+  std::string DeclFile;
+  uint64_t DeclLine = 0;
 
   DIGlobal() : Name(DILineInfo::BadString) {}
 };
@@ -128,9 +126,9 @@ struct DILocal {
   std::string Name;
   std::string DeclFile;
   uint64_t DeclLine = 0;
-  Optional<int64_t> FrameOffset;
-  Optional<uint64_t> Size;
-  Optional<uint64_t> TagOffset;
+  std::optional<int64_t> FrameOffset;
+  std::optional<uint64_t> Size;
+  std::optional<uint64_t> TagOffset;
 };
 
 /// A DINameKind is passed to name search methods to specify a
@@ -158,6 +156,10 @@ struct DILineInfoSpecifier {
   DILineInfoSpecifier(FileLineInfoKind FLIKind = FileLineInfoKind::RawValue,
                       FunctionNameKind FNKind = FunctionNameKind::None)
       : FLIKind(FLIKind), FNKind(FNKind) {}
+
+  inline bool operator==(const DILineInfoSpecifier &RHS) const {
+    return FLIKind == RHS.FLIKind && FNKind == RHS.FNKind;
+  }
 };
 
 /// This is just a helper to programmatically construct DIDumpType.
@@ -174,7 +176,7 @@ static_assert(DIDT_ID_Count <= 32, "section types overflow storage");
 /// Selects which debug sections get dumped.
 enum DIDumpType : unsigned {
   DIDT_Null,
-  DIDT_All             = ~0U,
+  DIDT_All = ~0U,
 #define HANDLE_DWARF_SECTION(ENUM_NAME, ELF_NAME, CMDLINE_NAME, OPTION)        \
   DIDT_##ENUM_NAME = 1U << DIDT_ID_##ENUM_NAME,
 #include "llvm/BinaryFormat/Dwarf.def"
@@ -197,6 +199,9 @@ struct DIDumpOptions {
   bool SummarizeTypes = false;
   bool Verbose = false;
   bool DisplayRawContents = false;
+  bool IsEH = false;
+  std::function<llvm::StringRef(uint64_t DwarfRegNum, bool IsEH)>
+      GetNameForDWARFReg;
 
   /// Return default option set for printing a single DIE without children.
   static DIDumpOptions getForSingleDIE() {
@@ -223,10 +228,7 @@ struct DIDumpOptions {
 
 class DIContext {
 public:
-  enum DIContextKind {
-    CK_DWARF,
-    CK_PDB
-  };
+  enum DIContextKind { CK_DWARF, CK_PDB };
 
   DIContext(DIContextKind K) : Kind(K) {}
   virtual ~DIContext() = default;
@@ -243,6 +245,8 @@ public:
   virtual DILineInfo getLineInfoForAddress(
       object::SectionedAddress Address,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) = 0;
+  virtual DILineInfo
+  getLineInfoForDataAddress(object::SectionedAddress Address) = 0;
   virtual DILineInfoTable getLineInfoForAddressRange(
       object::SectionedAddress Address, uint64_t Size,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) = 0;
@@ -310,7 +314,7 @@ protected:
 
 public:
   template <typename... Ts>
-  LoadedObjectInfoHelper(Ts &&... Args) : Base(std::forward<Ts>(Args)...) {}
+  LoadedObjectInfoHelper(Ts &&...Args) : Base(std::forward<Ts>(Args)...) {}
 
   std::unique_ptr<llvm::LoadedObjectInfo> clone() const override {
     return std::make_unique<Derived>(static_cast<const Derived &>(*this));

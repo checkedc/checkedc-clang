@@ -275,12 +275,10 @@ TEST(DistroTest, DetectDebian) {
 
 TEST(DistroTest, DetectExherbo) {
   llvm::vfs::InMemoryFileSystem ExherboFileSystem;
-  ExherboFileSystem.addFile("/etc/exherbo-release", 0, // (ASCII art)
-                                 llvm::MemoryBuffer::getMemBuffer(""));
   ExherboFileSystem.addFile("/etc/os-release", 0,
       llvm::MemoryBuffer::getMemBuffer("NAME=\"Exherbo\"\n"
                                        "PRETTY_NAME=\"Exherbo Linux\"\n"
-                                       "ID=\"exherbo\"\n"
+                                       "ID=exherbo\n"
                                        "ANSI_COLOR=\"0;32\"\n"
                                        "HOME_URL=\"https://www.exherbo.org/\"\n"
                                        "SUPPORT_URL=\"irc://irc.freenode.net/#exherbo\"\n"
@@ -362,16 +360,17 @@ TEST(DistroTest, DetectWindowsAndCrossCompile) {
     unsigned Count{};
   };
 
+  llvm::Triple Host(llvm::sys::getProcessTriple());
+  if (!Host.isOSWindows())
+    GTEST_SKIP();
+
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> RFS =
       llvm::vfs::getRealFileSystem();
-  llvm::Triple Host(llvm::sys::getProcessTriple());
 
   CountingFileSystem CFileSystem;
   Distro LinuxDistro{CFileSystem, llvm::Triple("unknown-pc-linux")};
-  if (Host.isOSWindows()) {
-    ASSERT_EQ(Distro(Distro::UnknownDistro), LinuxDistro);
-    ASSERT_GT(CFileSystem.Count, 0U);
-  }
+  ASSERT_EQ(Distro(Distro::UnknownDistro), LinuxDistro);
+  ASSERT_GT(CFileSystem.Count, 0U);
 
   Distro WinDistro{CFileSystem, llvm::Triple("unknown-pc-windows")};
   ASSERT_EQ(Distro(Distro::UnknownDistro), WinDistro);
@@ -379,20 +378,25 @@ TEST(DistroTest, DetectWindowsAndCrossCompile) {
 
   // When running on Windows along with a real file system, ensure that no
   // distro is returned if targeting Linux
-  if (Host.isOSWindows()) {
-    Distro LinuxRealDistro{*RFS, llvm::Triple("unknown-pc-linux")};
-    ASSERT_EQ(Distro(Distro::UnknownDistro), LinuxRealDistro);
-  }
-  // When running on Linux, check if the distro is the same as the host when
-  // targeting Linux
-  if (Host.isOSLinux()) {
-    Distro HostDistro{*RFS, Host};
-    Distro LinuxRealDistro{*RFS, llvm::Triple("unknown-pc-linux")};
-    ASSERT_EQ(HostDistro, LinuxRealDistro);
-  }
+  Distro LinuxRealDistro{*RFS, llvm::Triple("unknown-pc-linux")};
+  ASSERT_EQ(Distro(Distro::UnknownDistro), LinuxRealDistro);
 
   Distro WinRealDistro{*RFS, llvm::Triple("unknown-pc-windows")};
   ASSERT_EQ(Distro(Distro::UnknownDistro), WinRealDistro);
+}
+
+TEST(DistroTest, DetectLinux) {
+  llvm::Triple Host(llvm::sys::getProcessTriple());
+  if (!Host.isOSLinux())
+    GTEST_SKIP();
+
+  // When running on Linux, check if the distro is the same as the host when
+  // targeting Linux
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> RFS =
+      llvm::vfs::getRealFileSystem();
+  Distro HostDistro{*RFS, Host};
+  Distro LinuxRealDistro{*RFS, llvm::Triple("unknown-pc-linux")};
+  ASSERT_EQ(HostDistro, LinuxRealDistro);
 }
 
 } // end anonymous namespace

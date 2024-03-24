@@ -34,15 +34,38 @@
 #include <cassert>
 #include <cstddef>
 #include <forward_list>
-
-using namespace llvm;
-
-namespace llvm {
-void initializeScopInfoRegionPassPass(PassRegistry &);
-void initializeScopInfoWrapperPassPass(PassRegistry &);
-} // end namespace llvm
+#include <optional>
 
 namespace polly {
+using llvm::AnalysisInfoMixin;
+using llvm::ArrayRef;
+using llvm::AssertingVH;
+using llvm::AssumptionCache;
+using llvm::cast;
+using llvm::DataLayout;
+using llvm::DenseMap;
+using llvm::DenseSet;
+using llvm::function_ref;
+using llvm::isa;
+using llvm::iterator_range;
+using llvm::LoadInst;
+using llvm::make_range;
+using llvm::MapVector;
+using llvm::MemIntrinsic;
+using llvm::PassInfoMixin;
+using llvm::PHINode;
+using llvm::RegionNode;
+using llvm::RegionPass;
+using llvm::RGPassManager;
+using llvm::SetVector;
+using llvm::SmallPtrSetImpl;
+using llvm::SmallVector;
+using llvm::SmallVectorImpl;
+using llvm::StringMap;
+using llvm::Type;
+using llvm::Use;
+using llvm::Value;
+using llvm::ValueToValueMap;
 
 class MemoryAccess;
 
@@ -53,7 +76,7 @@ extern bool UseInstructionNames;
 // The maximal number of basic sets we allow during domain construction to
 // be created. More complex scops will result in very high compile time and
 // are also unlikely to result in good code.
-extern int const MaxDisjunctsInDomain;
+extern unsigned const MaxDisjunctsInDomain;
 
 /// The different memory kinds used in Polly.
 ///
@@ -193,7 +216,7 @@ using AccFuncVector = std::vector<std::unique_ptr<MemoryAccess>>;
 /// Objects are accessible via the ScoP, MemoryAccess or the id associated with
 /// the MemoryAccess access function.
 ///
-class ScopArrayInfo {
+class ScopArrayInfo final {
 public:
   /// Construct a ScopArrayInfo object.
   ///
@@ -235,16 +258,6 @@ public:
   ///  @param CheckConsistency Update sizes, even if new sizes are inconsistent
   ///                          with old sizes
   bool updateSizes(ArrayRef<const SCEV *> Sizes, bool CheckConsistency = true);
-
-  /// Make the ScopArrayInfo model a Fortran array.
-  /// It receives the Fortran array descriptor and stores this.
-  /// It also adds a piecewise expression for the outermost dimension
-  /// since this information is available for Fortran arrays at runtime.
-  void applyAndSetFAD(Value *FAD);
-
-  /// Get the FortranArrayDescriptor corresponding to this array if it exists,
-  /// nullptr otherwise.
-  Value *getFortranArrayDescriptor() const { return this->FAD; }
 
   /// Set the base pointer to @p BP.
   void setBasePtr(Value *BP) { BasePtr = BP; }
@@ -412,14 +425,10 @@ private:
 
   /// The scop this SAI object belongs to.
   Scop &S;
-
-  /// If this array models a Fortran array, then this points
-  /// to the Fortran array descriptor.
-  Value *FAD = nullptr;
 };
 
 /// Represent memory accesses in statements.
-class MemoryAccess {
+class MemoryAccess final {
   friend class Scop;
   friend class ScopStmt;
   friend class ScopBuilder;
@@ -608,13 +617,6 @@ private:
 
   /// Updated access relation read from JSCOP file.
   isl::map NewAccessRelation;
-
-  /// Fortran arrays whose sizes are not statically known are stored in terms
-  /// of a descriptor struct. This maintains a raw pointer to the memory,
-  /// along with auxiliary fields with information such as dimensions.
-  /// We hold a reference to the descriptor corresponding to a MemoryAccess
-  /// into a Fortran array. FAD for "Fortran Array Descriptor"
-  AssertingVH<Value> FAD;
   // @}
 
   isl::basic_map createBasicAccessMap(ScopStmt *Statement);
@@ -907,10 +909,6 @@ public:
   /// the dimension of the innermost loop containing the statement.
   isl::set getStride(isl::map Schedule) const;
 
-  /// Get the FortranArrayDescriptor corresponding to this memory access if
-  /// it exists, and nullptr otherwise.
-  Value *getFortranArrayDescriptor() const { return this->FAD; }
-
   /// Is the stride of the access equal to a certain width? Schedule is a map
   /// from the statement to a schedule where the innermost dimension is the
   /// dimension of the innermost loop containing the statement.
@@ -1033,10 +1031,6 @@ public:
   /// Get the reduction type of this access
   ReductionType getReductionType() const { return RedType; }
 
-  /// Set the array descriptor corresponding to the Array on which the
-  /// memory access is performed.
-  void setFortranArrayDescriptor(Value *FAD);
-
   /// Update the original access relation.
   ///
   /// We need to update the original access relation during scop construction,
@@ -1141,7 +1135,7 @@ using InvariantEquivClassesTy = SmallVector<InvariantEquivClassTy, 8>;
 /// It is further described by its iteration domain, its schedule and its data
 /// accesses.
 /// At the moment every statement represents a single basic block of LLVM-IR.
-class ScopStmt {
+class ScopStmt final {
   friend class ScopBuilder;
 
 public:
@@ -1212,7 +1206,7 @@ private:
   /// The memory accesses of this statement.
   ///
   /// The only side effects of a statement are its memory accesses.
-  using MemoryAccessVec = SmallVector<MemoryAccess *, 8>;
+  using MemoryAccessVec = llvm::SmallVector<MemoryAccess *, 8>;
   MemoryAccessVec MemAccs;
 
   /// Mapping from instructions to (scalar) memory accesses.
@@ -1365,8 +1359,7 @@ public:
     if (!Inst)
       return false;
     if (isBlockStmt())
-      return std::find(Instructions.begin(), Instructions.end(), Inst) !=
-             Instructions.end();
+      return llvm::is_contained(Instructions, Inst);
     return represents(Inst->getParent());
   }
 
@@ -1615,44 +1608,6 @@ public:
 /// Print ScopStmt S to raw_ostream OS.
 raw_ostream &operator<<(raw_ostream &OS, const ScopStmt &S);
 
-/// Build the conditions sets for the branch condition @p Condition in
-/// the @p Domain.
-///
-/// This will fill @p ConditionSets with the conditions under which control
-/// will be moved from @p TI to its successors. Hence, @p ConditionSets will
-/// have as many elements as @p TI has successors. If @p TI is nullptr the
-/// context under which @p Condition is true/false will be returned as the
-/// new elements of @p ConditionSets.
-bool buildConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
-                        Instruction *TI, Loop *L, __isl_keep isl_set *Domain,
-                        DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
-                        SmallVectorImpl<__isl_give isl_set *> &ConditionSets);
-
-/// Build condition sets for unsigned ICmpInst(s).
-/// Special handling is required for unsigned operands to ensure that if
-/// MSB (aka the Sign bit) is set for an operands in an unsigned ICmpInst
-/// it should wrap around.
-///
-/// @param IsStrictUpperBound holds information on the predicate relation
-/// between TestVal and UpperBound, i.e,
-/// TestVal < UpperBound  OR  TestVal <= UpperBound
-__isl_give isl_set *
-buildUnsignedConditionSets(Scop &S, BasicBlock *BB, Value *Condition,
-                           __isl_keep isl_set *Domain, const SCEV *SCEV_TestVal,
-                           const SCEV *SCEV_UpperBound,
-                           DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
-                           bool IsStrictUpperBound);
-
-/// Build the conditions sets for the terminator @p TI in the @p Domain.
-///
-/// This will fill @p ConditionSets with the conditions under which control
-/// will be moved from @p TI to its successors. Hence, @p ConditionSets will
-/// have as many elements as @p TI has successors.
-bool buildConditionSets(Scop &S, BasicBlock *BB, Instruction *TI, Loop *L,
-                        __isl_keep isl_set *Domain,
-                        DenseMap<BasicBlock *, isl::set> &InvalidDomainMap,
-                        SmallVectorImpl<__isl_give isl_set *> &ConditionSets);
-
 /// Static Control Part
 ///
 /// A Scop is the polyhedral representation of a control flow region detected
@@ -1670,7 +1625,7 @@ bool buildConditionSets(Scop &S, BasicBlock *BB, Instruction *TI, Loop *L,
 ///   * A context
 ///   This context contains information about the values the parameters
 ///   can take and relations between different parameters.
-class Scop {
+class Scop final {
 public:
   /// Type to represent a pair of minimal/maximal access to an array.
   using MinMaxAccessTy = std::pair<isl::pw_multi_aff, isl::pw_multi_aff>;
@@ -1707,7 +1662,7 @@ private:
   Region &R;
 
   /// The name of the SCoP (identical to the regions name)
-  Optional<std::string> name;
+  std::optional<std::string> name;
 
   // Access functions of the SCoP.
   //
@@ -1760,7 +1715,7 @@ private:
   DenseMap<BasicBlock *, isl::set> DomainMap;
 
   /// Constraints on parameters.
-  isl::set Context = nullptr;
+  isl::set Context;
 
   /// The affinator used to translate SCEVs to isl expressions.
   SCEVAffinator Affinator;
@@ -1855,7 +1810,10 @@ private:
   /// set of statement instances that will be scheduled in a subtree. There
   /// are also several other nodes. A full description of the different nodes
   /// in a schedule tree is given in the isl manual.
-  isl::schedule Schedule = nullptr;
+  isl::schedule Schedule;
+
+  /// Is this Scop marked as not to be transformed by an optimization heuristic?
+  bool HasDisableHeuristicsHint = false;
 
   /// Whether the schedule has been modified after derived from the CFG by
   /// ScopBuilder.
@@ -1915,10 +1873,6 @@ private:
        int ID);
 
   //@}
-
-  /// Initialize this ScopBuilder.
-  void init(AAResults &AA, AssumptionCache &AC, DominatorTree &DT,
-            LoopInfo &LI);
 
   /// Return the access for the base ptr of @p MA if any.
   MemoryAccess *lookupBasePtrAccess(MemoryAccess *MA);
@@ -2007,7 +1961,6 @@ public:
   ///
   /// A new statement will be created and added to the statement vector.
   ///
-  /// @param Stmt       The parent statement.
   /// @param SourceRel  The source location.
   /// @param TargetRel  The target location.
   /// @param Domain     The original domain under which the copy statement would
@@ -2223,7 +2176,7 @@ public:
   /// Return the define behavior context, or if not available, its approximation
   /// from all other contexts.
   isl::set getBestKnownDefinedBehaviorContext() const {
-    if (DefinedBehaviorContext)
+    if (!DefinedBehaviorContext.is_null())
       return DefinedBehaviorContext;
 
     return Context.intersect_params(AssumedContext).subtract(InvalidContext);
@@ -2716,6 +2669,13 @@ public:
   /// various places. If statistics are disabled, only zeros are returned to
   /// avoid the overhead.
   ScopStatistics getStatistics() const;
+
+  /// Is this Scop marked as not to be transformed by an optimization heuristic?
+  /// In this case, only user-directed transformations are allowed.
+  bool hasDisableHeuristicsHint() const { return HasDisableHeuristicsHint; }
+
+  /// Mark this Scop to not apply an optimization heuristic.
+  void markDisableHeuristics() { HasDisableHeuristicsHint = true; }
 };
 
 /// Print Scop scop to raw_ostream OS.
@@ -2723,7 +2683,7 @@ raw_ostream &operator<<(raw_ostream &OS, const Scop &scop);
 
 /// The legacy pass manager's analysis pass to compute scop information
 ///        for a region.
-class ScopInfoRegionPass : public RegionPass {
+class ScopInfoRegionPass final : public RegionPass {
   /// The Scop pointer which is used to construct a Scop.
   std::unique_ptr<Scop> S;
 
@@ -2751,6 +2711,8 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
+
+llvm::Pass *createScopInfoPrinterLegacyRegionPass(raw_ostream &OS);
 
 class ScopInfo {
 public:
@@ -2811,7 +2773,7 @@ public:
   bool empty() const { return RegionToScopMap.empty(); }
 };
 
-struct ScopInfoAnalysis : public AnalysisInfoMixin<ScopInfoAnalysis> {
+struct ScopInfoAnalysis : AnalysisInfoMixin<ScopInfoAnalysis> {
   static AnalysisKey Key;
 
   using Result = ScopInfo;
@@ -2819,7 +2781,7 @@ struct ScopInfoAnalysis : public AnalysisInfoMixin<ScopInfoAnalysis> {
   Result run(Function &, FunctionAnalysisManager &);
 };
 
-struct ScopInfoPrinterPass : public PassInfoMixin<ScopInfoPrinterPass> {
+struct ScopInfoPrinterPass final : PassInfoMixin<ScopInfoPrinterPass> {
   ScopInfoPrinterPass(raw_ostream &OS) : Stream(OS) {}
 
   PreservedAnalyses run(Function &, FunctionAnalysisManager &);
@@ -2835,7 +2797,7 @@ struct ScopInfoPrinterPass : public PassInfoMixin<ScopInfoPrinterPass> {
 /// scop object for all the feasible scops present in a function.
 /// This pass is an alternative to the ScopInfoRegionPass in order to avoid a
 /// region pass manager.
-class ScopInfoWrapperPass : public FunctionPass {
+class ScopInfoWrapperPass final : public FunctionPass {
   std::unique_ptr<ScopInfo> Result;
 
 public:
@@ -2856,6 +2818,15 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
+
+llvm::Pass *createScopInfoPrinterLegacyFunctionPass(llvm::raw_ostream &OS);
 } // end namespace polly
+
+namespace llvm {
+void initializeScopInfoRegionPassPass(PassRegistry &);
+void initializeScopInfoPrinterLegacyRegionPassPass(PassRegistry &);
+void initializeScopInfoWrapperPassPass(PassRegistry &);
+void initializeScopInfoPrinterLegacyFunctionPassPass(PassRegistry &);
+} // end namespace llvm
 
 #endif // POLLY_SCOPINFO_H

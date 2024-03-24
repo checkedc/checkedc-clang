@@ -10,7 +10,7 @@
 /// This file defines the GCNRegPressure class, which tracks registry pressure
 /// by bookkeeping number of SGPR/VGPRs used, weights for large SGPR/VGPRs. It
 /// also implements a compare function, which compares different register
-/// pressures, and declares one with max occupance as winner.
+/// pressures, and declares one with max occupancy as winner.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -42,12 +42,19 @@ struct GCNRegPressure {
     clear();
   }
 
-  bool empty() const { return getSGPRNum() == 0 && getVGPRNum() == 0; }
+  bool empty() const { return getSGPRNum() == 0 && getVGPRNum(false) == 0; }
 
   void clear() { std::fill(&Value[0], &Value[TOTAL_KINDS], 0); }
 
   unsigned getSGPRNum() const { return Value[SGPR32]; }
-  unsigned getVGPRNum() const { return std::max(Value[VGPR32], Value[AGPR32]); }
+  unsigned getVGPRNum(bool UnifiedVGPRFile) const {
+    if (UnifiedVGPRFile) {
+      return Value[AGPR32] ? alignTo(Value[VGPR32], 4) + Value[AGPR32]
+                           : Value[VGPR32] + Value[AGPR32];
+    }
+    return std::max(Value[VGPR32], Value[AGPR32]);
+  }
+  unsigned getAGPRNum() const { return Value[AGPR32]; }
 
   unsigned getVGPRTuplesWeight() const { return std::max(Value[VGPR_TUPLE],
                                                          Value[AGPR_TUPLE]); }
@@ -55,7 +62,7 @@ struct GCNRegPressure {
 
   unsigned getOccupancy(const GCNSubtarget &ST) const {
     return std::min(ST.getOccupancyWithNumSGPRs(getSGPRNum()),
-                    ST.getOccupancyWithNumVGPRs(getVGPRNum()));
+             ST.getOccupancyWithNumVGPRs(getVGPRNum(ST.hasGFX90AInsts())));
   }
 
   void inc(unsigned Reg,
@@ -78,8 +85,7 @@ struct GCNRegPressure {
     return !(*this == O);
   }
 
-  void print(raw_ostream &OS, const GCNSubtarget *ST = nullptr) const;
-  void dump() const { print(dbgs()); }
+  void dump() const;
 
 private:
   unsigned Value[TOTAL_KINDS];
@@ -88,6 +94,8 @@ private:
 
   friend GCNRegPressure max(const GCNRegPressure &P1,
                             const GCNRegPressure &P2);
+
+  friend Printable print(const GCNRegPressure &RP, const GCNSubtarget *ST);
 };
 
 inline GCNRegPressure max(const GCNRegPressure &P1, const GCNRegPressure &P2) {
@@ -130,9 +138,6 @@ public:
   decltype(LiveRegs) moveLiveRegs() {
     return std::move(LiveRegs);
   }
-
-  static void printLiveRegs(raw_ostream &OS, const LiveRegSet& LiveRegs,
-                            const MachineRegisterInfo &MRI);
 };
 
 class GCNUpwardRPTracker : public GCNRPTracker {
@@ -160,15 +165,15 @@ class GCNDownwardRPTracker : public GCNRPTracker {
 public:
   GCNDownwardRPTracker(const LiveIntervals &LIS_) : GCNRPTracker(LIS_) {}
 
-  const MachineBasicBlock::const_iterator getNext() const { return NextMI; }
+  MachineBasicBlock::const_iterator getNext() const { return NextMI; }
 
   // Reset tracker to the point before the MI
   // filling live regs upon this point using LIS.
   // Returns false if block is empty except debug values.
   bool reset(const MachineInstr &MI, const LiveRegSet *LiveRegs = nullptr);
 
-  // Move to the state right before the next MI. Returns false if reached
-  // end of the block.
+  // Move to the state right before the next MI or after the end of MBB.
+  // Returns false if reached end of the block.
   bool advanceBeforeNext();
 
   // Move to the state at the MI, advanceBeforeNext has to be called first.
@@ -263,9 +268,14 @@ GCNRegPressure getRegPressure(const MachineRegisterInfo &MRI,
 bool isEqual(const GCNRPTracker::LiveRegSet &S1,
              const GCNRPTracker::LiveRegSet &S2);
 
-void printLivesAt(SlotIndex SI,
-                  const LiveIntervals &LIS,
-                  const MachineRegisterInfo &MRI);
+Printable print(const GCNRegPressure &RP, const GCNSubtarget *ST = nullptr);
+
+Printable print(const GCNRPTracker::LiveRegSet &LiveRegs,
+                const MachineRegisterInfo &MRI);
+
+Printable reportMismatch(const GCNRPTracker::LiveRegSet &LISLR,
+                         const GCNRPTracker::LiveRegSet &TrackedL,
+                         const TargetRegisterInfo *TRI);
 
 } // end namespace llvm
 

@@ -45,28 +45,37 @@ enum Kind : unsigned {
   /// Positions, ordered by decreasing priority.
   OperationPos,
   OperandPos,
+  OperandGroupPos,
   AttributePos,
   ResultPos,
+  ResultGroupPos,
   TypePos,
+  AttributeLiteralPos,
+  TypeLiteralPos,
+  UsersPos,
+  ForEachPos,
 
   // Questions, ordered by dependency and decreasing priority.
   IsNotNullQuestion,
   OperationNameQuestion,
   TypeQuestion,
   AttributeQuestion,
+  OperandCountAtLeastQuestion,
   OperandCountQuestion,
+  ResultCountAtLeastQuestion,
   ResultCountQuestion,
   EqualToQuestion,
   ConstraintQuestion,
 
   // Answers.
   AttributeAnswer,
-  TrueAnswer,
+  FalseAnswer,
   OperationNameAnswer,
+  TrueAnswer,
   TypeAnswer,
   UnsignedAnswer,
 };
-} // end namespace Predicates
+} // namespace Predicates
 
 /// Base class for all predicates, used to allow efficient pointer comparison.
 template <typename ConcreteT, typename BaseT, typename Key,
@@ -129,21 +138,15 @@ struct OperationPosition;
 /// predicates, and assists generating bytecode and memory management.
 ///
 /// Operation positions form the base of other positions, which are formed
-/// relative to a parent operation, e.g. OperandPosition<[0] -> 1>. Operations
-/// are indexed by child index: [0, 1, 2] refers to the 3rd child of the 2nd
-/// child of the root operation.
-///
-/// Positions are linked to their parent position, which describes how to obtain
-/// a positional value. As a concrete example, getting OperationPosition<[0, 1]>
-/// would be `root->getOperand(1)->getDefiningOp()`, so its parent is
-/// OperandPosition<[0] -> 1>, whose parent is OperationPosition<[0]>.
+/// relative to a parent operation. Operations are anchored at Operand nodes,
+/// except for the root operation which is parentless.
 class Position : public StorageUniquer::BaseStorage {
 public:
   explicit Position(Predicates::Kind kind) : kind(kind) {}
   virtual ~Position();
 
-  /// Returns the base node position. This is an array of indices.
-  virtual ArrayRef<unsigned> getIndex() const = 0;
+  /// Returns the depth of the first ancestor operation position.
+  unsigned getOperationDepth() const;
 
   /// Returns the parent position. The root operation position has no parent.
   Position *getParent() const { return parent; }
@@ -166,15 +169,36 @@ private:
 /// A position describing an attribute of an operation.
 struct AttributePosition
     : public PredicateBase<AttributePosition, Position,
-                           std::pair<OperationPosition *, Identifier>,
+                           std::pair<OperationPosition *, StringAttr>,
                            Predicates::AttributePos> {
   explicit AttributePosition(const KeyTy &key);
 
-  /// Returns the index of this position.
-  ArrayRef<unsigned> getIndex() const final { return parent->getIndex(); }
-
   /// Returns the attribute name of this position.
-  Identifier getName() const { return key.second; }
+  StringAttr getName() const { return key.second; }
+};
+
+//===----------------------------------------------------------------------===//
+// AttributeLiteralPosition
+
+/// A position describing a literal attribute.
+struct AttributeLiteralPosition
+    : public PredicateBase<AttributeLiteralPosition, Position, Attribute,
+                           Predicates::AttributeLiteralPos> {
+  using PredicateBase::PredicateBase;
+};
+
+//===----------------------------------------------------------------------===//
+// ForEachPosition
+
+/// A position describing an iterative choice of an operation.
+struct ForEachPosition : public PredicateBase<ForEachPosition, Position,
+                                              std::pair<Position *, unsigned>,
+                                              Predicates::ForEachPos> {
+  explicit ForEachPosition(const KeyTy &key) : Base(key) { parent = key.first; }
+
+  /// Returns the ID, for differentiating various loops.
+  /// For upward traversals, this is the index of the root.
+  unsigned getID() const { return key.second; }
 };
 
 //===----------------------------------------------------------------------===//
@@ -187,11 +211,35 @@ struct OperandPosition
                            Predicates::OperandPos> {
   explicit OperandPosition(const KeyTy &key);
 
-  /// Returns the index of this position.
-  ArrayRef<unsigned> getIndex() const final { return parent->getIndex(); }
-
   /// Returns the operand number of this position.
   unsigned getOperandNumber() const { return key.second; }
+};
+
+//===----------------------------------------------------------------------===//
+// OperandGroupPosition
+
+/// A position describing an operand group of an operation.
+struct OperandGroupPosition
+    : public PredicateBase<
+          OperandGroupPosition, Position,
+          std::tuple<OperationPosition *, std::optional<unsigned>, bool>,
+          Predicates::OperandGroupPos> {
+  explicit OperandGroupPosition(const KeyTy &key);
+
+  /// Returns a hash suitable for the given keytype.
+  static llvm::hash_code hashKey(const KeyTy &key) {
+    return llvm::hash_value(key);
+  }
+
+  /// Returns the group number of this position. If std::nullopt, this group
+  /// refers to all operands.
+  std::optional<unsigned> getOperandGroupNumber() const {
+    return std::get<1>(key);
+  }
+
+  /// Returns if the operand group has unknown size. If false, the operand group
+  /// has at max one element.
+  bool isVariadic() const { return std::get<2>(key); }
 };
 
 //===----------------------------------------------------------------------===//
@@ -199,30 +247,36 @@ struct OperandPosition
 
 /// An operation position describes an operation node in the IR. Other position
 /// kinds are formed with respect to an operation position.
-struct OperationPosition
-    : public PredicateBase<OperationPosition, Position, ArrayRef<unsigned>,
-                           Predicates::OperationPos> {
-  using Base::Base;
+struct OperationPosition : public PredicateBase<OperationPosition, Position,
+                                                std::pair<Position *, unsigned>,
+                                                Predicates::OperationPos> {
+  explicit OperationPosition(const KeyTy &key) : Base(key) {
+    parent = key.first;
+  }
 
-  /// Gets the root position, which is always [0].
+  /// Returns a hash suitable for the given keytype.
+  static llvm::hash_code hashKey(const KeyTy &key) {
+    return llvm::hash_value(key);
+  }
+
+  /// Gets the root position.
   static OperationPosition *getRoot(StorageUniquer &uniquer) {
-    return get(uniquer, ArrayRef<unsigned>(0));
-  }
-  /// Gets a node position for the given index.
-  static OperationPosition *get(StorageUniquer &uniquer,
-                                ArrayRef<unsigned> index);
-
-  /// Constructs an instance with the given storage allocator.
-  static OperationPosition *construct(StorageUniquer::StorageAllocator &alloc,
-                                      ArrayRef<unsigned> key) {
-    return Base::construct(alloc, alloc.copyInto(key));
+    return Base::get(uniquer, nullptr, 0);
   }
 
-  /// Returns the index of this position.
-  ArrayRef<unsigned> getIndex() const final { return key; }
+  /// Gets an operation position with the given parent.
+  static OperationPosition *get(StorageUniquer &uniquer, Position *parent) {
+    return Base::get(uniquer, parent, parent->getOperationDepth() + 1);
+  }
+
+  /// Returns the depth of this position.
+  unsigned getDepth() const { return key.second; }
 
   /// Returns if this operation position corresponds to the root.
-  bool isRoot() const { return key.size() == 1 && key[0] == 0; }
+  bool isRoot() const { return getDepth() == 0; }
+
+  /// Returns if this operation represents an operand defining op.
+  bool isOperandDefiningOp() const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -235,11 +289,37 @@ struct ResultPosition
                            Predicates::ResultPos> {
   explicit ResultPosition(const KeyTy &key) : Base(key) { parent = key.first; }
 
-  /// Returns the index of this position.
-  ArrayRef<unsigned> getIndex() const final { return key.first->getIndex(); }
-
   /// Returns the result number of this position.
   unsigned getResultNumber() const { return key.second; }
+};
+
+//===----------------------------------------------------------------------===//
+// ResultGroupPosition
+
+/// A position describing a result group of an operation.
+struct ResultGroupPosition
+    : public PredicateBase<
+          ResultGroupPosition, Position,
+          std::tuple<OperationPosition *, std::optional<unsigned>, bool>,
+          Predicates::ResultGroupPos> {
+  explicit ResultGroupPosition(const KeyTy &key) : Base(key) {
+    parent = std::get<0>(key);
+  }
+
+  /// Returns a hash suitable for the given keytype.
+  static llvm::hash_code hashKey(const KeyTy &key) {
+    return llvm::hash_value(key);
+  }
+
+  /// Returns the group number of this position. If std::nullopt, this group
+  /// refers to all results.
+  std::optional<unsigned> getResultGroupNumber() const {
+    return std::get<1>(key);
+  }
+
+  /// Returns if the result group has unknown size. If false, the result group
+  /// has at max one element.
+  bool isVariadic() const { return std::get<2>(key); }
 };
 
 //===----------------------------------------------------------------------===//
@@ -250,14 +330,42 @@ struct ResultPosition
 struct TypePosition : public PredicateBase<TypePosition, Position, Position *,
                                            Predicates::TypePos> {
   explicit TypePosition(const KeyTy &key) : Base(key) {
-    assert((isa<AttributePosition>(key) || isa<OperandPosition>(key) ||
-            isa<ResultPosition>(key)) &&
+    assert((isa<AttributePosition, OperandPosition, OperandGroupPosition,
+                ResultPosition, ResultGroupPosition>(key)) &&
            "expected parent to be an attribute, operand, or result");
     parent = key;
   }
+};
 
-  /// Returns the index of this position.
-  ArrayRef<unsigned> getIndex() const final { return key->getIndex(); }
+//===----------------------------------------------------------------------===//
+// TypeLiteralPosition
+
+/// A position describing a literal type or type range. The value is stored as
+/// either a TypeAttr, or an ArrayAttr of TypeAttr.
+struct TypeLiteralPosition
+    : public PredicateBase<TypeLiteralPosition, Position, Attribute,
+                           Predicates::TypeLiteralPos> {
+  using PredicateBase::PredicateBase;
+};
+
+//===----------------------------------------------------------------------===//
+// UsersPosition
+
+/// A position describing the users of a value or a range of values. The second
+/// value in the key indicates whether we choose users of a representative for
+/// a range (this is true, e.g., in the upward traversals).
+struct UsersPosition
+    : public PredicateBase<UsersPosition, Position, std::pair<Position *, bool>,
+                           Predicates::UsersPos> {
+  explicit UsersPosition(const KeyTy &key) : Base(key) { parent = key.first; }
+
+  /// Returns a hash suitable for the given keytype.
+  static llvm::hash_code hashKey(const KeyTy &key) {
+    return llvm::hash_value(key);
+  }
+
+  /// Indicates whether to compute a range of a representative.
+  bool useRepresentative() const { return key.second; }
 };
 
 //===----------------------------------------------------------------------===//
@@ -311,8 +419,15 @@ struct TrueAnswer
   using Base::Base;
 };
 
-/// An Answer representing a `Type` value.
-struct TypeAnswer : public PredicateBase<TypeAnswer, Qualifier, Type,
+/// An Answer representing a boolean 'false' value.
+struct FalseAnswer
+    : PredicateBase<FalseAnswer, Qualifier, void, Predicates::FalseAnswer> {
+  using Base::Base;
+};
+
+/// An Answer representing a `Type` value. The value is stored as either a
+/// TypeAttr, or an ArrayAttr of TypeAttr.
+struct TypeAnswer : public PredicateBase<TypeAnswer, Qualifier, Attribute,
                                          Predicates::TypeAnswer> {
   using Base::Base;
 };
@@ -334,18 +449,22 @@ struct AttributeQuestion
 
 /// Apply a parameterized constraint to multiple position values.
 struct ConstraintQuestion
-    : public PredicateBase<
-          ConstraintQuestion, Qualifier,
-          std::tuple<StringRef, ArrayRef<Position *>, Attribute>,
-          Predicates::ConstraintQuestion> {
+    : public PredicateBase<ConstraintQuestion, Qualifier,
+                           std::tuple<StringRef, ArrayRef<Position *>>,
+                           Predicates::ConstraintQuestion> {
   using Base::Base;
+
+  /// Return the name of the constraint.
+  StringRef getName() const { return std::get<0>(key); }
+
+  /// Return the arguments of the constraint.
+  ArrayRef<Position *> getArgs() const { return std::get<1>(key); }
 
   /// Construct an instance with the given storage allocator.
   static ConstraintQuestion *construct(StorageUniquer::StorageAllocator &alloc,
                                        KeyTy key) {
     return Base::construct(alloc, KeyTy{alloc.copyInto(std::get<0>(key)),
-                                        alloc.copyInto(std::get<1>(key)),
-                                        std::get<2>(key)});
+                                        alloc.copyInto(std::get<1>(key))});
   }
 };
 
@@ -365,6 +484,9 @@ struct IsNotNullQuestion
 struct OperandCountQuestion
     : public PredicateBase<OperandCountQuestion, Qualifier, void,
                            Predicates::OperandCountQuestion> {};
+struct OperandCountAtLeastQuestion
+    : public PredicateBase<OperandCountAtLeastQuestion, Qualifier, void,
+                           Predicates::OperandCountAtLeastQuestion> {};
 
 /// Compare the name of an operation with a known value.
 struct OperationNameQuestion
@@ -375,6 +497,9 @@ struct OperationNameQuestion
 struct ResultCountQuestion
     : public PredicateBase<ResultCountQuestion, Qualifier, void,
                            Predicates::ResultCountQuestion> {};
+struct ResultCountAtLeastQuestion
+    : public PredicateBase<ResultCountAtLeastQuestion, Qualifier, void,
+                           Predicates::ResultCountAtLeastQuestion> {};
 
 /// Compare the type of an attribute or value with a known type.
 struct TypeQuestion : public PredicateBase<TypeQuestion, Qualifier, void,
@@ -391,16 +516,23 @@ public:
   PredicateUniquer() {
     // Register the types of Positions with the uniquer.
     registerParametricStorageType<AttributePosition>();
+    registerParametricStorageType<AttributeLiteralPosition>();
+    registerParametricStorageType<ForEachPosition>();
     registerParametricStorageType<OperandPosition>();
+    registerParametricStorageType<OperandGroupPosition>();
     registerParametricStorageType<OperationPosition>();
     registerParametricStorageType<ResultPosition>();
+    registerParametricStorageType<ResultGroupPosition>();
     registerParametricStorageType<TypePosition>();
+    registerParametricStorageType<TypeLiteralPosition>();
+    registerParametricStorageType<UsersPosition>();
 
     // Register the types of Questions with the uniquer.
     registerParametricStorageType<AttributeAnswer>();
     registerParametricStorageType<OperationNameAnswer>();
     registerParametricStorageType<TypeAnswer>();
     registerParametricStorageType<UnsignedAnswer>();
+    registerSingletonStorageType<FalseAnswer>();
     registerSingletonStorageType<TrueAnswer>();
 
     // Register the types of Answers with the uniquer.
@@ -409,8 +541,10 @@ public:
     registerSingletonStorageType<AttributeQuestion>();
     registerSingletonStorageType<IsNotNullQuestion>();
     registerSingletonStorageType<OperandCountQuestion>();
+    registerSingletonStorageType<OperandCountAtLeastQuestion>();
     registerSingletonStorageType<OperationNameQuestion>();
     registerSingletonStorageType<ResultCountQuestion>();
+    registerSingletonStorageType<ResultCountAtLeastQuestion>();
     registerSingletonStorageType<TypeQuestion>();
   }
 };
@@ -433,15 +567,30 @@ public:
   Position *getRoot() { return OperationPosition::getRoot(uniquer); }
 
   /// Returns the parent position defining the value held by the given operand.
-  Position *getParent(OperandPosition *p) {
-    std::vector<unsigned> index = p->getIndex();
-    index.push_back(p->getOperandNumber());
-    return OperationPosition::get(uniquer, index);
+  OperationPosition *getOperandDefiningOp(Position *p) {
+    assert((isa<OperandPosition, OperandGroupPosition>(p)) &&
+           "expected operand position");
+    return OperationPosition::get(uniquer, p);
+  }
+
+  /// Returns the operation position equivalent to the given position.
+  OperationPosition *getPassthroughOp(Position *p) {
+    assert((isa<ForEachPosition>(p)) && "expected users position");
+    return OperationPosition::get(uniquer, p);
   }
 
   /// Returns an attribute position for an attribute of the given operation.
   Position *getAttribute(OperationPosition *p, StringRef name) {
-    return AttributePosition::get(uniquer, p, Identifier::get(name, ctx));
+    return AttributePosition::get(uniquer, p, StringAttr::get(ctx, name));
+  }
+
+  /// Returns an attribute position for the given attribute.
+  Position *getAttributeLiteral(Attribute attr) {
+    return AttributeLiteralPosition::get(uniquer, attr);
+  }
+
+  Position *getForEach(Position *p, unsigned id) {
+    return ForEachPosition::get(uniquer, p, id);
   }
 
   /// Returns an operand position for an operand of the given operation.
@@ -449,13 +598,45 @@ public:
     return OperandPosition::get(uniquer, p, operand);
   }
 
+  /// Returns a position for a group of operands of the given operation.
+  Position *getOperandGroup(OperationPosition *p, std::optional<unsigned> group,
+                            bool isVariadic) {
+    return OperandGroupPosition::get(uniquer, p, group, isVariadic);
+  }
+  Position *getAllOperands(OperationPosition *p) {
+    return getOperandGroup(p, /*group=*/std::nullopt, /*isVariadic=*/true);
+  }
+
   /// Returns a result position for a result of the given operation.
   Position *getResult(OperationPosition *p, unsigned result) {
     return ResultPosition::get(uniquer, p, result);
   }
 
+  /// Returns a position for a group of results of the given operation.
+  Position *getResultGroup(OperationPosition *p, std::optional<unsigned> group,
+                           bool isVariadic) {
+    return ResultGroupPosition::get(uniquer, p, group, isVariadic);
+  }
+  Position *getAllResults(OperationPosition *p) {
+    return getResultGroup(p, /*group=*/std::nullopt, /*isVariadic=*/true);
+  }
+
   /// Returns a type position for the given entity.
   Position *getType(Position *p) { return TypePosition::get(uniquer, p); }
+
+  /// Returns a type position for the given type value. The value is stored
+  /// as either a TypeAttr, or an ArrayAttr of TypeAttr.
+  Position *getTypeLiteral(Attribute attr) {
+    return TypeLiteralPosition::get(uniquer, attr);
+  }
+
+  /// Returns the users of a position using the value at the given operand.
+  UsersPosition *getUsers(Position *p, bool useRepresentative) {
+    assert((isa<OperandPosition, OperandGroupPosition, ResultPosition,
+                ResultGroupPosition>(p)) &&
+           "expected result position");
+    return UsersPosition::get(uniquer, p, useRepresentative);
+  }
 
   //===--------------------------------------------------------------------===//
   // Qualifiers
@@ -472,17 +653,20 @@ public:
             AttributeAnswer::get(uniquer, attr)};
   }
 
-  /// Create a predicate comparing two values.
+  /// Create a predicate checking if two values are equal.
   Predicate getEqualTo(Position *pos) {
     return {EqualToQuestion::get(uniquer, pos), TrueAnswer::get(uniquer)};
   }
 
+  /// Create a predicate checking if two values are not equal.
+  Predicate getNotEqualTo(Position *pos) {
+    return {EqualToQuestion::get(uniquer, pos), FalseAnswer::get(uniquer)};
+  }
+
   /// Create a predicate that applies a generic constraint.
-  Predicate getConstraint(StringRef name, ArrayRef<Position *> pos,
-                          Attribute params) {
-    return {
-        ConstraintQuestion::get(uniquer, std::make_tuple(name, pos, params)),
-        TrueAnswer::get(uniquer)};
+  Predicate getConstraint(StringRef name, ArrayRef<Position *> pos) {
+    return {ConstraintQuestion::get(uniquer, std::make_tuple(name, pos)),
+            TrueAnswer::get(uniquer)};
   }
 
   /// Create a predicate comparing a value with null.
@@ -494,6 +678,10 @@ public:
   /// known value.
   Predicate getOperandCount(unsigned count) {
     return {OperandCountQuestion::get(uniquer),
+            UnsignedAnswer::get(uniquer, count)};
+  }
+  Predicate getOperandCountAtLeast(unsigned count) {
+    return {OperandCountAtLeastQuestion::get(uniquer),
             UnsignedAnswer::get(uniquer, count)};
   }
 
@@ -509,10 +697,15 @@ public:
     return {ResultCountQuestion::get(uniquer),
             UnsignedAnswer::get(uniquer, count)};
   }
+  Predicate getResultCountAtLeast(unsigned count) {
+    return {ResultCountAtLeastQuestion::get(uniquer),
+            UnsignedAnswer::get(uniquer, count)};
+  }
 
   /// Create a predicate comparing the type of an attribute or value to a known
-  /// type.
-  Predicate getTypeConstraint(Type type) {
+  /// type. The value is stored as either a TypeAttr, or an ArrayAttr of
+  /// TypeAttr.
+  Predicate getTypeConstraint(Attribute type) {
     return {TypeQuestion::get(uniquer), TypeAnswer::get(uniquer, type)};
   }
 
@@ -524,7 +717,7 @@ private:
   MLIRContext *ctx;
 };
 
-} // end namespace pdl_to_pdl_interp
-} // end namespace mlir
+} // namespace pdl_to_pdl_interp
+} // namespace mlir
 
 #endif // MLIR_CONVERSION_PDLTOPDLINTERP_PREDICATE_H_

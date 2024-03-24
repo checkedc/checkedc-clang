@@ -11,13 +11,10 @@
 #include "clang/AST/RecordLayout.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include <math.h>
-#include <sstream>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace altera {
+namespace clang::tidy::altera {
 
 void StructPackAlignCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(recordDecl(isStruct(), isDefinition(),
@@ -52,6 +49,10 @@ void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
   if (Struct->isTemplated())
      return;
 
+  // Packing and alignment requirements for invalid decls are meaningless.
+  if (Struct->isInvalidDecl())
+    return;
+
   // Get sizing info for the struct.
   llvm::SmallVector<std::pair<unsigned int, unsigned int>, 10> FieldSizes;
   unsigned int TotalBitSize = 0;
@@ -59,9 +60,11 @@ void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
     // For each StructField, record how big it is (in bits).
     // Would be good to use a pair of <offset, size> to advise a better
     // packing order.
+    QualType StructFieldTy = StructField->getType();
+    if (StructFieldTy->isIncompleteType())
+      return;
     unsigned int StructFieldWidth =
-        (unsigned int)Result.Context
-            ->getTypeInfo(StructField->getType().getTypePtr())
+        (unsigned int)Result.Context->getTypeInfo(StructFieldTy.getTypePtr())
             .Width;
     FieldSizes.emplace_back(StructFieldWidth, StructField->getFieldIndex());
     // FIXME: Recommend a reorganization of the struct (sort by StructField
@@ -72,7 +75,8 @@ void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
   uint64_t CharSize = Result.Context->getCharWidth();
   CharUnits CurrSize = Result.Context->getASTRecordLayout(Struct).getSize();
   CharUnits MinByteSize =
-      CharUnits::fromQuantity(ceil((float)TotalBitSize / CharSize));
+      CharUnits::fromQuantity(std::max<clang::CharUnits::QuantityType>(
+          ceil(static_cast<float>(TotalBitSize) / CharSize), 1));
   CharUnits MaxAlign = CharUnits::fromQuantity(
       ceil((float)Struct->getMaxAlignment() / CharSize));
   CharUnits CurrAlign =
@@ -109,15 +113,13 @@ void StructPackAlignCheck::check(const MatchFinder::MatchResult &Result) {
   AlignedAttr *Attribute = Struct->getAttr<AlignedAttr>();
   std::string NewAlignQuantity = std::to_string((int)NewAlign.getQuantity());
   if (Attribute) {
-    std::ostringstream FixItString;
-    FixItString << "aligned(" << NewAlignQuantity << ")";
-    FixIt =
-        FixItHint::CreateReplacement(Attribute->getRange(), FixItString.str());
+    FixIt = FixItHint::CreateReplacement(
+        Attribute->getRange(),
+        (Twine("aligned(") + NewAlignQuantity + ")").str());
   } else {
-    std::ostringstream FixItString;
-    FixItString << " __attribute__((aligned(" << NewAlignQuantity << ")))";
-    FixIt = FixItHint::CreateInsertion(Struct->getEndLoc().getLocWithOffset(1),
-                                       FixItString.str());
+    FixIt = FixItHint::CreateInsertion(
+        Struct->getEndLoc().getLocWithOffset(1),
+        (Twine(" __attribute__((aligned(") + NewAlignQuantity + ")))").str());
   }
 
   // And suggest the minimum power-of-two alignment for the struct as a whole
@@ -139,6 +141,4 @@ void StructPackAlignCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "MaxConfiguredAlignment", MaxConfiguredAlignment);
 }
 
-} // namespace altera
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::altera

@@ -1,4 +1,4 @@
-//===--------------- LLJITWithCustomObjectLinkingLayer.cpp ----------------===//
+//===--------------- LLJITWithGDBRegistrationListener.cpp -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,7 +39,7 @@ static cl::list<std::string> InputFiles(cl::Positional, cl::OneOrMore,
 
 static cl::list<std::string> InputArgv("args", cl::Positional,
                                        cl::desc("<program arguments>..."),
-                                       cl::ZeroOrMore, cl::PositionalEatsArgs);
+                                       cl::PositionalEatsArgs);
 
 int main(int argc, char *argv[]) {
   // Initialize LLVM.
@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
   InitializeNativeTarget();
   InitializeNativeTargetAsmPrinter();
 
-  cl::ParseCommandLineOptions(argc, argv, "LLJITWithCustomObjectLinkingLayer");
+  cl::ParseCommandLineOptions(argc, argv, "LLJITWithGDBRegistrationListener");
   ExitOnErr.setBanner(std::string(argv[0]) + ": ");
 
   // Detect the host and set code model to small.
@@ -108,9 +108,8 @@ int main(int argc, char *argv[]) {
 
   // Look up the entry point, cast it to a C main function pointer, then use
   // runAsMain to call it.
-  auto EntrySym = ExitOnErr(J->lookup(EntryPointName));
-  auto EntryFn =
-      jitTargetAddressToFunction<int (*)(int, char *[])>(EntrySym.getAddress());
+  auto EntryAddr = ExitOnErr(J->lookup(EntryPointName));
+  auto EntryFn = EntryAddr.toPtr<int(int, char *[])>();
 
   return runAsMain(EntryFn, InputArgv, StringRef(InputFiles.front()));
 }

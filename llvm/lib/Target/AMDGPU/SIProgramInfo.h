@@ -41,11 +41,16 @@ struct SIProgramInfo {
     uint32_t ScratchBlocks = 0;
 
     uint64_t ComputePGMRSrc2 = 0;
+    uint64_t ComputePGMRSrc3GFX90A = 0;
 
     uint32_t NumVGPR = 0;
     uint32_t NumArchVGPR = 0;
     uint32_t NumAccVGPR = 0;
+    uint32_t AccumOffset = 0;
+    uint32_t TgSplit = 0;
     uint32_t NumSGPR = 0;
+    unsigned SGPRSpill = 0;
+    unsigned VGPRSpill = 0;
     uint32_t LDSSize = 0;
     bool FlatUsed = false;
 

@@ -15,25 +15,17 @@
 #define MLIR_IR_LOCATION_H
 
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/SubElementInterfaces.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 
 namespace mlir {
 
-class Attribute;
-class MLIRContext;
-class Identifier;
+class Location;
+class WalkResult;
 
-namespace detail {
-
-struct CallSiteLocationStorage;
-struct FileLineColLocationStorage;
-struct FusedLocationStorage;
-struct LocationStorage;
-struct NameLocationStorage;
-struct OpaqueLocationStorage;
-struct UnknownLocationStorage;
-
-} // namespace detail
+//===----------------------------------------------------------------------===//
+// LocationAttr
+//===----------------------------------------------------------------------===//
 
 /// Location objects represent source locations information in MLIR.
 /// LocationAttr acts as the anchor for all Location based attributes.
@@ -41,9 +33,31 @@ class LocationAttr : public Attribute {
 public:
   using Attribute::Attribute;
 
+  /// Walk all of the locations nested under, and including, the current.
+  WalkResult walk(function_ref<WalkResult(Location)> walkFn);
+
+  /// Return an instance of the given location type if one is nested under the
+  /// current location. Returns nullptr if one could not be found.
+  template <typename T>
+  T findInstanceOf() {
+    T result = {};
+    walk([&](auto loc) {
+      if (auto typedLoc = llvm::dyn_cast<T>(loc)) {
+        result = typedLoc;
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+    return result;
+  }
+
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(Attribute attr);
 };
+
+//===----------------------------------------------------------------------===//
+// Location
+//===----------------------------------------------------------------------===//
 
 /// This class defines the main interface for locations in MLIR and acts as a
 /// non-nullable wrapper around a LocationAttr.
@@ -64,9 +78,18 @@ public:
   LocationAttr *operator->() const { return const_cast<LocationAttr *>(&impl); }
 
   /// Type casting utilities on the underlying location.
-  template <typename U> bool isa() const { return impl.isa<U>(); }
-  template <typename U> U dyn_cast() const { return impl.dyn_cast<U>(); }
-  template <typename U> U cast() const { return impl.cast<U>(); }
+  template <typename U>
+  bool isa() const {
+    return llvm::isa<U>(*this);
+  }
+  template <typename U>
+  U dyn_cast() const {
+    return llvm::dyn_cast<U>(*this);
+  }
+  template <typename U>
+  U cast() const {
+    return llvm::cast<U>(*this);
+  }
 
   /// Comparison operators.
   bool operator==(Location rhs) const { return impl == rhs.impl; }
@@ -84,6 +107,9 @@ public:
     return LocationAttr(reinterpret_cast<const AttributeStorage *>(pointer));
   }
 
+  /// Support llvm style casting.
+  static bool classof(Attribute attr) { return llvm::isa<LocationAttr>(attr); }
+
 protected:
   /// The internal backing location attribute.
   LocationAttr impl;
@@ -94,189 +120,90 @@ inline raw_ostream &operator<<(raw_ostream &os, const Location &loc) {
   return os;
 }
 
-/// Represents a location as call site. "callee" is the concrete location
-/// (Unknown/NameLocation/FileLineColLoc/OpaqueLoc) and "caller" points to the
-/// caller's location (another CallLocation or a concrete location). Multiple
-/// CallSiteLocs can be chained to form a call stack.
-class CallSiteLoc
-    : public Attribute::AttrBase<CallSiteLoc, LocationAttr,
-                                 detail::CallSiteLocationStorage> {
-public:
-  using Base::Base;
-
-  /// Return a uniqued call location object.
-  static Location get(Location callee, Location caller);
-
-  /// Return a call site location which represents a name reference in one line
-  /// or a stack of frames. The input frames are ordered from innermost to
-  /// outermost.
-  static Location get(Location name, ArrayRef<Location> frames);
-
-  /// The concrete location information this object presents.
-  Location getCallee() const;
-
-  /// The caller's location.
-  Location getCaller() const;
-};
-
-/// Represents a location derived from a file/line/column location.  The column
-/// and line may be zero to represent unknown column and/or unknown line/column
-/// information.
-class FileLineColLoc
-    : public Attribute::AttrBase<FileLineColLoc, LocationAttr,
-                                 detail::FileLineColLocationStorage> {
-public:
-  using Base::Base;
-
-  /// Return a uniqued FileLineCol location object.
-  static Location get(Identifier filename, unsigned line, unsigned column,
-                      MLIRContext *context);
-  static Location get(StringRef filename, unsigned line, unsigned column,
-                      MLIRContext *context);
-
-  StringRef getFilename() const;
-
-  unsigned getLine() const;
-  unsigned getColumn() const;
-};
-
-/// Represents a value composed of multiple source constructs, with an optional
-/// metadata attribute.
-class FusedLoc : public Attribute::AttrBase<FusedLoc, LocationAttr,
-                                            detail::FusedLocationStorage> {
-public:
-  using Base::Base;
-
-  /// Return a uniqued Fused Location object. The first location in the list
-  /// will get precedence during diagnostic emission, with the rest being
-  /// displayed as supplementary "fused from here" style notes.
-  static Location get(ArrayRef<Location> locs, Attribute metadata,
-                      MLIRContext *context);
-  static Location get(ArrayRef<Location> locs, MLIRContext *context) {
-    return get(locs, Attribute(), context);
-  }
-
-  ArrayRef<Location> getLocations() const;
-
-  /// Returns the optional metadata attached to this fused location. Given that
-  /// it is optional, the return value may be a null node.
-  Attribute getMetadata() const;
-};
-
-/// Represents an identity name attached to a child location.
-class NameLoc : public Attribute::AttrBase<NameLoc, LocationAttr,
-                                           detail::NameLocationStorage> {
-public:
-  using Base::Base;
-
-  /// Return a uniqued name location object. The child location must not be
-  /// another NameLoc.
-  static Location get(Identifier name, Location child);
-
-  /// Return a uniqued name location object with an unknown child.
-  static Location get(Identifier name, MLIRContext *context);
-
-  /// Return the name identifier.
-  Identifier getName() const;
-
-  /// Return the child location.
-  Location getChildLoc() const;
-};
-
-/// Represents an unknown location.  This is always a singleton for a given
-/// MLIRContext.
-class UnknownLoc
-    : public Attribute::AttrBase<UnknownLoc, LocationAttr, AttributeStorage> {
-public:
-  using Base::Base;
-
-  /// Get an instance of the UnknownLoc.
-  static Location get(MLIRContext *context);
-};
-
-/// Represents a location that is external to MLIR. Contains a pointer to some
-/// data structure and an optional location that can be used if the first one is
-/// not suitable. Since it contains an external structure, only optional
-/// location is used during serialization.
-/// The class also provides a number of methods for making type-safe casts
-/// between a pointer to an object and opaque location.
-class OpaqueLoc : public Attribute::AttrBase<OpaqueLoc, LocationAttr,
-                                             detail::OpaqueLocationStorage> {
-public:
-  using Base::Base;
-
-  /// Returns an instance of opaque location which contains a given pointer to
-  /// an object. The corresponding MLIR location is set to UnknownLoc.
-  template <typename T>
-  static Location get(T underlyingLocation, MLIRContext *context) {
-    return get(reinterpret_cast<uintptr_t>(underlyingLocation),
-               TypeID::get<T>(), UnknownLoc::get(context));
-  }
-
-  /// Returns an instance of opaque location which contains a given pointer to
-  /// an object and an additional MLIR location.
-  template <typename T>
-  static Location get(T underlyingLocation, Location fallbackLocation) {
-    return get(reinterpret_cast<uintptr_t>(underlyingLocation),
-               TypeID::get<T>(), fallbackLocation);
-  }
-
-  /// Returns a pointer to some data structure that opaque location stores.
-  template <typename T> static T getUnderlyingLocation(Location location) {
-    assert(isa<T>(location));
-    return reinterpret_cast<T>(
-        location.cast<mlir::OpaqueLoc>().getUnderlyingLocation());
-  }
-
-  /// Returns a pointer to some data structure that opaque location stores.
-  /// Returns nullptr if provided location is not opaque location or if it
-  /// contains a pointer of different type.
-  template <typename T>
-  static T getUnderlyingLocationOrNull(Location location) {
-    return isa<T>(location)
-               ? reinterpret_cast<T>(
-                     location.cast<mlir::OpaqueLoc>().getUnderlyingLocation())
-               : T(nullptr);
-  }
-
-  /// Checks whether provided location is opaque location and contains a pointer
-  /// to an object of particular type.
-  template <typename T> static bool isa(Location location) {
-    auto opaque_loc = location.dyn_cast<OpaqueLoc>();
-    return opaque_loc && opaque_loc.getUnderlyingTypeID() == TypeID::get<T>();
-  }
-
-  /// Returns a pointer to the corresponding object.
-  uintptr_t getUnderlyingLocation() const;
-
-  /// Returns a TypeID that represents the underlying objects c++ type.
-  TypeID getUnderlyingTypeID() const;
-
-  /// Returns a fallback location.
-  Location getFallbackLocation() const;
-
-private:
-  static Location get(uintptr_t underlyingLocation, TypeID typeID,
-                      Location fallbackLocation);
-};
-
 // Make Location hashable.
 inline ::llvm::hash_code hash_value(Location arg) {
   return hash_value(arg.impl);
 }
 
-} // end namespace mlir
+} // namespace mlir
+
+//===----------------------------------------------------------------------===//
+// Tablegen Attribute Declarations
+//===----------------------------------------------------------------------===//
+
+#define GET_ATTRDEF_CLASSES
+#include "mlir/IR/BuiltinLocationAttributes.h.inc"
+
+namespace mlir {
+
+//===----------------------------------------------------------------------===//
+// FusedLoc
+//===----------------------------------------------------------------------===//
+
+/// This class represents a fused location whose metadata is known to be an
+/// instance of the given type.
+template <typename MetadataT>
+class FusedLocWith : public FusedLoc {
+public:
+  using FusedLoc::FusedLoc;
+
+  /// Return the metadata associated with this fused location.
+  MetadataT getMetadata() const {
+    return FusedLoc::getMetadata().template cast<MetadataT>();
+  }
+
+  /// Support llvm style casting.
+  static bool classof(Attribute attr) {
+    auto fusedLoc = attr.dyn_cast<FusedLoc>();
+    return fusedLoc && fusedLoc.getMetadata().isa_and_nonnull<MetadataT>();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// OpaqueLoc
+//===----------------------------------------------------------------------===//
+
+/// Returns an instance of opaque location which contains a given pointer to
+/// an object. The corresponding MLIR location is set to UnknownLoc.
+template <typename T>
+inline OpaqueLoc OpaqueLoc::get(T underlyingLocation, MLIRContext *context) {
+  return get(reinterpret_cast<uintptr_t>(underlyingLocation), TypeID::get<T>(),
+             UnknownLoc::get(context));
+}
+
+//===----------------------------------------------------------------------===//
+// SubElementInterfaces
+//===----------------------------------------------------------------------===//
+
+/// Enable locations to be introspected as sub-elements.
+template <>
+struct AttrTypeSubElementHandler<Location> {
+  static void walk(Location param, AttrTypeSubElementWalker &walker) {
+    walker.walk(param);
+  }
+  static Location replace(Location param, AttrSubElementReplacements &attrRepls,
+                          TypeSubElementReplacements &typeRepls) {
+    return cast<LocationAttr>(attrRepls.take_front(1)[0]);
+  }
+};
+
+} // namespace mlir
+
+//===----------------------------------------------------------------------===//
+// LLVM Utilities
+//===----------------------------------------------------------------------===//
 
 namespace llvm {
 
 // Type hash just like pointers.
-template <> struct DenseMapInfo<mlir::Location> {
+template <>
+struct DenseMapInfo<mlir::Location> {
   static mlir::Location getEmptyKey() {
-    auto pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
+    auto *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::Location::getFromOpaquePointer(pointer);
   }
   static mlir::Location getTombstoneKey() {
-    auto pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
+    auto *pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
     return mlir::Location::getFromOpaquePointer(pointer);
   }
   static unsigned getHashValue(mlir::Location val) {
@@ -288,7 +215,8 @@ template <> struct DenseMapInfo<mlir::Location> {
 };
 
 /// We align LocationStorage by 8, so allow LLVM to steal the low bits.
-template <> struct PointerLikeTypeTraits<mlir::Location> {
+template <>
+struct PointerLikeTypeTraits<mlir::Location> {
 public:
   static inline void *getAsVoidPointer(mlir::Location I) {
     return const_cast<void *>(I.getAsOpaquePointer());
@@ -298,6 +226,39 @@ public:
   }
   static constexpr int NumLowBitsAvailable =
       PointerLikeTypeTraits<mlir::Attribute>::NumLowBitsAvailable;
+};
+
+/// The constructors in mlir::Location ensure that the class is a non-nullable
+/// wrapper around mlir::LocationAttr. Override default behavior and always
+/// return true for isPresent().
+template <>
+struct ValueIsPresent<mlir::Location> {
+  using UnwrappedType = mlir::Location;
+  static inline bool isPresent(const mlir::Location &location) { return true; }
+};
+
+/// Add support for llvm style casts. We provide a cast between To and From if
+/// From is mlir::Location or derives from it.
+template <typename To, typename From>
+struct CastInfo<To, From,
+                std::enable_if_t<
+                    std::is_same_v<mlir::Location, std::remove_const_t<From>> ||
+                    std::is_base_of_v<mlir::Location, From>>>
+    : DefaultDoCastIfPossible<To, From, CastInfo<To, From>> {
+
+  static inline bool isPossible(mlir::Location location) {
+    /// Return a constant true instead of a dynamic true when casting to self or
+    /// up the hierarchy. Additionally, all casting info is deferred to the
+    /// wrapped mlir::LocationAttr instance stored in mlir::Location.
+    return std::is_same_v<To, std::remove_const_t<From>> ||
+           isa<To>(static_cast<mlir::LocationAttr>(location));
+  }
+
+  static inline To castFailed() { return To(); }
+
+  static inline To doCast(mlir::Location location) {
+    return To(location->getImpl());
+  }
 };
 
 } // namespace llvm

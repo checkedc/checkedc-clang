@@ -22,7 +22,6 @@ namespace clang {
 namespace targets {
 
 class LLVM_LIBRARY_VISIBILITY Le64TargetInfo : public TargetInfo {
-  static const Builtin::Info BuiltinInfo[];
 
 public:
   Le64TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
@@ -44,10 +43,12 @@ public:
 
   const char *getClobbers() const override { return ""; }
 
-  ArrayRef<const char *> getGCCRegNames() const override { return None; }
+  ArrayRef<const char *> getGCCRegNames() const override {
+    return std::nullopt;
+  }
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
-    return None;
+    return std::nullopt;
   }
 
   bool validateAsmConstraint(const char *&Name,

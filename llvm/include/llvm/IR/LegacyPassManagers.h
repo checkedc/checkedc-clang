@@ -90,7 +90,6 @@ template <typename T> class ArrayRef;
 class Module;
 class StringRef;
 class Value;
-class Timer;
 class PMDataManager;
 
 // enums for debugging strings
@@ -295,9 +294,7 @@ private:
 /// used by pass managers.
 class PMDataManager {
 public:
-  explicit PMDataManager() : TPM(nullptr), Depth(0) {
-    initializeAnalysisInfo();
-  }
+  explicit PMDataManager() { initializeAnalysisInfo(); }
 
   virtual ~PMDataManager();
 
@@ -335,8 +332,8 @@ public:
   /// Initialize available analysis information.
   void initializeAnalysisInfo() {
     AvailableAnalysis.clear();
-    for (unsigned i = 0; i < PMT_Last; ++i)
-      InheritedAnalysis[i] = nullptr;
+    for (auto &IA : InheritedAnalysis)
+      IA = nullptr;
   }
 
   // Return true if P preserves high level analysis used by other
@@ -392,9 +389,8 @@ public:
   // Collect AvailableAnalysis from all the active Pass Managers.
   void populateInheritedAnalysis(PMStack &PMS) {
     unsigned Index = 0;
-    for (PMStack::iterator I = PMS.begin(), E = PMS.end();
-         I != E; ++I)
-      InheritedAnalysis[Index++] = (*I)->getAvailableAnalysis();
+    for (PMDataManager *PMDM : PMS)
+      InheritedAnalysis[Index++] = PMDM->getAvailableAnalysis();
   }
 
   /// Set the initial size of the module if the user has specified that they
@@ -420,7 +416,7 @@ public:
 
 protected:
   // Top level manager.
-  PMTopLevelManager *TPM;
+  PMTopLevelManager *TPM = nullptr;
 
   // Collection of pass that are managed by this manager
   SmallVector<Pass *, 16> PassVector;
@@ -448,7 +444,7 @@ private:
   // this manager.
   SmallVector<Pass *, 16> HigherLevelAnalysis;
 
-  unsigned Depth;
+  unsigned Depth = 0;
 };
 
 //===----------------------------------------------------------------------===//
@@ -461,8 +457,7 @@ private:
 class FPPassManager : public ModulePass, public PMDataManager {
 public:
   static char ID;
-  explicit FPPassManager()
-  : ModulePass(ID), PMDataManager() { }
+  explicit FPPassManager() : ModulePass(ID) {}
 
   /// run - Execute all of the passes scheduled for execution.  Keep track of
   /// whether any of the passes modifies the module, and if so, return true.

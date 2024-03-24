@@ -22,9 +22,9 @@ namespace llvm {
                                   const MipsSubtarget &STI);
 
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
-                                        unsigned Align,
+                                        Align Alignment,
                                         MachineMemOperand::Flags Flags,
-                                        bool *Fast) const override;
+                                        unsigned *Fast) const override;
 
     MachineBasicBlock *
     EmitInstrWithCustomInserter(MachineInstr &MI,

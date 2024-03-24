@@ -123,27 +123,27 @@ mlir::quant::fakeQuantAttrsToType(Location loc, unsigned numBits, double rmin,
   // 0.0s, so the scale is set to 1.0 and the tensor can be quantized to zero
   // points and dequantized to 0.0.
   if (std::fabs(rmax - rmin) < std::numeric_limits<double>::epsilon()) {
-    return UniformQuantizedType::getChecked(flags, storageType, expressedType,
-                                            1.0, qmin, qmin, qmax, loc);
+    return UniformQuantizedType::getChecked(
+        loc, flags, storageType, expressedType, 1.0, qmin, qmin, qmax);
   }
 
   double scale;
   int64_t nudgedZeroPoint;
   getNudgedScaleAndZeroPoint(qmin, qmax, rmin, rmax, scale, nudgedZeroPoint);
 
-  return UniformQuantizedType::getChecked(flags, storageType, expressedType,
-                                          scale, nudgedZeroPoint, qmin, qmax,
-                                          loc);
+  return UniformQuantizedType::getChecked(loc, flags, storageType,
+                                          expressedType, scale, nudgedZeroPoint,
+                                          qmin, qmax);
 }
 
 UniformQuantizedPerAxisType mlir::quant::fakeQuantAttrsToType(
     Location loc, unsigned numBits, int32_t quantizedDimension,
     ArrayRef<double> rmins, ArrayRef<double> rmaxs, bool narrowRange,
     Type expressedType, bool isSigned) {
-  size_t axis_size = rmins.size();
-  if (axis_size != rmaxs.size()) {
+  size_t axisSize = rmins.size();
+  if (axisSize != rmaxs.size()) {
     return (emitError(loc, "mismatched per-axis min and max size: ")
-                << axis_size << " vs. " << rmaxs.size(),
+                << axisSize << " vs. " << rmaxs.size(),
             nullptr);
   }
 
@@ -159,9 +159,9 @@ UniformQuantizedPerAxisType mlir::quant::fakeQuantAttrsToType(
 
   SmallVector<double, 4> scales;
   SmallVector<int64_t, 4> zeroPoints;
-  scales.reserve(axis_size);
-  zeroPoints.reserve(axis_size);
-  for (size_t axis = 0; axis != axis_size; ++axis) {
+  scales.reserve(axisSize);
+  zeroPoints.reserve(axisSize);
+  for (size_t axis = 0; axis != axisSize; ++axis) {
     double rmin = rmins[axis];
     double rmax = rmaxs[axis];
     if (std::fabs(rmax - rmin) < std::numeric_limits<double>::epsilon()) {
@@ -179,6 +179,6 @@ UniformQuantizedPerAxisType mlir::quant::fakeQuantAttrsToType(
 
   unsigned flags = isSigned ? QuantizationFlags::Signed : 0;
   return UniformQuantizedPerAxisType::getChecked(
-      flags, storageType, expressedType, scales, zeroPoints, quantizedDimension,
-      qmin, qmax, loc);
+      loc, flags, storageType, expressedType, scales, zeroPoints,
+      quantizedDimension, qmin, qmax);
 }

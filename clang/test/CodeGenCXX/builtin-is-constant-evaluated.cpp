@@ -1,9 +1,10 @@
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm %s -std=c++2a -o %t.ll
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-unknown-unknown -emit-llvm %s -std=c++2a -o %t.ll
 // RUN: FileCheck -check-prefix=CHECK-FN-CG -input-file=%t.ll %s
 // RUN: FileCheck -check-prefix=CHECK-STATIC -input-file=%t.ll %s
 // RUN: FileCheck -check-prefix=CHECK-DYN -input-file=%t.ll %s
 // RUN: FileCheck -check-prefix=CHECK-ARR -input-file=%t.ll %s
 // RUN: FileCheck -check-prefix=CHECK-FOLD -input-file=%t.ll %s
+// RUN: FileCheck -check-prefix=CHECK-DTOR -input-file=%t.ll %s
 
 using size_t = decltype(sizeof(int));
 
@@ -25,7 +26,7 @@ bool foo() {
   return __builtin_is_constant_evaluated();
 }
 
-// CHECK-FN-CG-LABEL: define linkonce_odr i32 @_Z1fv()
+// CHECK-FN-CG-LABEL: define linkonce_odr noundef i32 @_Z1fv()
 constexpr int f() {
   // CHECK-FN-CG: store i32 13, i32* %n, align 4
   // CHECK-FN-CG: store i32 17, i32* %m, align 4
@@ -45,7 +46,7 @@ int p2 = f(); // same result without CONSTINIT
 
 // CHECK-DYN-LABEL: define internal void @__cxx_global_var_init()
 // CHECK-DYN: %0 = load i32, i32* @p, align 4
-// CHECK-DYN-NEXT: %call = call i32 @_Z1fv()
+// CHECK-DYN-NEXT: %call = call noundef i32 @_Z1fv()
 // CHECK-DYN-NEXT: %add = add nsw i32 %0, %call
 // CHECK-DYN-NEXT: store i32 %add, i32* @q, align 4
 // CHECK-DYN-NEXT: ret void
@@ -84,7 +85,7 @@ void test_arr_expr() {
 
 // CHECK-ARR-LABEL: define{{.*}} void @_Z17test_new_arr_exprv
 void test_new_arr_expr() {
-  // CHECK-ARR: call noalias nonnull i8* @_Znam(i64 17)
+  // CHECK-ARR: call noalias noundef nonnull i8* @_Znam(i64 noundef 17)
   new char[std::is_constant_evaluated() || __builtin_is_constant_evaluated() ? 1 : 17];
 }
 
@@ -130,4 +131,95 @@ void test_ref_to_static_var() {
   static int i_non_constant = 101;
   // CHECK-FOLD: store i32* @_ZZ22test_ref_to_static_varvE10i_constant, i32** %r,
   int &r = __builtin_is_constant_evaluated() ? i_constant : i_non_constant;
+}
+
+int not_constexpr;
+
+// __builtin_is_constant_evaluated() should never evaluate to true during
+// destruction if it would not have done so during construction.
+//
+// FIXME: The standard doesn't say that it should ever return true when
+// evaluating a destructor call, even for a constexpr variable. That seems
+// obviously wrong.
+struct DestructorBCE {
+  int n;
+  constexpr DestructorBCE(int n) : n(n) {}
+  constexpr ~DestructorBCE() {
+    if (!__builtin_is_constant_evaluated())
+      not_constexpr = 1;
+  }
+};
+
+// CHECK-DTOR-NOT: @_ZN13DestructorBCED{{.*}}@global_dtor_bce_1
+DestructorBCE global_dtor_bce_1(101);
+
+// CHECK-DTOR: load i32, i32* @not_constexpr
+// CHECK-DTOR: call {{.*}} @_ZN13DestructorBCEC1Ei({{.*}} @global_dtor_bce_2, i32
+// CHECK-DTOR: atexit{{.*}} @_ZN13DestructorBCED{{.*}} @global_dtor_bce_2
+// CHECK-DTOR: }
+DestructorBCE global_dtor_bce_2(not_constexpr);
+
+// CHECK-DTOR-NOT: @_ZN13DestructorBCED{{.*}}@global_dtor_bce_3
+constexpr DestructorBCE global_dtor_bce_3(103);
+
+// CHECK-DTOR-LABEL: define {{.*}} @_Z15test_dtor_bce_1v(
+void test_dtor_bce_1() {
+  // Variable is neither constant initialized (because it has automatic storage
+  // duration) nor usable in constant expressions, so BCE should not return
+  // true during destruction. It would be OK if we replaced the constructor
+  // call with a direct store, but we should emit the destructor call.
+
+  // CHECK-DTOR: call {{.*}} @_ZN13DestructorBCEC1Ei({{.*}}, i32 noundef 201)
+  DestructorBCE local(201);
+  // CHECK-DTOR: call {{.*}} @_ZN13DestructorBCED
+  // CHECK-DTOR: }
+}
+
+// CHECK-DTOR-LABEL: define {{.*}} @_Z15test_dtor_bce_2v(
+void test_dtor_bce_2() {
+  // Non-constant init => BCE is false in destructor.
+
+  // CHECK-DTOR: call {{.*}} @_ZN13DestructorBCEC1Ei({{.*}}
+  DestructorBCE local(not_constexpr);
+  // CHECK-DTOR: call {{.*}} @_ZN13DestructorBCED
+  // CHECK-DTOR: }
+}
+
+// CHECK-DTOR-LABEL: define {{.*}} @_Z15test_dtor_bce_3v(
+void test_dtor_bce_3() {
+  // Should never call dtor for a constexpr variable.
+
+  // CHECK-DTOR-NOT: call {{.*}} @_ZN13DestructorBCEC1Ei(
+  constexpr DestructorBCE local(203);
+  // CHECK-DTOR-NOT: @_ZN13DestructorBCED
+  // CHECK-DTOR: }
+}
+
+// CHECK-DTOR-LABEL: define {{.*}} @_Z22test_dtor_bce_static_1v(
+void test_dtor_bce_static_1() {
+  // Variable is constant initialized, so BCE returns true during constant
+  // destruction.
+
+  // CHECK: store i32 301
+  // CHECK-DTOR-NOT: @_ZN13DestructorBCEC1Ei({{.*}}
+  static DestructorBCE local(301);
+  // CHECK-DTOR-NOT: @_ZN13DestructorBCED
+  // CHECK-DTOR: }
+}
+
+// CHECK-DTOR-LABEL: define {{.*}} @_Z22test_dtor_bce_static_2v(
+void test_dtor_bce_static_2() {
+  // CHECK-DTOR: call {{.*}} @_ZN13DestructorBCEC1Ei({{.*}}
+  static DestructorBCE local(not_constexpr);
+  // CHECK-DTOR: call {{.*}}atexit{{.*}} @_ZN13DestructorBCED
+  // CHECK-DTOR: }
+}
+
+// CHECK-DTOR-LABEL: define {{.*}} @_Z22test_dtor_bce_static_3v(
+void test_dtor_bce_static_3() {
+  // CHECK: store i32 303
+  // CHECK-DTOR-NOT: @_ZN13DestructorBCEC1Ei({{.*}}
+  static constexpr DestructorBCE local(303);
+  // CHECK-DTOR-NOT: @_ZN13DestructorBCED
+  // CHECK-DTOR: }
 }

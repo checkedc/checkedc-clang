@@ -12,7 +12,6 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -61,7 +60,7 @@ public:
     ASSERT_FALSE(llvm::sys::fs::createTemporaryFile("index", "txt", IndexFD,
                                                     IndexFileName));
     llvm::ToolOutputFile IndexFile(IndexFileName, IndexFD);
-    IndexFile.os() << "c:@F@f#I# " << ASTFileName << "\n";
+    IndexFile.os() << "9:c:@F@f#I# " << ASTFileName << "\n";
     IndexFile.os().flush();
     EXPECT_TRUE(llvm::sys::fs::exists(IndexFileName));
 
@@ -91,26 +90,6 @@ public:
       *Success = NewFD && NewFD->hasBody() && !OrigFDHasBody;
 
       if (NewFD) {
-        // Check GetImportedFromSourceLocation.
-        llvm::Optional<std::pair<SourceLocation, ASTUnit *>> SLocResult =
-            CTU.getImportedFromSourceLocation(NewFD->getLocation());
-        EXPECT_TRUE(SLocResult);
-        if (SLocResult) {
-          SourceLocation OrigSLoc = (*SLocResult).first;
-          ASTUnit *OrigUnit = (*SLocResult).second;
-          // OrigUnit is created internally by CTU (is not the
-          // ASTWithDefinition).
-          TranslationUnitDecl *OrigTU =
-              OrigUnit->getASTContext().getTranslationUnitDecl();
-          const FunctionDecl *FDWithDefinition = FindFInTU(OrigTU);
-          EXPECT_TRUE(FDWithDefinition);
-          if (FDWithDefinition) {
-            EXPECT_EQ(FDWithDefinition->getName(), "f");
-            EXPECT_TRUE(FDWithDefinition->isThisDeclarationADefinition());
-            EXPECT_EQ(OrigSLoc, FDWithDefinition->getLocation());
-          }
-        }
-
         // Check parent map.
         const DynTypedNodeList ParentsAfterImport =
             Ctx.getParentMapContext().getParents<Decl>(*FD);

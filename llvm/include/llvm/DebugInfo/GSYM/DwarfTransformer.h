@@ -10,7 +10,7 @@
 #define LLVM_DEBUGINFO_GSYM_DWARFTRANSFORMER_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/DebugInfo/GSYM/Range.h"
+#include "llvm/DebugInfo/GSYM/ExtractRanges.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
@@ -88,4 +88,4 @@ private:
 } // namespace gsym
 } // namespace llvm
 
-#endif // #ifndef LLVM_DEBUGINFO_GSYM_DWARFTRANSFORMER_H
+#endif // LLVM_DEBUGINFO_GSYM_DWARFTRANSFORMER_H

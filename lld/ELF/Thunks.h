@@ -9,10 +9,10 @@
 #ifndef LLD_ELF_THUNKS_H
 #define LLD_ELF_THUNKS_H
 
+#include "llvm/ADT/SmallVector.h"
 #include "Relocations.h"
 
-namespace lld {
-namespace elf {
+namespace lld::elf {
 class Defined;
 class InputFile;
 class Symbol;
@@ -73,7 +73,10 @@ void writePPC32PltCallStub(uint8_t *buf, uint64_t gotPltVA,
                            const InputFile *file, int64_t addend);
 void writePPC64LoadAndBranch(uint8_t *buf, int64_t offset);
 
-} // namespace elf
-} // namespace lld
+static inline uint16_t computeHiBits(uint32_t toCompute) {
+  return (toCompute + 0x8000) >> 16;
+}
+
+} // namespace lld::elf
 
 #endif

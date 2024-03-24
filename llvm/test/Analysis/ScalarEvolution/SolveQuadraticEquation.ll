@@ -1,4 +1,3 @@
-; RUN: opt < %s -analyze -enable-new-pm=0 -scalar-evolution -scalar-evolution-max-iterations=0 | FileCheck %s
 ; RUN: opt < %s -disable-output "-passes=print<scalar-evolution>" -scalar-evolution-max-iterations=0 2>&1 | FileCheck %s
 
 ; PR1101
@@ -11,8 +10,8 @@ entry:
         br label %bb3
 
 bb:             ; preds = %bb3
-        %tmp = getelementptr [1000 x i32], [1000 x i32]* @A, i32 0, i32 %i.0          ; <i32*> [#uses=1]
-        store i32 123, i32* %tmp
+        %tmp = getelementptr [1000 x i32], ptr @A, i32 0, i32 %i.0          ; <ptr> [#uses=1]
+        store i32 123, ptr %tmp
         %tmp2 = add i32 %i.0, 1         ; <i32> [#uses=1]
         br label %bb3
 

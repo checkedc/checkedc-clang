@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if !defined(WIN32)
+#include "RunInTerminal.h"
+
+#if !defined(_WIN32)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -20,8 +22,6 @@
 #include "llvm/Support/FileSystem.h"
 
 #include "lldb/lldb-defines.h"
-
-#include "RunInTerminal.h"
 
 using namespace llvm;
 
@@ -63,13 +63,13 @@ json::Value RunInTerminalMessageDidAttach::ToJSON() const {
 static Expected<RunInTerminalMessageUP>
 ParseJSONMessage(const json::Value &json) {
   if (const json::Object *obj = json.getAsObject()) {
-    if (Optional<StringRef> kind = obj->getString("kind")) {
+    if (std::optional<StringRef> kind = obj->getString("kind")) {
       if (*kind == "pid") {
-        if (Optional<int64_t> pid = obj->getInteger("pid"))
+        if (std::optional<int64_t> pid = obj->getInteger("pid"))
           return std::make_unique<RunInTerminalMessagePid>(
               static_cast<lldb::pid_t>(*pid));
       } else if (*kind == "error") {
-        if (Optional<StringRef> error = obj->getString("error"))
+        if (std::optional<StringRef> error = obj->getString("error"))
           return std::make_unique<RunInTerminalMessageError>(*error);
       } else if (*kind == "didAttach") {
         return std::make_unique<RunInTerminalMessageDidAttach>();

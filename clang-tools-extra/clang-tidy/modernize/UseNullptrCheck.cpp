@@ -16,9 +16,7 @@ using namespace clang;
 using namespace clang::ast_matchers;
 using namespace llvm;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 namespace {
 
 const char CastSequence[] = "sequence";
@@ -41,12 +39,30 @@ StatementMatcher makeCastSequenceMatcher() {
       unless(hasImplicitDestinationType(qualType(substTemplateTypeParmType()))),
       unless(hasSourceExpression(hasType(sugaredNullptrType()))));
 
+  auto IsOrHasDescendant = [](auto InnerMatcher) {
+    return anyOf(InnerMatcher, hasDescendant(InnerMatcher));
+  };
+
   return traverse(
       TK_AsIs,
-      castExpr(anyOf(ImplicitCastToNull,
-                     explicitCastExpr(hasDescendant(ImplicitCastToNull))),
-               unless(hasAncestor(explicitCastExpr())))
-          .bind(CastSequence));
+      anyOf(castExpr(anyOf(ImplicitCastToNull,
+                           explicitCastExpr(hasDescendant(ImplicitCastToNull))),
+                     unless(hasAncestor(explicitCastExpr())),
+                     unless(hasAncestor(cxxRewrittenBinaryOperator())))
+                .bind(CastSequence),
+            cxxRewrittenBinaryOperator(
+                // Match rewritten operators, but verify (in the check method)
+                // that if an implicit cast is found, it is not from another
+                // nested rewritten operator.
+                expr().bind("matchBinopOperands"),
+                hasEitherOperand(IsOrHasDescendant(
+                    implicitCastExpr(
+                        ImplicitCastToNull,
+                        hasAncestor(cxxRewrittenBinaryOperator().bind(
+                            "checkBinopOperands")))
+                        .bind(CastSequence))),
+                // Skip defaulted comparison operators.
+                unless(hasAncestor(functionDecl(isDefaulted()))))));
 }
 
 bool isReplaceableRange(SourceLocation StartLoc, SourceLocation EndLoc,
@@ -173,9 +189,9 @@ private:
 class CastSequenceVisitor : public RecursiveASTVisitor<CastSequenceVisitor> {
 public:
   CastSequenceVisitor(ASTContext &Context, ArrayRef<StringRef> NullMacros,
-                      ClangTidyCheck &check)
+                      ClangTidyCheck &Check)
       : SM(Context.getSourceManager()), Context(Context),
-        NullMacros(NullMacros), Check(check), FirstSubExpr(nullptr),
+        NullMacros(NullMacros), Check(Check), FirstSubExpr(nullptr),
         PruneSubtree(false) {}
 
   bool TraverseStmt(Stmt *S) {
@@ -480,6 +496,11 @@ void UseNullptrCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *NullCast = Result.Nodes.getNodeAs<CastExpr>(CastSequence);
   assert(NullCast && "Bad Callback. No node provided");
 
+  if (Result.Nodes.getNodeAs<CXXRewrittenBinaryOperator>(
+          "matchBinopOperands") !=
+      Result.Nodes.getNodeAs<CXXRewrittenBinaryOperator>("checkBinopOperands"))
+    return;
+
   // Given an implicit null-ptr cast or an explicit cast with an implicit
   // null-to-pointer cast within use CastSequenceVisitor to identify sequences
   // of explicit casts that can be converted into 'nullptr'.
@@ -487,6 +508,4 @@ void UseNullptrCheck::check(const MatchFinder::MatchResult &Result) {
       .TraverseStmt(const_cast<CastExpr *>(NullCast));
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

@@ -18,17 +18,15 @@
 #include "lldb/Utility/ConstString.h"
 
 namespace lldb_private {
+class Properties;
 
 class OptionValueProperties
-    : public OptionValue,
+    : public Cloneable<OptionValueProperties, OptionValue>,
       public std::enable_shared_from_this<OptionValueProperties> {
 public:
-  OptionValueProperties()
-      : OptionValue(), m_name(), m_properties(), m_name_to_index() {}
+  OptionValueProperties() = default;
 
   OptionValueProperties(ConstString name);
-
-  OptionValueProperties(const OptionValueProperties &global_properties);
 
   ~OptionValueProperties() override = default;
 
@@ -36,7 +34,11 @@ public:
 
   void Clear() override;
 
-  lldb::OptionValueSP DeepCopy() const override;
+  static lldb::OptionValuePropertiesSP
+  CreateLocalCopy(const Properties &global_properties);
+
+  lldb::OptionValueSP
+  DeepCopy(const lldb::OptionValueSP &new_parent) const override;
 
   Status
   SetValueFromString(llvm::StringRef value,
@@ -45,11 +47,13 @@ public:
   void DumpValue(const ExecutionContext *exe_ctx, Stream &strm,
                  uint32_t dump_mask) override;
 
+  llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) override;
+
   ConstString GetName() const override { return m_name; }
 
   virtual Status DumpPropertyValue(const ExecutionContext *exe_ctx,
                                    Stream &strm, llvm::StringRef property_path,
-                                   uint32_t dump_mask);
+                                   uint32_t dump_mask, bool is_json = false);
 
   virtual void DumpAllDescriptions(CommandInterpreter &interpreter,
                                    Stream &strm) const;
@@ -112,6 +116,9 @@ public:
   GetPropertyAtIndexAsOptionValueLanguage(const ExecutionContext *exe_ctx,
                                           uint32_t idx) const;
 
+  bool SetPropertyAtIndexAsLanguage(const ExecutionContext *exe_ctx,
+                                    uint32_t idx, lldb::LanguageType lang);
+
   bool GetPropertyAtIndexAsArgs(const ExecutionContext *exe_ctx, uint32_t idx,
                                 Args &args) const;
 
@@ -145,6 +152,10 @@ public:
 
   OptionValueSInt64 *
   GetPropertyAtIndexAsOptionValueSInt64(const ExecutionContext *exe_ctx,
+                                        uint32_t idx) const;
+
+  OptionValueUInt64 *
+  GetPropertyAtIndexAsOptionValueUInt64(const ExecutionContext *exe_ctx,
                                         uint32_t idx) const;
 
   int64_t GetPropertyAtIndexAsSInt64(const ExecutionContext *exe_ctx,

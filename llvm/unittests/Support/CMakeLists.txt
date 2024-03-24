@@ -1,16 +1,18 @@
 set(LLVM_LINK_COMPONENTS
   Support
+  TargetParser
   )
 
 add_llvm_unittest(SupportTests
+  AddressRangeTest.cpp
   AlignmentTest.cpp
   AlignOfTest.cpp
   AllocatorTest.cpp
-  AnnotationsTest.cpp
   ARMAttributeParser.cpp
   ArrayRecyclerTest.cpp
   Base64Test.cpp
   BinaryStreamTest.cpp
+  BLAKE3Test.cpp
   BlockFrequencyTest.cpp
   BranchProbabilityTest.cpp
   CachePruningTest.cpp
@@ -22,9 +24,11 @@ add_llvm_unittest(SupportTests
   CompressionTest.cpp
   ConvertUTFTest.cpp
   CRCTest.cpp
+  CSKYAttributeParserTest.cpp
   DataExtractorTest.cpp
-  DebugTest.cpp
   DebugCounterTest.cpp
+  DebugTest.cpp
+  DivisionByConstantTest.cpp
   DJBTest.cpp
   EndianStreamTest.cpp
   EndianTest.cpp
@@ -39,14 +43,13 @@ add_llvm_unittest(SupportTests
   FormatVariadicTest.cpp
   FSUniqueIDTest.cpp
   GlobPatternTest.cpp
-  Host.cpp
+  HashBuilderTest.cpp
   IndexedAccessorTest.cpp
   InstructionCostTest.cpp
   ItaniumManglingCanonicalizerTest.cpp
   JSONTest.cpp
   KnownBitsTest.cpp
   LEB128Test.cpp
-  LinearPolyBaseTest.cpp
   LineIteratorTest.cpp
   LockFileManagerTest.cpp
   MatchersTest.cpp
@@ -67,20 +70,22 @@ add_llvm_unittest(SupportTests
   ReplaceFileTest.cpp
   RISCVAttributeParserTest.cpp
   ScaledNumberTest.cpp
+  ScopedPrinterTest.cpp
+  SHA256.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
   SuffixTreeTest.cpp
   SwapByteOrderTest.cpp
   SymbolRemappingReaderTest.cpp
   TarWriterTest.cpp
-  TargetParserTest.cpp
   TaskQueueTest.cpp
-  ThreadLocalTest.cpp
   ThreadPool.cpp
   Threading.cpp
   TimerTest.cpp
+  TimeProfilerTest.cpp
   ToolOutputFileTest.cpp
   TypeNameTest.cpp
+  TypeSizeTest.cpp
   TypeTraitsTest.cpp
   TrailingObjectsTest.cpp
   TrigramIndexTest.cpp
@@ -90,6 +95,7 @@ add_llvm_unittest(SupportTests
   WithColorTest.cpp
   YAMLIOTest.cpp
   YAMLParserTest.cpp
+  buffer_ostream_test.cpp
   formatted_raw_ostream_test.cpp
   raw_fd_stream_test.cpp
   raw_ostream_test.cpp
@@ -126,3 +132,5 @@ if(NOT LLVM_INTEGRATED_CRT_ALLOC)
   # The test doesn't pass when using a custom allocator, PR47881.
   add_subdirectory(DynamicLibrary)
 endif()
+
+add_subdirectory(CommandLineInit)

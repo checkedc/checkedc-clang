@@ -68,7 +68,6 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -312,8 +311,8 @@ bool StraightLineStrengthReduce::isFoldable(const Candidate &C,
 // Returns true if GEP has zero or one non-zero index.
 static bool hasOnlyOneNonZeroIndex(GetElementPtrInst *GEP) {
   unsigned NumNonZeroIndices = 0;
-  for (auto I = GEP->idx_begin(); I != GEP->idx_end(); ++I) {
-    ConstantInt *ConstIdx = dyn_cast<ConstantInt>(*I);
+  for (Use &Idx : GEP->indices()) {
+    ConstantInt *ConstIdx = dyn_cast<ConstantInt>(Idx);
     if (ConstIdx == nullptr || !ConstIdx->isZero())
       ++NumNonZeroIndices;
   }
@@ -533,8 +532,8 @@ void StraightLineStrengthReduce::allocateCandidatesAndFindBasisForGEP(
     return;
 
   SmallVector<const SCEV *, 4> IndexExprs;
-  for (auto I = GEP->idx_begin(); I != GEP->idx_end(); ++I)
-    IndexExprs.push_back(SE->getSCEV(*I));
+  for (Use &Idx : GEP->indices())
+    IndexExprs.push_back(SE->getSCEV(Idx));
 
   gep_type_iterator GTI = gep_type_begin(GEP);
   for (unsigned I = 1, E = GEP->getNumOperands(); I != E; ++I, ++GTI) {
@@ -607,7 +606,7 @@ Value *StraightLineStrengthReduce::emitBump(const Candidate &Basis,
   if (IndexOffset == 1)
     return C.Stride;
   // Common case 2: if (i' - i) is -1, Bump = -S.
-  if (IndexOffset.isAllOnesValue())
+  if (IndexOffset.isAllOnes())
     return Builder.CreateNeg(C.Stride);
 
   // Otherwise, Bump = (i' - i) * sext/trunc(S). Note that (i' - i) and S may
@@ -620,7 +619,7 @@ Value *StraightLineStrengthReduce::emitBump(const Candidate &Basis,
     ConstantInt *Exponent = ConstantInt::get(DeltaType, IndexOffset.logBase2());
     return Builder.CreateShl(ExtendedStride, Exponent);
   }
-  if ((-IndexOffset).isPowerOf2()) {
+  if (IndexOffset.isNegatedPowerOf2()) {
     // If (i - i') is a power of 2, Bump = -sext/trunc(S) << log(i' - i).
     ConstantInt *Exponent =
         ConstantInt::get(DeltaType, (-IndexOffset).logBase2());
@@ -683,24 +682,16 @@ void StraightLineStrengthReduce::rewriteCandidateWithBasis(
         unsigned AS = Basis.Ins->getType()->getPointerAddressSpace();
         Type *CharTy = Type::getInt8PtrTy(Basis.Ins->getContext(), AS);
         Reduced = Builder.CreateBitCast(Basis.Ins, CharTy);
-        if (InBounds)
-          Reduced =
-              Builder.CreateInBoundsGEP(Builder.getInt8Ty(), Reduced, Bump);
-        else
-          Reduced = Builder.CreateGEP(Builder.getInt8Ty(), Reduced, Bump);
+        Reduced =
+            Builder.CreateGEP(Builder.getInt8Ty(), Reduced, Bump, "", InBounds);
         Reduced = Builder.CreateBitCast(Reduced, C.Ins->getType());
       } else {
         // C = gep Basis, Bump
         // Canonicalize bump to pointer size.
         Bump = Builder.CreateSExtOrTrunc(Bump, IntPtrTy);
-        if (InBounds)
-          Reduced = Builder.CreateInBoundsGEP(
-              cast<GetElementPtrInst>(Basis.Ins)->getResultElementType(),
-              Basis.Ins, Bump);
-        else
-          Reduced = Builder.CreateGEP(
-              cast<GetElementPtrInst>(Basis.Ins)->getResultElementType(),
-              Basis.Ins, Bump);
+        Reduced = Builder.CreateGEP(
+            cast<GetElementPtrInst>(Basis.Ins)->getResultElementType(),
+            Basis.Ins, Bump, "", InBounds);
       }
       break;
     }

@@ -26,7 +26,7 @@ template <typename T> std::string format_number(T N, IntegerStyle Style) {
 }
 
 std::string format_number(uint64_t N, HexPrintStyle Style,
-                          Optional<size_t> Width = None) {
+                          std::optional<size_t> Width = std::nullopt) {
   std::string S;
   llvm::raw_string_ostream Str(S);
   write_hex(Str, N, Style, Width);
@@ -35,7 +35,7 @@ std::string format_number(uint64_t N, HexPrintStyle Style,
 }
 
 std::string format_number(double D, FloatStyle Style,
-                          Optional<size_t> Precision = None) {
+                          std::optional<size_t> Precision = std::nullopt) {
   std::string S;
   llvm::raw_string_ostream Str(S);
   write_double(Str, D, Style, Precision);
@@ -125,6 +125,8 @@ TEST(NativeFormatTest, BoundaryTests) {
                                  FloatStyle::Fixed));
   EXPECT_EQ("INF", format_number(std::numeric_limits<double>::infinity(),
                                  FloatStyle::Fixed));
+  EXPECT_EQ("-INF", format_number(-std::numeric_limits<double>::infinity(),
+                                  FloatStyle::Fixed));
 }
 
 TEST(NativeFormatTest, HexTests) {

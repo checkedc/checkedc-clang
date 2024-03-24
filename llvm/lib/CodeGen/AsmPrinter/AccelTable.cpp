@@ -18,7 +18,6 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/DIE.h"
-#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/raw_ostream.h"
@@ -205,7 +204,7 @@ class Dwarf5AccelTableWriter : public AccelTableWriter {
         : CompUnitCount(CompUnitCount), BucketCount(BucketCount),
           NameCount(NameCount) {}
 
-    void emit(const Dwarf5AccelTableWriter &Ctx) const;
+    void emit(Dwarf5AccelTableWriter &Ctx);
   };
   struct AttributeEncoding {
     dwarf::Index Index;
@@ -216,8 +215,7 @@ class Dwarf5AccelTableWriter : public AccelTableWriter {
   DenseMap<uint32_t, SmallVector<AttributeEncoding, 2>> Abbreviations;
   ArrayRef<MCSymbol *> CompUnits;
   llvm::function_ref<unsigned(const DataT &)> getCUIndexForEntry;
-  MCSymbol *ContributionStart = Asm->createTempSymbol("names_start");
-  MCSymbol *ContributionEnd = Asm->createTempSymbol("names_end");
+  MCSymbol *ContributionEnd = nullptr;
   MCSymbol *AbbrevStart = Asm->createTempSymbol("names_abbrev_start");
   MCSymbol *AbbrevEnd = Asm->createTempSymbol("names_abbrev_end");
   MCSymbol *EntryPool = Asm->createTempSymbol("names_entries");
@@ -240,15 +238,15 @@ public:
       ArrayRef<MCSymbol *> CompUnits,
       llvm::function_ref<unsigned(const DataT &)> GetCUIndexForEntry);
 
-  void emit() const;
+  void emit();
 };
 } // namespace
 
 void AccelTableWriter::emitHashes() const {
   uint64_t PrevHash = std::numeric_limits<uint64_t>::max();
   unsigned BucketIdx = 0;
-  for (auto &Bucket : Contents.getBuckets()) {
-    for (auto &Hash : Bucket) {
+  for (const auto &Bucket : Contents.getBuckets()) {
+    for (const auto &Hash : Bucket) {
       uint32_t HashValue = Hash->HashValue;
       if (SkipIdenticalHashes && PrevHash == HashValue)
         continue;
@@ -327,9 +325,9 @@ void AppleAccelTableWriter::emitBuckets() const {
 
 void AppleAccelTableWriter::emitData() const {
   const auto &Buckets = Contents.getBuckets();
-  for (size_t i = 0, e = Buckets.size(); i < e; ++i) {
+  for (const AccelTableBase::HashList &Bucket : Buckets) {
     uint64_t PrevHash = std::numeric_limits<uint64_t>::max();
-    for (auto &Hash : Buckets[i]) {
+    for (const auto &Hash : Bucket) {
       // Terminate the previous entry if there is no hash collision with the
       // current one.
       if (PrevHash != std::numeric_limits<uint64_t>::max() &&
@@ -346,7 +344,7 @@ void AppleAccelTableWriter::emitData() const {
       PrevHash = Hash->HashValue;
     }
     // Emit the final end marker for the bucket.
-    if (!Buckets[i].empty())
+    if (!Bucket.empty())
       Asm->emitInt32(0);
   }
 }
@@ -361,14 +359,12 @@ void AppleAccelTableWriter::emit() const {
 }
 
 template <typename DataT>
-void Dwarf5AccelTableWriter<DataT>::Header::emit(
-    const Dwarf5AccelTableWriter &Ctx) const {
+void Dwarf5AccelTableWriter<DataT>::Header::emit(Dwarf5AccelTableWriter &Ctx) {
   assert(CompUnitCount > 0 && "Index must have at least one CU.");
 
   AsmPrinter *Asm = Ctx.Asm;
-  Asm->emitDwarfUnitLength(Ctx.ContributionEnd, Ctx.ContributionStart,
-                           "Header: unit length");
-  Asm->OutStreamer->emitLabel(Ctx.ContributionStart);
+  Ctx.ContributionEnd =
+      Asm->emitDwarfUnitLength("names", "Header: unit length");
   Asm->OutStreamer->AddComment("Header: version");
   Asm->emitInt16(Version);
   Asm->OutStreamer->AddComment("Header: padding");
@@ -526,7 +522,7 @@ Dwarf5AccelTableWriter<DataT>::Dwarf5AccelTableWriter(
     Abbreviations.try_emplace(Tag, UniformAttributes);
 }
 
-template <typename DataT> void Dwarf5AccelTableWriter<DataT>::emit() const {
+template <typename DataT> void Dwarf5AccelTableWriter<DataT>::emit() {
   Header.emit(*this);
   emitCUList();
   emitBuckets();
@@ -535,7 +531,7 @@ template <typename DataT> void Dwarf5AccelTableWriter<DataT>::emit() const {
   emitOffsets(EntryPool);
   emitAbbrevs();
   emitData();
-  Asm->OutStreamer->emitValueToAlignment(4, 0);
+  Asm->OutStreamer->emitValueToAlignment(Align(4), 0);
   Asm->OutStreamer->emitLabel(ContributionEnd);
 }
 
@@ -566,7 +562,7 @@ void llvm::emitDWARF5AccelTable(
   if (CompUnits.empty())
     return;
 
-  Asm->OutStreamer->SwitchSection(
+  Asm->OutStreamer->switchSection(
       Asm->getObjFileLowering().getDwarfDebugNamesSection());
 
   Contents.finalize(Asm, "names");
@@ -671,12 +667,12 @@ void AccelTableBase::print(raw_ostream &OS) const {
   }
 
   OS << "Buckets and Hashes: \n";
-  for (auto &Bucket : Buckets)
-    for (auto &Hash : Bucket)
+  for (const auto &Bucket : Buckets)
+    for (const auto &Hash : Bucket)
       Hash->print(OS);
 
   OS << "Data: \n";
-  for (auto &E : Entries)
+  for (const auto &E : Entries)
     E.second.print(OS);
 }
 

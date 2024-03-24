@@ -17,6 +17,8 @@ inference. The return type can often be deduced from the deduced return shape
 and elemental type (queryable from `InferShapedTypeOpInterface`) and so type
 inference for tensor types can be implemented with `InferShapedTypeOpInterface`.
 
+[TOC]
+
 ## Shape functions
 
 The C++ interfaces are the base mechanism whereby shape inference is queried and
@@ -215,7 +217,7 @@ impose a particular shape inference approach here.
 1.  Flow sensitive shape functions;
     *   To enable scalable/cheap shape inference, the shape functions do not
         intend to provide flow sensitive information. This facility could
-        potentially be built as part of shome higher order analysis that reuse
+        potentially be built as part of some higher order analysis that reuse
         the shape functions/constraints due to the shape functions.
 1.  All static functions are usable for dynamic/unknown shapes;
     *   More involved computations can be performed with statically known shapes
@@ -264,7 +266,7 @@ whatever language is the priority of this proposal.
 None. There are multiple different shape inference approaches that we could
 layer on top of these. From the most basic (always return unranked), to more
 useful (return fixed shape for constant inputs/arguments) to the more advanced
-(create logical conjuctions of algebraic statements between symbolic named
+(create logical conjunctions of algebraic statements between symbolic named
 values).
 
 ### Open points
@@ -291,5 +293,5 @@ function, the reference implementation of the operation will be used to derive
 the shape function. The reference implementation is general and can support the
 arbitrary computations needed to specify output shapes.
 
-[InferTypeOpInterface]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/Interfaces/InferTypeOpInterface.td
-[ShapedType]: https://github.com/llvm/llvm-project/tree/master/mlir/include/mlir/IR/BuiltinTypes.h
+[InferTypeOpInterface]: https://github.com/llvm/llvm-project/tree/main/mlir/include/mlir/Interfaces/InferTypeOpInterface.td
+[ShapedType]: https://github.com/llvm/llvm-project/tree/main/mlir/include/mlir/IR/BuiltinTypes.h

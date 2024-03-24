@@ -14,9 +14,46 @@
 #ifndef MLIR_TRANSFORMS_GREEDYPATTERNREWRITEDRIVER_H_
 #define MLIR_TRANSFORMS_GREEDYPATTERNREWRITEDRIVER_H_
 
-#include "mlir/Rewrite/FrozenRewritePatternList.h"
+#include "mlir/Rewrite/FrozenRewritePatternSet.h"
 
 namespace mlir {
+
+/// This enum controls which ops are put on the worklist during a greedy
+/// pattern rewrite.
+enum class GreedyRewriteStrictness {
+  /// No restrictions wrt. which ops are processed.
+  AnyOp,
+  /// Only pre-existing and newly created ops are processed.
+  ExistingAndNewOps,
+  /// Only pre-existing ops are processed.
+  ExistingOps
+};
+
+/// This class allows control over how the GreedyPatternRewriteDriver works.
+class GreedyRewriteConfig {
+public:
+  /// This specifies the order of initial traversal that populates the rewriters
+  /// worklist.  When set to true, it walks the operations top-down, which is
+  /// generally more efficient in compile time.  When set to false, its initial
+  /// traversal of the region tree is bottom up on each block, which may match
+  /// larger patterns when given an ambiguous pattern set.
+  bool useTopDownTraversal = false;
+
+  // Perform control flow optimizations to the region tree after applying all
+  // patterns.
+  bool enableRegionSimplification = true;
+
+  /// This specifies the maximum number of times the rewriter will iterate
+  /// between applying patterns and simplifying regions. Use `kNoLimit` to
+  /// disable this iteration limit.
+  int64_t maxIterations = 10;
+
+  /// This specifies the maximum number of rewrites within an iteration. Use
+  /// `kNoLimit` to disable this limit.
+  int64_t maxNumRewrites = kNoLimit;
+
+  static constexpr int64_t kNoLimit = -1;
+};
 
 //===----------------------------------------------------------------------===//
 // applyPatternsGreedily
@@ -25,46 +62,67 @@ namespace mlir {
 /// Rewrite the regions of the specified operation, which must be isolated from
 /// above, by repeatedly applying the highest benefit patterns in a greedy
 /// work-list driven manner.
+///
 /// This variant may stop after a predefined number of iterations, see the
 /// alternative below to provide a specific number of iterations before stopping
 /// in absence of convergence.
+///
 /// Return success if the iterative process converged and no more patterns can
 /// be matched in the result operation regions.
+///
 /// Note: This does not apply patterns to the top-level operation itself.
 ///       These methods also perform folding and simple dead-code elimination
 ///       before attempting to match any of the provided patterns.
-LogicalResult
-applyPatternsAndFoldGreedily(Operation *op,
-                             const FrozenRewritePatternList &patterns);
-
-/// Rewrite the regions of the specified operation, with a user-provided limit
-/// on iterations to attempt before reaching convergence.
-LogicalResult
-applyPatternsAndFoldGreedily(Operation *op,
-                             const FrozenRewritePatternList &patterns,
-                             unsigned maxIterations);
+///
+/// You may configure several aspects of this with GreedyRewriteConfig.
+LogicalResult applyPatternsAndFoldGreedily(
+    MutableArrayRef<Region> regions, const FrozenRewritePatternSet &patterns,
+    GreedyRewriteConfig config = GreedyRewriteConfig());
 
 /// Rewrite the given regions, which must be isolated from above.
-LogicalResult
-applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
-                             const FrozenRewritePatternList &patterns);
-
-/// Rewrite the given regions, with a user-provided limit on iterations to
-/// attempt before reaching convergence.
-LogicalResult
-applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
-                             const FrozenRewritePatternList &patterns,
-                             unsigned maxIterations);
+inline LogicalResult applyPatternsAndFoldGreedily(
+    Operation *op, const FrozenRewritePatternSet &patterns,
+    GreedyRewriteConfig config = GreedyRewriteConfig()) {
+  return applyPatternsAndFoldGreedily(op->getRegions(), patterns, config);
+}
 
 /// Applies the specified patterns on `op` alone while also trying to fold it,
 /// by selecting the highest benefits patterns in a greedy manner. Returns
 /// success if no more patterns can be matched. `erased` is set to true if `op`
 /// was folded away or erased as a result of becoming dead. Note: This does not
 /// apply any patterns recursively to the regions of `op`.
+///
+/// Returns success if the iterative process converged and no more patterns can
+/// be matched.
 LogicalResult applyOpPatternsAndFold(Operation *op,
-                                     const FrozenRewritePatternList &patterns,
+                                     const FrozenRewritePatternSet &patterns,
                                      bool *erased = nullptr);
 
-} // end namespace mlir
+/// Applies the specified rewrite patterns on `ops` while also trying to fold
+/// these ops.
+///
+/// Newly created ops and other pre-existing ops that use results of rewritten
+/// ops or supply operands to such ops are simplified, unless such ops are
+/// excluded via `strictMode`. Any other ops remain unmodified (i.e., regardless
+/// of `strictMode`).
+///
+/// * GreedyRewriteStrictness::AnyOp: No ops are excluded.
+/// * GreedyRewriteStrictness::ExistingAndNewOps: Only pre-existing and newly
+///   created ops are simplified. All other ops are excluded.
+/// * GreedyRewriteStrictness::ExistingOps: Only pre-existing ops are
+///   simplified. All other ops are excluded.
+///
+/// Note that ops in `ops` could be erased as result of folding, becoming dead,
+/// or via pattern rewrites. If more far reaching simplification is desired,
+/// applyPatternsAndFoldGreedily should be used.
+///
+/// Returns success if the iterative process converged and no more patterns can
+/// be matched. `changed` is set to true if the IR was modified at all.
+LogicalResult applyOpPatternsAndFold(ArrayRef<Operation *> ops,
+                                     const FrozenRewritePatternSet &patterns,
+                                     GreedyRewriteStrictness strictMode,
+                                     bool *changed = nullptr);
+
+} // namespace mlir
 
 #endif // MLIR_TRANSFORMS_GREEDYPATTERNREWRITEDRIVER_H_

@@ -27,24 +27,24 @@
 
 using namespace lldb;
 using namespace lldb_private;
-using namespace std;
 
 // Constructor
 DWARFDebugInfo::DWARFDebugInfo(SymbolFileDWARF &dwarf,
                                lldb_private::DWARFContext &context)
     : m_dwarf(dwarf), m_context(context), m_units(), m_cu_aranges_up() {}
 
-llvm::Expected<DWARFDebugAranges &> DWARFDebugInfo::GetCompileUnitAranges() {
+const DWARFDebugAranges &DWARFDebugInfo::GetCompileUnitAranges() {
   if (m_cu_aranges_up)
     return *m_cu_aranges_up;
 
   m_cu_aranges_up = std::make_unique<DWARFDebugAranges>();
   const DWARFDataExtractor &debug_aranges_data =
       m_context.getOrLoadArangesData();
-  if (llvm::Error error = m_cu_aranges_up->extract(debug_aranges_data))
-    return std::move(error);
 
-  // Make a list of all CUs represented by the arange data in the file.
+  // Extract what we can from the .debug_aranges first.
+  m_cu_aranges_up->extract(debug_aranges_data);
+
+  // Make a list of all CUs represented by the .debug_aranges data.
   std::set<dw_offset_t> cus_with_data;
   for (size_t n = 0; n < m_cu_aranges_up->GetNumRanges(); n++) {
     dw_offset_t offset = m_cu_aranges_up->OffsetAtIndex(n);
@@ -52,15 +52,22 @@ llvm::Expected<DWARFDebugAranges &> DWARFDebugInfo::GetCompileUnitAranges() {
       cus_with_data.insert(offset);
   }
 
-  // Manually build arange data for everything that wasn't in the
-  // .debug_aranges table.
-  const size_t num_units = GetNumUnits();
-  for (size_t idx = 0; idx < num_units; ++idx) {
-    DWARFUnit *cu = GetUnitAtIndex(idx);
+  // Manually build arange data for everything that wasn't in .debug_aranges.
+  // The .debug_aranges accelerator is not guaranteed to be complete.
+  // Tools such as dsymutil can provide stronger guarantees than required by the
+  // standard. Without that guarantee, we have to iterate over every CU in the
+  // .debug_info and make sure there's a corresponding entry in the table and if
+  // not, add one for every subprogram.
+  ObjectFile *OF = m_dwarf.GetObjectFile();
+  if (!OF || !OF->CanTrustAddressRanges()) {
+    const size_t num_units = GetNumUnits();
+    for (size_t idx = 0; idx < num_units; ++idx) {
+      DWARFUnit *cu = GetUnitAtIndex(idx);
 
-    dw_offset_t offset = cu->GetOffset();
-    if (cus_with_data.find(offset) == cus_with_data.end())
-      cu->BuildAddressRangeTable(m_cu_aranges_up.get());
+      dw_offset_t offset = cu->GetOffset();
+      if (cus_with_data.find(offset) == cus_with_data.end())
+        cu->BuildAddressRangeTable(m_cu_aranges_up.get());
+    }
   }
 
   const bool minimize = true;
@@ -72,16 +79,10 @@ void DWARFDebugInfo::ParseUnitsFor(DIERef::Section section) {
   DWARFDataExtractor data = section == DIERef::Section::DebugTypes
                                 ? m_context.getOrLoadDebugTypesData()
                                 : m_context.getOrLoadDebugInfoData();
-  const llvm::DWARFUnitIndex *index = nullptr;
-  if (m_context.isDwo())
-    index = &llvm::getDWARFUnitIndex(m_context.GetAsLLVM(),
-                                     section == DIERef::Section::DebugTypes
-                                         ? llvm::DW_SECT_EXT_TYPES
-                                         : llvm::DW_SECT_INFO);
   lldb::offset_t offset = 0;
   while (data.ValidOffset(offset)) {
     llvm::Expected<DWARFUnitSP> unit_sp = DWARFUnit::extract(
-        m_dwarf, m_units.size(), data, section, &offset, index);
+        m_dwarf, m_units.size(), data, section, &offset);
 
     if (!unit_sp) {
       // FIXME: Propagate this error up.
@@ -178,15 +179,6 @@ DWARFTypeUnit *DWARFDebugInfo::GetTypeUnitForHash(uint64_t hash) {
 bool DWARFDebugInfo::ContainsTypeUnits() {
   ParseUnitHeadersIfNeeded();
   return !m_type_hash_to_unit_index.empty();
-}
-
-DWARFDIE
-DWARFDebugInfo::GetDIEForDIEOffset(DIERef::Section section,
-                                   dw_offset_t die_offset) {
-  DWARFUnit *cu = GetUnitContainingDIEOffset(section, die_offset);
-  if (cu)
-    return cu->GetDIE(die_offset);
-  return DWARFDIE();
 }
 
 // GetDIE()

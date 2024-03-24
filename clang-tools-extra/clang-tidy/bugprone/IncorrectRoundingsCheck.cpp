@@ -15,17 +15,15 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 AST_MATCHER(FloatingLiteral, floatHalf) {
-  const auto &literal = Node.getValue();
+  const auto &Literal = Node.getValue();
   if ((&Node.getSemantics()) == &llvm::APFloat::IEEEsingle())
-    return literal.convertToFloat() == 0.5f;
+    return Literal.convertToFloat() == 0.5f;
   if ((&Node.getSemantics()) == &llvm::APFloat::IEEEdouble())
-    return literal.convertToDouble() == 0.5;
+    return Literal.convertToDouble() == 0.5;
   return false;
 }
 } // namespace
@@ -66,6 +64,4 @@ void IncorrectRoundingsCheck::check(const MatchFinder::MatchResult &Result) {
        "consider using lround (#include <cmath>) instead");
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

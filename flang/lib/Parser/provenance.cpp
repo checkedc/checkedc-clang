@@ -91,7 +91,10 @@ void OffsetToProvenanceMappings::Put(const OffsetToProvenanceMappings &that) {
 }
 
 ProvenanceRange OffsetToProvenanceMappings::Map(std::size_t at) const {
-  //  CHECK(!provenanceMap_.empty());
+  if (provenanceMap_.empty()) {
+    CHECK(at == 0);
+    return {};
+  }
   std::size_t low{0}, count{provenanceMap_.size()};
   while (count > 1) {
     std::size_t mid{low + (count >> 1)};
@@ -156,20 +159,30 @@ const char &AllSources::operator[](Provenance at) const {
   return origin[origin.covers.MemberOffset(at)];
 }
 
-void AllSources::PushSearchPathDirectory(std::string directory) {
+void AllSources::ClearSearchPath() { searchPath_.clear(); }
+
+void AllSources::AppendSearchPathDirectory(std::string directory) {
   // gfortran and ifort append to current path, PGI prepends
   searchPath_.push_back(directory);
 }
 
-std::string AllSources::PopSearchPathDirectory() {
-  std::string directory{searchPath_.back()};
-  searchPath_.pop_back();
-  return directory;
-}
-
-const SourceFile *AllSources::Open(std::string path, llvm::raw_ostream &error) {
+const SourceFile *AllSources::Open(std::string path, llvm::raw_ostream &error,
+    std::optional<std::string> &&prependPath) {
   std::unique_ptr<SourceFile> source{std::make_unique<SourceFile>(encoding_)};
-  if (source->Open(LocateSourceFile(path, searchPath_), error)) {
+  if (prependPath) {
+    // Set to "." for the initial source file; set to the directory name
+    // of the including file for #include "quoted-file" directives &
+    // INCLUDE statements.
+    searchPath_.emplace_front(std::move(*prependPath));
+  }
+  std::optional<std::string> found{LocateSourceFile(path, searchPath_)};
+  if (prependPath) {
+    searchPath_.pop_front();
+  }
+  if (!found) {
+    error << "Source file '" << path << "' was not found";
+    return nullptr;
+  } else if (source->Open(*found, error)) {
     return ownedSourceFiles_.emplace_back(std::move(source)).get();
   } else {
     return nullptr;
@@ -210,23 +223,40 @@ ProvenanceRange AllSources::AddCompilerInsertion(std::string text) {
   return covers;
 }
 
+static void EmitPrefix(llvm::raw_ostream &o, llvm::raw_ostream::Colors color,
+    const std::string &prefix, bool showColors) {
+  if (prefix.empty()) {
+    return;
+  }
+  if (showColors) {
+    o.changeColor(color, true);
+  }
+  o << prefix;
+  if (showColors) {
+    o.resetColor();
+  }
+}
+
 void AllSources::EmitMessage(llvm::raw_ostream &o,
     const std::optional<ProvenanceRange> &range, const std::string &message,
+    const std::string &prefix, llvm::raw_ostream::Colors color,
     bool echoSourceLine) const {
   if (!range) {
+    EmitPrefix(o, color, prefix, this->getShowColors());
     o << message << '\n';
     return;
   }
   CHECK(IsValid(*range));
   const Origin &origin{MapToOrigin(range->start())};
-  std::visit(
+  common::visit(
       common::visitors{
           [&](const Inclusion &inc) {
             o << inc.source.path();
             std::size_t offset{origin.covers.MemberOffset(range->start())};
             SourcePosition pos{inc.source.FindOffsetLineAndColumn(offset)};
-            o << ':' << pos.line << ':' << pos.column;
-            o << ": " << message << '\n';
+            o << ':' << pos.line << ':' << pos.column << ": ";
+            EmitPrefix(o, color, prefix, this->getShowColors());
+            o << message << '\n';
             if (echoSourceLine) {
               const char *text{inc.source.content().data() +
                   inc.source.GetLineStartOffset(pos.line)};
@@ -256,14 +286,15 @@ void AllSources::EmitMessage(llvm::raw_ostream &o,
             }
             if (IsValid(origin.replaces)) {
               EmitMessage(o, origin.replaces,
-                  inc.isModule ? "used here"s : "included here"s,
+                  inc.isModule ? "used here"s : "included here"s, prefix, color,
                   echoSourceLine);
             }
           },
           [&](const Macro &mac) {
-            EmitMessage(o, origin.replaces, message, echoSourceLine);
             EmitMessage(
-                o, mac.definition, "in a macro defined here", echoSourceLine);
+                o, origin.replaces, message, prefix, color, echoSourceLine);
+            EmitMessage(o, mac.definition, "in a macro defined here", prefix,
+                color, echoSourceLine);
             if (echoSourceLine) {
               o << "that expanded to:\n  " << mac.expansion << "\n  ";
               for (std::size_t j{0};
@@ -273,7 +304,10 @@ void AllSources::EmitMessage(llvm::raw_ostream &o,
               o << "^\n";
             }
           },
-          [&](const CompilerInsertion &) { o << message << '\n'; },
+          [&](const CompilerInsertion &) {
+            EmitPrefix(o, color, prefix, this->getShowColors());
+            o << message << '\n';
+          },
       },
       origin.u);
 }
@@ -281,23 +315,24 @@ void AllSources::EmitMessage(llvm::raw_ostream &o,
 const SourceFile *AllSources::GetSourceFile(
     Provenance at, std::size_t *offset) const {
   const Origin &origin{MapToOrigin(at)};
-  return std::visit(common::visitors{
-                        [&](const Inclusion &inc) {
-                          if (offset) {
-                            *offset = origin.covers.MemberOffset(at);
-                          }
-                          return &inc.source;
-                        },
-                        [&](const Macro &) {
-                          return GetSourceFile(origin.replaces.start(), offset);
-                        },
-                        [offset](const CompilerInsertion &) {
-                          if (offset) {
-                            *offset = 0;
-                          }
-                          return static_cast<const SourceFile *>(nullptr);
-                        },
-                    },
+  return common::visit(common::visitors{
+                           [&](const Inclusion &inc) {
+                             if (offset) {
+                               *offset = origin.covers.MemberOffset(at);
+                             }
+                             return &inc.source;
+                           },
+                           [&](const Macro &) {
+                             return GetSourceFile(
+                                 origin.replaces.start(), offset);
+                           },
+                           [offset](const CompilerInsertion &) {
+                             if (offset) {
+                               *offset = 0;
+                             }
+                             return static_cast<const SourceFile *>(nullptr);
+                           },
+                       },
       origin.u);
 }
 
@@ -312,12 +347,20 @@ const char *AllSources::GetSource(ProvenanceRange range) const {
 std::optional<SourcePosition> AllSources::GetSourcePosition(
     Provenance prov) const {
   const Origin &origin{MapToOrigin(prov)};
-  if (const auto *inc{std::get_if<Inclusion>(&origin.u)}) {
-    std::size_t offset{origin.covers.MemberOffset(prov)};
-    return inc->source.FindOffsetLineAndColumn(offset);
-  } else {
-    return std::nullopt;
-  }
+  return common::visit(
+      common::visitors{
+          [&](const Inclusion &inc) -> std::optional<SourcePosition> {
+            std::size_t offset{origin.covers.MemberOffset(prov)};
+            return inc.source.FindOffsetLineAndColumn(offset);
+          },
+          [&](const Macro &) {
+            return GetSourcePosition(origin.replaces.start());
+          },
+          [](const CompilerInsertion &) -> std::optional<SourcePosition> {
+            return std::nullopt;
+          },
+      },
+      origin.u);
 }
 
 std::optional<ProvenanceRange> AllSources::GetFirstFileProvenance() const {
@@ -379,7 +422,7 @@ AllSources::Origin::Origin(ProvenanceRange r, const std::string &text)
     : u{CompilerInsertion{text}}, covers{r} {}
 
 const char &AllSources::Origin::operator[](std::size_t n) const {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [n](const Inclusion &inc) -> const char & {
             return inc.source.content()[n];
@@ -414,11 +457,15 @@ std::optional<ProvenanceRange> CookedSource::GetProvenanceRange(
     return std::nullopt;
   }
   ProvenanceRange first{provenanceMap_.Map(cookedRange.begin() - &data_[0])};
-  if (cookedRange.size() <= first.size()) {
+  if (cookedRange.size() <= first.size()) { // always true when empty
     return first.Prefix(cookedRange.size());
   }
-  ProvenanceRange last{provenanceMap_.Map(cookedRange.end() - &data_[0])};
-  return {ProvenanceRange{first.start(), last.start() - first.start()}};
+  ProvenanceRange last{provenanceMap_.Map(cookedRange.end() - 1 - &data_[0])};
+  if (first.start() <= last.start()) {
+    return {ProvenanceRange{first.start(), last.start() - first.start() + 1}};
+  } else {
+    return std::nullopt;
+  }
 }
 
 std::optional<CharBlock> CookedSource::GetCharBlock(
@@ -434,11 +481,13 @@ std::optional<CharBlock> CookedSource::GetCharBlock(
 
 std::size_t CookedSource::BufferedBytes() const { return buffer_.bytes(); }
 
-void CookedSource::Marshal(AllSources &allSources) {
+void CookedSource::Marshal(AllCookedSources &allCookedSources) {
   CHECK(provenanceMap_.SizeInBytes() == buffer_.bytes());
-  provenanceMap_.Put(allSources.AddCompilerInsertion("(after end of source)"));
+  provenanceMap_.Put(allCookedSources.allSources().AddCompilerInsertion(
+      "(after end of source)"));
   data_ = buffer_.Marshal();
   buffer_.clear();
+  allCookedSources.Register(*this);
 }
 
 void CookedSource::CompileProvenanceRangeToOffsetMappings(
@@ -484,23 +533,23 @@ llvm::raw_ostream &AllSources::Dump(llvm::raw_ostream &o) const {
     o << "   ";
     DumpRange(o, m.covers);
     o << " -> ";
-    std::visit(common::visitors{
-                   [&](const Inclusion &inc) {
-                     if (inc.isModule) {
-                       o << "module ";
-                     }
-                     o << "file " << inc.source.path();
-                   },
-                   [&](const Macro &mac) { o << "macro " << mac.expansion; },
-                   [&](const CompilerInsertion &ins) {
-                     o << "compiler '" << ins.text << '\'';
-                     if (ins.text.length() == 1) {
-                       int ch = ins.text[0];
-                       o << "(0x";
-                       o.write_hex(ch & 0xff) << ")";
-                     }
-                   },
-               },
+    common::visit(common::visitors{
+                      [&](const Inclusion &inc) {
+                        if (inc.isModule) {
+                          o << "module ";
+                        }
+                        o << "file " << inc.source.path();
+                      },
+                      [&](const Macro &mac) { o << "macro " << mac.expansion; },
+                      [&](const CompilerInsertion &ins) {
+                        o << "compiler '" << ins.text << '\'';
+                        if (ins.text.length() == 1) {
+                          int ch = ins.text[0];
+                          o << "(0x";
+                          o.write_hex(ch & 0xff) << ")";
+                        }
+                      },
+                  },
         m.u);
     if (IsValid(m.replaces)) {
       o << " replaces ";
@@ -524,6 +573,16 @@ AllCookedSources::~AllCookedSources() {}
 
 CookedSource &AllCookedSources::NewCookedSource() {
   return cooked_.emplace_back();
+}
+
+const CookedSource *AllCookedSources::Find(CharBlock x) const {
+  auto pair{index_.equal_range(x)};
+  for (auto iter{pair.first}; iter != pair.second; ++iter) {
+    if (iter->second.AsCharBlock().Contains(x)) {
+      return &iter->second;
+    }
+  }
+  return nullptr;
 }
 
 std::optional<ProvenanceRange> AllCookedSources::GetProvenanceRange(
@@ -570,7 +629,7 @@ std::optional<CharBlock> AllCookedSources::GetCharBlock(
       return result;
     }
   }
-  return nullptr;
+  return std::nullopt;
 }
 
 void AllCookedSources::Dump(llvm::raw_ostream &o) const {
@@ -579,6 +638,28 @@ void AllCookedSources::Dump(llvm::raw_ostream &o) const {
   for (const auto &c : cooked_) {
     c.Dump(o);
   }
+}
+
+bool AllCookedSources::Precedes(CharBlock x, CharBlock y) const {
+  if (const CookedSource * xSource{Find(x)}) {
+    if (xSource->AsCharBlock().Contains(y)) {
+      return x.begin() < y.begin();
+    } else if (const CookedSource * ySource{Find(y)}) {
+      return xSource->number() < ySource->number();
+    } else {
+      return true; // by fiat, all cooked source < anything outside
+    }
+  } else if (Find(y)) {
+    return false;
+  } else {
+    // Both names are compiler-created (SaveTempName).
+    return x < y;
+  }
+}
+
+void AllCookedSources::Register(CookedSource &cooked) {
+  index_.emplace(cooked.AsCharBlock(), cooked);
+  cooked.set_number(static_cast<int>(index_.size()));
 }
 
 } // namespace Fortran::parser

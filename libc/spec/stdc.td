@@ -1,10 +1,19 @@
 def StdC : StandardSpec<"stdc"> {
 
-  NamedType FILE = NamedType<"FILE">;
-  PtrType FILEPtr = PtrType<FILE>;
-  RestrictedPtrType FILERestrictedPtr = RestrictedPtrType<FILE>;
   NamedType StructTmType = NamedType<"struct tm">;
   PtrType StructTmPtr = PtrType<StructTmType>;
+  PtrType TimeTTypePtr = PtrType<TimeTType>;
+  NamedType ClockT = NamedType<"clock_t">;
+
+  NamedType DivTType = NamedType<"div_t">;
+  NamedType LDivTType = NamedType<"ldiv_t">;
+  NamedType LLDivTType = NamedType<"lldiv_t">;
+
+  NamedType JmpBuf = NamedType<"jmp_buf">;
+
+  NamedType TssTType = NamedType<"tss_t">;
+  PtrType TssTPtr = PtrType<TssTType>;
+  NamedType TssDtorTType = NamedType<"tss_dtor_t">;
 
   HeaderSpec Assert = HeaderSpec<
       "assert.h",
@@ -16,7 +25,7 @@ def StdC : StandardSpec<"stdc"> {
       [], // Enumerations
       []
   >;
-  
+
   HeaderSpec CType = HeaderSpec<
       "ctype.h",
       [], // Macros
@@ -96,6 +105,12 @@ def StdC : StandardSpec<"stdc"> {
       ]
   >;
 
+  NamedType FEnvT = NamedType<"fenv_t">;
+  PtrType FEnvTPtr = PtrType<FEnvT>;
+  ConstType ConstFEnvTPtr = ConstType<FEnvTPtr>;
+  NamedType FExceptT = NamedType<"fexcept_t">;
+  PtrType FExceptTPtr = PtrType<FExceptT>;
+  ConstType ConstFExceptTPtr = ConstType<FExceptTPtr>;
   HeaderSpec Fenv = HeaderSpec<
       "fenv.h",
       [
@@ -109,9 +124,14 @@ def StdC : StandardSpec<"stdc"> {
           Macro<"FE_DOWNWARD">,
           Macro<"FE_TONEAREST">,
           Macro<"FE_TOWARDZERO">,
-          Macro<"FE_UPWARD">
+          Macro<"FE_UPWARD">,
+
+          Macro<"FE_DFL_ENV">
       ],
-      [], // Types
+      [
+          NamedType<"fenv_t">,
+          NamedType<"fexcept_t">,
+      ], // Types
       [], // Enumerations
       [
           FunctionSpec<
@@ -139,9 +159,39 @@ def StdC : StandardSpec<"stdc"> {
               RetValSpec<IntType>,
               []
           >,
+          FunctionSpec<
+              "fegetenv",
+              RetValSpec<IntType>,
+              [ArgSpec<FEnvTPtr>]
+          >,
+          FunctionSpec<
+              "fesetenv",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstFEnvTPtr>]
+          >,
+          FunctionSpec<
+              "fegetexceptflag",
+              RetValSpec<IntType>,
+              [ArgSpec<FExceptTPtr>, ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "fesetexceptflag",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstFExceptTPtr>, ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "feholdexcept",
+              RetValSpec<IntType>,
+              [ArgSpec<FEnvTPtr>]
+          >,
+          FunctionSpec<
+              "feupdateenv",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstFEnvTPtr>]
+          >,
       ]
   >;
- 
+
   HeaderSpec String = HeaderSpec<
       "string.h",
       [
@@ -154,7 +204,7 @@ def StdC : StandardSpec<"stdc"> {
       [
           FunctionSpec<
               "memcpy",
-              RetValSpec<VoidPtr>, 
+              RetValSpec<VoidPtr>,
               [ArgSpec<VoidRestrictedPtr>,
                ArgSpec<ConstVoidRestrictedPtr>,
                ArgSpec<SizeTType>]
@@ -181,24 +231,24 @@ def StdC : StandardSpec<"stdc"> {
           >,
           FunctionSpec<
               "strcpy",
-              RetValSpec<CharPtr>, 
+              RetValSpec<CharPtr>,
               [ArgSpec<CharRestrictedPtr>, ArgSpec<ConstCharRestrictedPtr>]
           >,
           FunctionSpec<
               "strncpy",
-              RetValSpec<CharPtr>, 
+              RetValSpec<CharPtr>,
               [ArgSpec<CharRestrictedPtr>,
                ArgSpec<ConstCharRestrictedPtr>,
                ArgSpec<SizeTType>]
           >,
           FunctionSpec<
               "strcat",
-              RetValSpec<CharPtr>, 
+              RetValSpec<CharPtr>,
               [ArgSpec<CharRestrictedPtr>, ArgSpec<ConstCharRestrictedPtr>]
           >,
           FunctionSpec<
               "strncat",
-              RetValSpec<CharPtr>, 
+              RetValSpec<CharPtr>,
               [ArgSpec<CharPtr>, ArgSpec<ConstCharPtr>, ArgSpec<SizeTType>]
           >,
           FunctionSpec<
@@ -218,7 +268,7 @@ def StdC : StandardSpec<"stdc"> {
           >,
           FunctionSpec<
               "strxfrm",
-              RetValSpec<SizeTType>, 
+              RetValSpec<SizeTType>,
               [ArgSpec<CharRestrictedPtr>,
                ArgSpec<ConstCharRestrictedPtr>,
                ArgSpec<SizeTType>]
@@ -232,6 +282,16 @@ def StdC : StandardSpec<"stdc"> {
               "strcspn",
               RetValSpec<SizeTType>,
               [ArgSpec<ConstCharPtr>, ArgSpec<ConstCharPtr>]
+          >,
+          FunctionSpec<
+              "strdup",
+              RetValSpec<CharPtr>,
+              [ArgSpec<ConstCharPtr>]
+          >,
+          FunctionSpec<
+              "strndup",
+              RetValSpec<CharPtr>,
+              [ArgSpec<ConstCharPtr>,ArgSpec<SizeTType>]
           >,
           FunctionSpec<
               "strpbrk",
@@ -278,6 +338,7 @@ def StdC : StandardSpec<"stdc"> {
           Macro<"MATH_ERREXCEPT">,
           Macro<"math_errhandling">,
 
+          Macro<"HUGE_VAL">,
           Macro<"INFINITY">,
           Macro<"NAN">,
 
@@ -322,7 +383,12 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"fmaxf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
           FunctionSpec<"fmaxl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<LongDoubleType>]>,
 
+          FunctionSpec<"fma", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
           FunctionSpec<"fmaf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>, ArgSpec<FloatType>]>,
+
+          FunctionSpec<"fmod", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
+
+          FunctionSpec<"fmodf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
 
           FunctionSpec<"frexp", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<IntPtr>]>,
           FunctionSpec<"frexpf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<IntPtr>]>,
@@ -339,6 +405,15 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"ldexpf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<IntType>]>,
           FunctionSpec<"ldexpl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<IntType>]>,
 
+          FunctionSpec<"log10", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
+          FunctionSpec<"log10f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"log1pf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"log2f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"logf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
           FunctionSpec<"logb", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"logbf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
           FunctionSpec<"logbl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>]>,
@@ -347,11 +422,16 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"modff", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatPtr>]>,
           FunctionSpec<"modfl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<LongDoublePtr>]>,
 
+          FunctionSpec<"cos", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"cosf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"sin", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
           FunctionSpec<"sinf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"tan", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
+          FunctionSpec<"tanf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
           FunctionSpec<"expf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
           FunctionSpec<"exp2f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"expm1f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
           FunctionSpec<"remainderf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
           FunctionSpec<"remainder", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
@@ -400,12 +480,33 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"nextafterf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
           FunctionSpec<"nextafter", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
           FunctionSpec<"nextafterl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<LongDoubleType>]>,
+
+          FunctionSpec<"pow", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
+
+          FunctionSpec<"coshf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"sinhf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"tanhf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"acosf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"asinf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+          FunctionSpec<"asin", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
+          FunctionSpec<"atanf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"atanhf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
       ]
   >;
 
   HeaderSpec StdIO = HeaderSpec<
       "stdio.h",
-      [], // Macros
+      [
+          Macro<"stdin">,
+          Macro<"stderr">,
+          Macro<"stdout">,
+          Macro<"_IOFBF">,
+          Macro<"_IOLBF">,
+          Macro<"_IONBF">,
+          Macro<"EOF">,
+      ], // Macros
       [ // Types
           SizeTType,
           FILE,
@@ -413,12 +514,192 @@ def StdC : StandardSpec<"stdc"> {
       [], // Enumerations
       [
           FunctionSpec<
+              "clearerr",
+              RetValSpec<VoidType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fclose",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "feof",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "ferror",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fgetc",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fgets",
+              RetValSpec<CharPtr>,
+              [
+                ArgSpec<CharRestrictedPtr>,
+                ArgSpec<IntType>,
+                ArgSpec<FILERestrictedPtr>,
+              ]
+          >,
+          FunctionSpec<
+              "fflush",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fopen",
+              RetValSpec<FILEPtr>,
+              [ArgSpec<ConstCharPtr>,
+               ArgSpec<ConstCharPtr>]
+          >,
+          FunctionSpec<
+              "fputc",
+              RetValSpec<IntType>,
+              [ArgSpec<IntType>,
+               ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "ftell",
+              RetValSpec<LongType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "getc",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "putc",
+              RetValSpec<IntType>,
+              [ArgSpec<IntType>,
+               ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "putchar",
+              RetValSpec<IntType>,
+              [ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "fputs",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<FILERestrictedPtr>]
+          >,
+          FunctionSpec<
+              "puts",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharRestrictedPtr>]
+          >,
+          FunctionSpec<
+              "fread",
+              RetValSpec<SizeTType>,
+              [ArgSpec<VoidRestrictedPtr>,
+               ArgSpec<SizeTType>,
+               ArgSpec<SizeTType>,
+               ArgSpec<FILERestrictedPtr>]
+          >,
+          FunctionSpec<
+              "fseek",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>,
+               ArgSpec<LongType>,
+               ArgSpec<IntType>]
+          >,
+          FunctionSpec<
               "fwrite",
               RetValSpec<SizeTType>,
               [ArgSpec<ConstVoidRestrictedPtr>,
-              ArgSpec<SizeTType>,
-              ArgSpec<SizeTType>,
-              ArgSpec<FILERestrictedPtr>]
+               ArgSpec<SizeTType>,
+               ArgSpec<SizeTType>,
+               ArgSpec<FILERestrictedPtr>]
+          >,
+          FunctionSpec<
+              "remove",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharPtr>]
+          >,
+          FunctionSpec<
+              "setbuf",
+              RetValSpec<VoidType>,
+              [ArgSpec<FILERestrictedPtr>, ArgSpec<CharRestrictedPtr>]
+          >,
+          FunctionSpec<
+              "setvbuf",
+              RetValSpec<IntType>,
+              [ArgSpec<FILERestrictedPtr>, ArgSpec<CharRestrictedPtr>, ArgSpec<IntType>, ArgSpec<SizeTType>]
+          >,
+          FunctionSpec<
+              "sscanf",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "scanf",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "fscanf",
+              RetValSpec<IntType>,
+              [ArgSpec<FILERestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "sprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<CharRestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "snprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<CharRestrictedPtr>,
+               ArgSpec<SizeTType>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "printf",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "fprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<FILERestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "ungetc",
+              RetValSpec<IntType>,
+              [ArgSpec<IntType>, ArgSpec<FILEPtr>]
+          >,
+      ],
+      [
+          ObjectSpec<
+              "stdin",
+              "FILE *"
+          >,
+          ObjectSpec<
+              "stdout",
+              "FILE *"
+          >,
+          ObjectSpec<
+              "stderr",
+              "FILE *"
           >,
       ]
   >;
@@ -426,14 +707,73 @@ def StdC : StandardSpec<"stdc"> {
   HeaderSpec StdLib = HeaderSpec<
       "stdlib.h",
       [], // Macros
-      [], // Types
+      [
+          DivTType,
+          LDivTType,
+          LLDivTType,
+          SizeTType,
+          BSearchCompareT,
+          QSortCompareT,
+          AtexitHandlerT,
+      ], // Types
       [], // Enumerations
       [
           FunctionSpec<"abort", RetValSpec<NoReturn>, [ArgSpec<VoidType>]>,
+
+          FunctionSpec<"bsearch", RetValSpec<VoidPtr>, [ArgSpec<ConstVoidPtr>, ArgSpec<ConstVoidPtr>, ArgSpec<SizeTType>, ArgSpec<SizeTType>, ArgSpec<BSearchCompareT>]>,
+
           FunctionSpec<"abs", RetValSpec<IntType>, [ArgSpec<IntType>]>,
           FunctionSpec<"labs", RetValSpec<LongType>, [ArgSpec<LongType>]>,
           FunctionSpec<"llabs", RetValSpec<LongLongType>, [ArgSpec<LongLongType>]>,
+
+          FunctionSpec<"atof", RetValSpec<DoubleType>, [ArgSpec<ConstCharRestrictedPtr>]>,
+          FunctionSpec<"atoi", RetValSpec<IntType>, [ArgSpec<ConstCharPtr>]>,
+          FunctionSpec<"atol", RetValSpec<LongType>, [ArgSpec<ConstCharPtr>]>,
+          FunctionSpec<"atoll", RetValSpec<LongLongType>, [ArgSpec<ConstCharPtr>]>,
+
+          FunctionSpec<"div", RetValSpec<DivTType>, [ArgSpec<IntType>, ArgSpec<IntType>]>,
+          FunctionSpec<"ldiv", RetValSpec<LDivTType>, [ArgSpec<LongType>, ArgSpec<LongType>]>,
+          FunctionSpec<"lldiv", RetValSpec<LLDivTType>, [ArgSpec<LongLongType>, ArgSpec<LongLongType>]>,
+
+          FunctionSpec<"qsort", RetValSpec<VoidType>, [ArgSpec<VoidPtr>, ArgSpec<SizeTType>, ArgSpec<SizeTType>, ArgSpec<QSortCompareT>]>,
+
+          FunctionSpec<"rand", RetValSpec<IntType>, [ArgSpec<VoidType>]>,
+          FunctionSpec<"srand", RetValSpec<VoidType>, [ArgSpec<UnsignedIntType>]>,
+
+          FunctionSpec<"strtof", RetValSpec<FloatType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>]>,
+          FunctionSpec<"strtod", RetValSpec<DoubleType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>]>,
+          FunctionSpec<"strtold", RetValSpec<LongDoubleType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>]>,
+          FunctionSpec<"strtol", RetValSpec<LongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+          FunctionSpec<"strtoll", RetValSpec<LongLongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+          FunctionSpec<"strtoul", RetValSpec<UnsignedLongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+          FunctionSpec<"strtoull", RetValSpec<UnsignedLongLongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+
+          FunctionSpec<"malloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>]>,
+          FunctionSpec<"calloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>, ArgSpec<SizeTType>]>,
+          FunctionSpec<"realloc", RetValSpec<VoidPtr>, [ArgSpec<VoidPtr>, ArgSpec<SizeTType>]>,
+          FunctionSpec<"aligned_alloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>, ArgSpec<SizeTType>]>,
+          FunctionSpec<"free", RetValSpec<VoidType>, [ArgSpec<VoidPtr>]>,
+
           FunctionSpec<"_Exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
+          FunctionSpec<"exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
+          FunctionSpec<"atexit", RetValSpec<IntType>, [ArgSpec<AtexitHandlerT>]>,
+      ]
+  >;
+
+  NamedType IMaxDivTType = NamedType<"imaxdiv_t">;
+
+  HeaderSpec IntTypes = HeaderSpec<
+      "inttypes.h",
+      [], // Macros
+      [
+        IMaxDivTType,
+      ], // Types
+      [], // Enumerations
+      [
+          FunctionSpec<"imaxabs", RetValSpec<IntMaxTType>, [ArgSpec<IntMaxTType>]>,
+          FunctionSpec<"imaxdiv", RetValSpec<IMaxDivTType>, [ArgSpec<IntMaxTType>, ArgSpec<IntMaxTType>]>,
+          FunctionSpec<"strtoimax", RetValSpec<IntMaxTType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+          FunctionSpec<"strtoumax", RetValSpec<UIntMaxTType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
       ]
   >;
 
@@ -447,6 +787,7 @@ def StdC : StandardSpec<"stdc"> {
       ]
   >;
 
+  NamedType SigAtomicT = NamedType<"sig_atomic_t">;
   HeaderSpec Signal = HeaderSpec<
       "signal.h",
       [
@@ -463,6 +804,7 @@ def StdC : StandardSpec<"stdc"> {
       ],
       [
         SizeTType,
+        SigAtomicT,
         SigHandlerT,
       ],
       [], // Enumerations
@@ -484,9 +826,12 @@ def StdC : StandardSpec<"stdc"> {
       [
           OnceFlagType,
           CallOnceFuncType,
+          CndTType,
           MtxTType,
           ThrdStartTType,
           ThrdTType,
+          TssTType,
+          TssDtorTType,
       ],
       [
           EnumeratedNameValue<"mtx_plain">,
@@ -508,11 +853,54 @@ def StdC : StandardSpec<"stdc"> {
               ]
           >,
           FunctionSpec<
+              "cnd_broadcast",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<CndTTypePtr>,
+              ]
+          >,
+          FunctionSpec<
+              "cnd_destroy",
+              RetValSpec<VoidType>,
+              [
+                  ArgSpec<CndTTypePtr>,
+              ]
+          >,
+          FunctionSpec<
+              "cnd_init",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<CndTTypePtr>,
+              ]
+          >,
+          FunctionSpec<
+              "cnd_signal",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<CndTTypePtr>,
+              ]
+          >,
+          FunctionSpec<
+              "cnd_wait",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<CndTTypePtr>,
+                  ArgSpec<MtxTTypePtr>,
+              ]
+          >,
+          FunctionSpec<
               "mtx_init",
               RetValSpec<IntType>,
               [
                   ArgSpec<MtxTTypePtr>,
                   ArgSpec<IntType>,
+              ]
+          >,
+          FunctionSpec<
+              "mtx_destroy",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<VoidType>,
               ]
           >,
           FunctionSpec<
@@ -542,10 +930,50 @@ def StdC : StandardSpec<"stdc"> {
               "thrd_join",
               RetValSpec<IntType>,
               [
-                  ArgSpec<ThrdTTypePtr>,
+                  ArgSpec<ThrdTType>,
                   ArgSpec<IntPtr>,
               ]
-          >
+          >,
+          FunctionSpec<
+              "thrd_detach",
+              RetValSpec<IntType>,
+              [ArgSpec<ThrdTType>]
+          >,
+          FunctionSpec<
+              "thrd_current",
+              RetValSpec<ThrdTType>,
+              [ArgSpec<VoidType>]
+          >,
+          FunctionSpec<
+              "thrd_equal",
+              RetValSpec<IntType>,
+              [ArgSpec<ThrdTType>, ArgSpec<ThrdTType>]
+          >,
+          FunctionSpec<
+              "thrd_exit",
+              RetValSpec<VoidType>,
+              [ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "tss_create",
+              RetValSpec<IntType>,
+              [ArgSpec<TssTPtr>, ArgSpec<TssDtorTType>]
+          >,
+          FunctionSpec<
+              "tss_delete",
+              RetValSpec<IntType>,
+              [ArgSpec<TssTType>]
+          >,
+          FunctionSpec<
+              "tss_get",
+              RetValSpec<VoidPtr>,
+              [ArgSpec<TssTType>]
+          >,
+          FunctionSpec<
+              "tss_set",
+              RetValSpec<IntType>,
+              [ArgSpec<TssTType>, ArgSpec<VoidPtr>]
+          >,
       ]
   >;
 
@@ -553,15 +981,84 @@ def StdC : StandardSpec<"stdc"> {
       "time.h",
       [], // Macros
       [ // Types
-       StructTmType,
-       TimeTType,
+         ClockT,
+         StructTmType,
+         TimeTType,
       ],
       [], // Enumerations
       [
           FunctionSpec<
+              "asctime",
+              RetValSpec<CharPtr>,
+              [ArgSpec<StructTmPtr>]
+          >,
+          FunctionSpec<
+              "asctime_r",
+              RetValSpec<CharPtr>,
+              [
+                  ArgSpec<StructTmPtr>,
+                  ArgSpec<CharPtr>,
+              ]
+          >,
+          FunctionSpec<
+              "clock",
+              RetValSpec<ClockT>,
+              [ArgSpec<VoidType>]
+          >,
+          FunctionSpec<
+              "difftime",
+              RetValSpec<DoubleType>,
+              [
+                  ArgSpec<TimeTType>,
+                  ArgSpec<TimeTType>,
+              ]
+          >,
+          FunctionSpec<
+              "gmtime",
+              RetValSpec<StructTmPtr>,
+              [ArgSpec<TimeTTypePtr>]
+          >,
+          FunctionSpec<
+              "gmtime_r",
+              RetValSpec<StructTmPtr>,
+              [
+                  ArgSpec<TimeTTypePtr>,
+                  ArgSpec<StructTmPtr>,
+              ]
+          >,
+          FunctionSpec<
               "mktime",
               RetValSpec<TimeTType>,
               [ArgSpec<StructTmPtr>]
+          >,
+          FunctionSpec<
+              "time",
+              RetValSpec<TimeTType>,
+              [ArgSpec<TimeTTypePtr>]
+          >,
+      ]
+  >;
+
+  HeaderSpec SetJmp = HeaderSpec<
+      "setjmp.h",
+      [], // Macros
+      [JmpBuf],
+      [], // Enumerations
+      [
+          FunctionSpec<
+              "longjmp",
+              RetValSpec<NoReturn>,
+              [ArgSpec<JmpBuf>, ArgSpec<IntType>]
+          >,
+          FunctionSpec<
+              "setjmp",
+              RetValSpec<IntType>,
+              [ArgSpec<JmpBuf>]
+          >,
+          FunctionSpec<
+              "longjmp",
+              RetValSpec<VoidType>,
+              [ArgSpec<JmpBuf>, ArgSpec<IntType>]
           >,
       ]
   >;
@@ -575,6 +1072,8 @@ def StdC : StandardSpec<"stdc"> {
     String,
     StdIO,
     StdLib,
+    IntTypes,
+    SetJmp,
     Signal,
     Threads,
     Time,

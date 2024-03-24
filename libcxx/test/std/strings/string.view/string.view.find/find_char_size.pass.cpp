@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr size_type find(charT c, size_type pos = 0) const;
@@ -21,6 +23,7 @@ void
 test(const S& s, typename S::value_type c, typename S::size_type pos,
      typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find(c, pos));
     assert(s.find(c, pos) == x);
     if (x != S::npos)
         assert(pos <= x && x + 1 <= s.size());

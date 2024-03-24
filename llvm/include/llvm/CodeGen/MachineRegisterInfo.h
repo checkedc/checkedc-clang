@@ -15,18 +15,17 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IndexedMap.h"
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
-#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBundle.h"
 #include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/CodeGen/RegisterBank.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/MC/LaneBitmask.h"
@@ -58,11 +57,15 @@ public:
     virtual ~Delegate() = default;
 
     virtual void MRI_NoteNewVirtualRegister(Register Reg) = 0;
+    virtual void MRI_NotecloneVirtualRegister(Register NewReg,
+                                              Register SrcReg) {
+      MRI_NoteNewVirtualRegister(NewReg);
+    }
   };
 
 private:
   MachineFunction *MF;
-  Delegate *TheDelegate = nullptr;
+  SmallPtrSet<Delegate *, 1> TheDelegates;
 
   /// True if subregister liveness is tracked.
   const bool TracksSubRegLiveness;
@@ -84,7 +87,7 @@ private:
 
   /// The flag is true upon \p UpdatedCSRs initialization
   /// and false otherwise.
-  bool IsUpdatedCSRsInitialized;
+  bool IsUpdatedCSRsInitialized = false;
 
   /// Contains the updated callee saved register list.
   /// As opposed to the static list defined in register info,
@@ -156,19 +159,28 @@ public:
 
   void resetDelegate(Delegate *delegate) {
     // Ensure another delegate does not take over unless the current
-    // delegate first unattaches itself. If we ever need to multicast
-    // notifications, we will need to change to using a list.
-    assert(TheDelegate == delegate &&
-           "Only the current delegate can perform reset!");
-    TheDelegate = nullptr;
+    // delegate first unattaches itself.
+    assert(TheDelegates.count(delegate) &&
+           "Only an existing delegate can perform reset!");
+    TheDelegates.erase(delegate);
   }
 
-  void setDelegate(Delegate *delegate) {
-    assert(delegate && !TheDelegate &&
-           "Attempted to set delegate to null, or to change it without "
+  void addDelegate(Delegate *delegate) {
+    assert(delegate && !TheDelegates.count(delegate) &&
+           "Attempted to add null delegate, or to change it without "
            "first resetting it!");
 
-    TheDelegate = delegate;
+    TheDelegates.insert(delegate);
+  }
+
+  void noteNewVirtualRegister(Register Reg) {
+    for (auto *TheDelegate : TheDelegates)
+      TheDelegate->MRI_NoteNewVirtualRegister(Reg);
+  }
+
+  void noteCloneVirtualRegister(Register NewReg, Register SrcReg) {
+    for (auto *TheDelegate : TheDelegates)
+      TheDelegate->MRI_NotecloneVirtualRegister(NewReg, SrcReg);
   }
 
   //===--------------------------------------------------------------------===//
@@ -228,6 +240,16 @@ public:
 
   /// Returns true if the updated CSR list was initialized and false otherwise.
   bool isUpdatedCSRsInitialized() const { return IsUpdatedCSRsInitialized; }
+
+  /// Returns true if a register can be used as an argument to a function.
+  bool isArgumentRegister(const MachineFunction &MF, MCRegister Reg) const;
+
+  /// Returns true if a register is a fixed register.
+  bool isFixedRegister(const MachineFunction &MF, MCRegister Reg) const;
+
+  /// Returns true if a register is a general purpose register.
+  bool isGeneralPurposeRegister(const MachineFunction &MF,
+                                MCRegister Reg) const;
 
   /// Disables the register from the list of CSRs.
   /// I.e. the register will not appear as part of the CSR mask.
@@ -576,6 +598,11 @@ public:
   /// multiple uses.
   bool hasOneNonDBGUser(Register RegNo) const;
 
+
+  /// hasAtMostUses - Return true if the given register has at most \p MaxUsers
+  /// non-debug user instructions.
+  bool hasAtMostUserInstrs(Register Reg, unsigned MaxUsers) const;
+
   /// replaceRegWith - Replace all instances of FromReg with ToReg in the
   /// machine function.  This is like llvm-level X->replaceAllUsesWith(Y),
   /// except that it also changes any definitions of the register as well.
@@ -730,7 +757,7 @@ public:
   /// Get the low-level type of \p Reg or LLT{} if Reg is not a generic
   /// (target independent) virtual register.
   LLT getType(Register Reg) const {
-    if (Register::isVirtualRegister(Reg) && VRegToType.inBounds(Reg))
+    if (Reg.isVirtual() && VRegToType.inBounds(Reg))
       return VRegToType[Reg];
     return LLT{};
   }
@@ -772,7 +799,7 @@ public:
   /// addRegAllocationHint - Add a register allocation hint to the hints
   /// vector for VReg.
   void addRegAllocationHint(Register VReg, Register PrefReg) {
-    assert(Register::isVirtualRegister(VReg));
+    assert(VReg.isVirtual());
     RegAllocHints[VReg].second.push_back(PrefReg);
   }
 
@@ -821,14 +848,31 @@ public:
   /// deleted during LiveDebugVariables analysis.
   void markUsesInDebugValueAsUndef(Register Reg) const;
 
-  /// updateDbgUsersToReg - Update a collection of DBG_VALUE instructions
+  /// updateDbgUsersToReg - Update a collection of debug instructions
   /// to refer to the designated register.
-  void updateDbgUsersToReg(Register Reg,
-                           ArrayRef<MachineInstr*> Users) const {
+  void updateDbgUsersToReg(MCRegister OldReg, MCRegister NewReg,
+                           ArrayRef<MachineInstr *> Users) const {
+    // If this operand is a register, check whether it overlaps with OldReg.
+    // If it does, replace with NewReg.
+    auto UpdateOp = [this, &NewReg, &OldReg](MachineOperand &Op) {
+      if (Op.isReg() &&
+          getTargetRegisterInfo()->regsOverlap(Op.getReg(), OldReg))
+        Op.setReg(NewReg);
+    };
+
+    // Iterate through (possibly several) operands to DBG_VALUEs and update
+    // each. For DBG_PHIs, only one operand will be present.
     for (MachineInstr *MI : Users) {
-      assert(MI->isDebugInstr());
-      assert(MI->getOperand(0).isReg());
-      MI->getOperand(0).setReg(Reg);
+      if (MI->isDebugValue()) {
+        for (auto &Op : MI->debug_operands())
+          UpdateOp(Op);
+        assert(MI->hasDebugOperandForReg(NewReg) &&
+               "Expected debug value to have some overlap with OldReg");
+      } else if (MI->isDebugPHI()) {
+        UpdateOp(MI->getOperand(0));
+      } else {
+        llvm_unreachable("Non-DBG_VALUE, Non-DBG_PHI debug instr updated");
+      }
     }
   }
 
@@ -842,9 +886,9 @@ public:
 
   /// Return true if the specified register is modified or read in this
   /// function. This checks that no machine operands exist for the register or
-  /// any of its aliases. The register is also considered used when it is set
-  /// in the UsedPhysRegMask.
-  bool isPhysRegUsed(MCRegister PhysReg) const;
+  /// any of its aliases. If SkipRegMaskTest is false, the register is
+  /// considered used when it is set in the UsedPhysRegMask.
+  bool isPhysRegUsed(MCRegister PhysReg, bool SkipRegMaskTest = false) const;
 
   /// addPhysRegsUsedFromRegMask - Mark any registers not in RegMask as used.
   /// This corresponds to the bit mask attached to register mask operands.
@@ -869,6 +913,18 @@ public:
   /// freezeReservedRegs - Called by the register allocator to freeze the set
   /// of reserved registers before allocation begins.
   void freezeReservedRegs(const MachineFunction&);
+
+  /// reserveReg -- Mark a register as reserved so checks like isAllocatable 
+  /// will not suggest using it. This should not be used during the middle
+  /// of a function walk, or when liveness info is available.
+  void reserveReg(MCRegister PhysReg, const TargetRegisterInfo *TRI) {
+    assert(reservedRegsFrozen() &&
+           "Reserved registers haven't been frozen yet. ");
+    MCRegAliasIterator R(PhysReg, TRI, true);
+
+    for (; R.isValid(); ++R)
+      ReservedRegs.set(*R);
+  }
 
   /// reservedRegsFrozen - Returns true after freezeReservedRegs() was called
   /// to ensure the set of reserved registers stays constant.
@@ -949,7 +1005,7 @@ public:
   MCRegister getLiveInPhysReg(Register VReg) const;
 
   /// getLiveInVirtReg - If PReg is a live-in physical register, return the
-  /// corresponding live-in physical register.
+  /// corresponding live-in virtual register.
   Register getLiveInVirtReg(MCRegister PReg) const;
 
   /// EmitLiveInCopies - Emit copies to initialize livein virtual registers
@@ -968,12 +1024,19 @@ public:
   /// returns defs.  If neither are true then you are silly and it always
   /// returns end().  If SkipDebug is true it skips uses marked Debug
   /// when incrementing.
-  template<bool ReturnUses, bool ReturnDefs, bool SkipDebug,
-           bool ByOperand, bool ByInstr, bool ByBundle>
-  class defusechain_iterator
-    : public std::iterator<std::forward_iterator_tag, MachineInstr, ptrdiff_t> {
+  template <bool ReturnUses, bool ReturnDefs, bool SkipDebug, bool ByOperand,
+            bool ByInstr, bool ByBundle>
+  class defusechain_iterator {
     friend class MachineRegisterInfo;
 
+  public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = MachineOperand;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
+  private:
     MachineOperand *Op = nullptr;
 
     explicit defusechain_iterator(MachineOperand *op) : Op(op) {
@@ -1008,11 +1071,6 @@ public:
     }
 
   public:
-    using reference = std::iterator<std::forward_iterator_tag,
-                                    MachineInstr, ptrdiff_t>::reference;
-    using pointer = std::iterator<std::forward_iterator_tag,
-                                  MachineInstr, ptrdiff_t>::pointer;
-
     defusechain_iterator() = default;
 
     bool operator==(const defusechain_iterator &x) const {
@@ -1074,12 +1132,19 @@ public:
   /// returns defs.  If neither are true then you are silly and it always
   /// returns end().  If SkipDebug is true it skips uses marked Debug
   /// when incrementing.
-  template<bool ReturnUses, bool ReturnDefs, bool SkipDebug,
-           bool ByOperand, bool ByInstr, bool ByBundle>
-  class defusechain_instr_iterator
-    : public std::iterator<std::forward_iterator_tag, MachineInstr, ptrdiff_t> {
+  template <bool ReturnUses, bool ReturnDefs, bool SkipDebug, bool ByOperand,
+            bool ByInstr, bool ByBundle>
+  class defusechain_instr_iterator {
     friend class MachineRegisterInfo;
 
+  public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = MachineInstr;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
+  private:
     MachineOperand *Op = nullptr;
 
     explicit defusechain_instr_iterator(MachineOperand *op) : Op(op) {
@@ -1114,11 +1179,6 @@ public:
     }
 
   public:
-    using reference = std::iterator<std::forward_iterator_tag,
-                                    MachineInstr, ptrdiff_t>::reference;
-    using pointer = std::iterator<std::forward_iterator_tag,
-                                  MachineInstr, ptrdiff_t>::pointer;
-
     defusechain_instr_iterator() = default;
 
     bool operator==(const defusechain_instr_iterator &x) const {

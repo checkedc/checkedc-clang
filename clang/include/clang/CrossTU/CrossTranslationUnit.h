@@ -15,13 +15,14 @@
 #define LLVM_CLANG_CROSSTU_CROSSTRANSLATIONUNIT_H
 
 #include "clang/AST/ASTImporterSharedState.h"
+#include "clang/Analysis/MacroExpansionContext.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
+#include <optional>
 
 namespace clang {
 class CompilerInstance;
@@ -37,6 +38,7 @@ class TranslationUnitDecl;
 namespace cross_tu {
 
 enum class index_error_code {
+  success = 0,
   unspecified = 1,
   missing_index_file,
   invalid_index_format,
@@ -99,7 +101,7 @@ std::string createCrossTUIndexString(const llvm::StringMap<std::string> &Index);
 
 using InvocationListTy = llvm::StringMap<llvm::SmallVector<std::string, 32>>;
 /// Parse the YAML formatted invocation list file content \p FileContent.
-/// The format is expected to be a mapping from from absolute source file
+/// The format is expected to be a mapping from absolute source file
 /// paths in the filesystem to a list of command-line parts, which
 /// constitute the invocation needed to compile that file. That invocation
 /// will be used to produce the AST of the TU.
@@ -107,8 +109,10 @@ llvm::Expected<InvocationListTy> parseInvocationList(
     StringRef FileContent,
     llvm::sys::path::Style PathStyle = llvm::sys::path::Style::posix);
 
-// Returns true if the variable or any field of a record variable is const.
-bool containsConst(const VarDecl *VD, const ASTContext &ACtx);
+/// Returns true if it makes sense to import a foreign variable definition.
+/// For instance, we don't want to import variables that have non-trivial types
+/// because the constructor might have side-effects.
+bool shouldImport(const VarDecl *VD, const ASTContext &ACtx);
 
 /// This class is used for tools that requires cross translation
 ///        unit capability.
@@ -177,26 +181,31 @@ public:
                                                    ASTUnit *Unit);
 
   /// Get a name to identify a named decl.
-  static llvm::Optional<std::string> getLookupName(const NamedDecl *ND);
+  static std::optional<std::string> getLookupName(const NamedDecl *ND);
 
   /// Emit diagnostics for the user for potential configuration errors.
   void emitCrossTUDiagnostics(const IndexError &IE);
 
-  /// Determine the original source location in the original TU for an
-  /// imported source location.
+  /// Returns the MacroExpansionContext for the imported TU to which the given
+  /// source-location corresponds.
   /// \p ToLoc Source location in the imported-to AST.
-  /// \return Source location in the imported-from AST and the corresponding
-  /// ASTUnit object (the AST was loaded from a file using an internal ASTUnit
-  /// object that is returned here).
-  /// If any error happens (ToLoc is a non-imported source location) empty is
-  /// returned.
-  llvm::Optional<std::pair<SourceLocation /*FromLoc*/, ASTUnit *>>
-  getImportedFromSourceLocation(const clang::SourceLocation &ToLoc) const;
+  /// \note If any error happens such as \p ToLoc is a non-imported
+  ///       source-location, empty is returned.
+  /// \note Macro expansion tracking for imported TUs is not implemented yet.
+  ///       It returns empty unconditionally.
+  std::optional<clang::MacroExpansionContext>
+  getMacroExpansionContextForSourceLocation(
+      const clang::SourceLocation &ToLoc) const;
+
+  /// Returns true if the given Decl is newly created during the import.
+  bool isImportedAsNew(const Decl *ToDecl) const;
+
+  /// Returns true if the given Decl is mapped (or created) during an import
+  /// but there was an unrecoverable error (the AST node cannot be erased, it
+  /// is marked with an Error object in this case).
+  bool hasError(const Decl *ToDecl) const;
 
 private:
-  using ImportedFileIDMap =
-      llvm::DenseMap<FileID, std::pair<FileID, ASTUnit *>>;
-
   void lazyInitImporterSharedSt(TranslationUnitDecl *ToTU);
   ASTImporter &getOrCreateASTImporter(ASTUnit *Unit);
   template <typename T>
@@ -217,14 +226,6 @@ private:
 
   ASTContext &Context;
   std::shared_ptr<ASTImporterSharedState> ImporterSharedSt;
-  /// Map of imported FileID's (in "To" context) to FileID in "From" context
-  /// and the ASTUnit for the From context.
-  /// This map is used by getImportedFromSourceLocation to lookup a FileID and
-  /// its Preprocessor when knowing only the FileID in the 'To' context. The
-  /// FileID could be imported by any of multiple 'From' ASTImporter objects.
-  /// we do not want to loop over all ASTImporter's to find the one that
-  /// imported the FileID.
-  ImportedFileIDMap ImportedFileIDs;
 
   using LoadResultTy = llvm::Expected<std::unique_ptr<ASTUnit>>;
 
@@ -235,7 +236,7 @@ private:
               StringRef InvocationListFilePath);
 
     /// Load the ASTUnit by its identifier found in the index file. If the
-    /// indentifier is suffixed with '.ast' it is considered a dump. Otherwise
+    /// identifier is suffixed with '.ast' it is considered a dump. Otherwise
     /// it is treated as source-file, and on-demand parsed. Relative paths are
     /// prefixed with CTUDir.
     LoadResultTy load(StringRef Identifier);
@@ -262,7 +263,8 @@ private:
     StringRef InvocationListFilePath;
     /// In case of on-demand parsing, the invocations for parsing the source
     /// files is stored.
-    llvm::Optional<InvocationListTy> InvocationList;
+    std::optional<InvocationListTy> InvocationList;
+    index_error_code PreviousParsingResult = index_error_code::success;
   };
 
   /// Maintain number of AST loads and check for reaching the load limit.
@@ -299,7 +301,7 @@ private:
     /// \param DisplayCTUProgress Display a message about loading new ASTs.
     ///
     /// \return An Expected instance which contains the ASTUnit pointer or the
-    /// error occured during the load.
+    /// error occurred during the load.
     llvm::Expected<ASTUnit *> getASTUnitForFunction(StringRef FunctionName,
                                                     StringRef CrossTUDir,
                                                     StringRef IndexName,

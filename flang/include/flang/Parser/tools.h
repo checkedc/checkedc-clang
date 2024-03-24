@@ -29,7 +29,7 @@ const Name &GetLastName(const Variable &);
 const Name &GetLastName(const AllocateObject &);
 
 // GetFirstName() isolates and returns a reference to the leftmost Name
-// in a variable.
+// in a variable or entity declaration.
 const Name &GetFirstName(const Name &);
 const Name &GetFirstName(const StructureComponent &);
 const Name &GetFirstName(const DataRef &);
@@ -62,7 +62,7 @@ struct UnwrapperHelper {
 
   template <typename A, typename... Bs>
   static const A *Unwrap(const std::variant<Bs...> &x) {
-    return std::visit([](const auto &y) { return Unwrap<A>(y); }, x);
+    return common::visit([](const auto &y) { return Unwrap<A>(y); }, x);
   }
 
   template <typename A, typename B>
@@ -117,5 +117,10 @@ template <typename A>
 struct HasSource<A, decltype(static_cast<void>(A::source), 0)>
     : std::true_type {};
 
+// Detects parse tree nodes with "typedExpr" members.
+template <typename A, typename = int> struct HasTypedExpr : std::false_type {};
+template <typename A>
+struct HasTypedExpr<A, decltype(static_cast<void>(A::typedExpr), 0)>
+    : std::true_type {};
 } // namespace Fortran::parser
 #endif // FORTRAN_PARSER_TOOLS_H_

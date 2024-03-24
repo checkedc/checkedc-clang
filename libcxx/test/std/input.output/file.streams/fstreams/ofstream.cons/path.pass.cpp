@@ -7,15 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: libcpp-has-no-filesystem-library
+// UNSUPPORTED: no-filesystem
 
 // Filesystem is supported on Apple platforms starting with macosx10.15.
-// UNSUPPORTED: with_system_cxx_lib=macosx10.14
-// UNSUPPORTED: with_system_cxx_lib=macosx10.13
-// UNSUPPORTED: with_system_cxx_lib=macosx10.12
-// UNSUPPORTED: with_system_cxx_lib=macosx10.11
-// UNSUPPORTED: with_system_cxx_lib=macosx10.10
-// UNSUPPORTED: with_system_cxx_lib=macosx10.9
+// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14}}
 
 // <fstream>
 
@@ -57,7 +52,9 @@ int main(int, char**) {
     stream >> x;
     assert(x == 3.25);
   }
-  std::remove(p.c_str());
+  std::remove(p.string().c_str());
+
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   {
     std::wofstream stream(p);
     stream << 3.25;
@@ -74,7 +71,8 @@ int main(int, char**) {
     stream >> x;
     assert(x == 3.25);
   }
-  std::remove(p.c_str());
+  std::remove(p.string().c_str());
+#endif
 
   return 0;
 }

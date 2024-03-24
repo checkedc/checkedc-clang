@@ -1,4 +1,4 @@
-; RUN: bugpoint -load %llvmshlibdir/BugpointPasses%shlibext %s -output-prefix %t -bugpoint-crashcalls -silence-passes
+; RUN: bugpoint -load %llvmshlibdir/BugpointPasses%pluginext %s -output-prefix %t -bugpoint-crashcalls -silence-passes
 ; RUN: llvm-dis %t-reduced-simplified.bc -o - | FileCheck %s
 ; REQUIRES: plugins
 
@@ -12,7 +12,7 @@
 declare i32 @test2()
 
 ; CHECK: define void @test() {
-define i32 @test(i32 %A, %struct.anon* %B, float %C) {
+define i32 @test(i32 %A, ptr %B, float %C) {
 	call i32 @test2()
 	ret i32 %1
 }

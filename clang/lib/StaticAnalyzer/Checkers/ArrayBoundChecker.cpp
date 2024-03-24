@@ -16,7 +16,7 @@
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicExtent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 
 using namespace clang;
@@ -58,8 +58,8 @@ void ArrayBoundChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
   DefinedOrUnknownSVal ElementCount = getDynamicElementCount(
       state, ER->getSuperRegion(), C.getSValBuilder(), ER->getValueType());
 
-  ProgramStateRef StInBound = state->assumeInBound(Idx, ElementCount, true);
-  ProgramStateRef StOutBound = state->assumeInBound(Idx, ElementCount, false);
+  ProgramStateRef StInBound, StOutBound;
+  std::tie(StInBound, StOutBound) = state->assumeInBoundDual(Idx, ElementCount);
   if (StOutBound && !StInBound) {
     ExplodedNode *N = C.generateErrorNode(StOutBound);
     if (!N)

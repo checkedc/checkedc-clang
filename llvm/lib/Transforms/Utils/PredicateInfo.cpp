@@ -15,19 +15,12 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/AssumptionCache.h"
-#include "llvm/Analysis/CFG.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
@@ -35,7 +28,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/DebugCounter.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Transforms/Utils.h"
 #include <algorithm>
 #define DEBUG_TYPE "predicateinfo"
 using namespace llvm;
@@ -77,8 +69,7 @@ static Instruction *getBranchTerminator(const PredicateBase *PB) {
 
 // Given a predicate info that is a type of branching terminator, get the
 // edge this predicate info represents
-const std::pair<BasicBlock *, BasicBlock *>
-getBlockEdge(const PredicateBase *PB) {
+std::pair<BasicBlock *, BasicBlock *> getBlockEdge(const PredicateBase *PB) {
   assert(isa<PredicateWithEdge>(PB) &&
          "Not a predicate info type we know how to get an edge from.");
   const auto *PEdge = cast<PredicateWithEdge>(PB);
@@ -158,8 +149,7 @@ struct ValueDFS_Compare {
   }
 
   // For a phi use, or a non-materialized def, return the edge it represents.
-  const std::pair<BasicBlock *, BasicBlock *>
-  getBlockEdge(const ValueDFS &VD) const {
+  std::pair<BasicBlock *, BasicBlock *> getBlockEdge(const ValueDFS &VD) const {
     if (!VD.Def && VD.U) {
       auto *PHI = cast<PHINode>(VD.U->getUser());
       return std::make_pair(PHI->getIncomingBlock(*VD.U), PHI->getParent());
@@ -519,7 +509,7 @@ void PredicateInfoBuilder::buildPredicateInfo() {
   // Collect operands to rename from all conditional branch terminators, as well
   // as assume statements.
   SmallVector<Value *, 8> OpsToRename;
-  for (auto DTN : depth_first(DT.getRootNode())) {
+  for (auto *DTN : depth_first(DT.getRootNode())) {
     BasicBlock *BranchBB = DTN->getBlock();
     if (auto *BI = dyn_cast<BranchInst>(BranchBB->getTerminator())) {
       if (!BI->isConditional())
@@ -539,21 +529,6 @@ void PredicateInfoBuilder::buildPredicateInfo() {
   }
   // Now rename all our operations.
   renameUses(OpsToRename);
-}
-
-// Create a ssa_copy declaration with custom mangling, because
-// Intrinsic::getDeclaration does not handle overloaded unnamed types properly:
-// all unnamed types get mangled to the same string. We use the pointer
-// to the type as name here, as it guarantees unique names for different
-// types and we remove the declarations when destroying PredicateInfo.
-// It is a workaround for PR38117, because solving it in a fully general way is
-// tricky (FIXME).
-static Function *getCopyDeclaration(Module *M, Type *Ty) {
-  std::string Name = "llvm.ssa.copy." + utostr((uintptr_t) Ty);
-  return cast<Function>(
-      M->getOrInsertFunction(Name,
-                             getType(M->getContext(), Intrinsic::ssa_copy, Ty))
-          .getCallee());
 }
 
 // Given the renaming stack, make all the operands currently on the stack real
@@ -585,10 +560,17 @@ Value *PredicateInfoBuilder::materializeStack(unsigned int &Counter,
     // to ensure we dominate all of our uses.  Always insert right before the
     // relevant instruction (terminator, assume), so that we insert in proper
     // order in the case of multiple predicateinfo in the same block.
+    // The number of named values is used to detect if a new declaration was
+    // added. If so, that declaration is tracked so that it can be removed when
+    // the analysis is done. The corner case were a new declaration results in
+    // a name clash and the old name being renamed is not considered as that
+    // represents an invalid module.
     if (isa<PredicateWithEdge>(ValInfo)) {
       IRBuilder<> B(getBranchTerminator(ValInfo));
-      Function *IF = getCopyDeclaration(F.getParent(), Op->getType());
-      if (IF->users().empty())
+      auto NumDecls = F.getParent()->getNumNamedValues();
+      Function *IF = Intrinsic::getDeclaration(
+          F.getParent(), Intrinsic::ssa_copy, Op->getType());
+      if (NumDecls != F.getParent()->getNumNamedValues())
         PI.CreatedDeclarations.insert(IF);
       CallInst *PIC =
           B.CreateCall(IF, Op, Op->getName() + "." + Twine(Counter++));
@@ -601,8 +583,10 @@ Value *PredicateInfoBuilder::materializeStack(unsigned int &Counter,
       // Insert the predicate directly after the assume. While it also holds
       // directly before it, assume(i1 true) is not a useful fact.
       IRBuilder<> B(PAssume->AssumeInst->getNextNode());
-      Function *IF = getCopyDeclaration(F.getParent(), Op->getType());
-      if (IF->users().empty())
+      auto NumDecls = F.getParent()->getNumNamedValues();
+      Function *IF = Intrinsic::getDeclaration(
+          F.getParent(), Intrinsic::ssa_copy, Op->getType());
+      if (NumDecls != F.getParent()->getNumNamedValues())
         PI.CreatedDeclarations.insert(IF);
       CallInst *PIC = B.CreateCall(IF, Op);
       PI.PredicateMap.insert({PIC, ValInfo});
@@ -642,7 +626,7 @@ void PredicateInfoBuilder::renameUses(SmallVectorImpl<Value *> &OpsToRename) {
     // Insert the possible copies into the def/use list.
     // They will become real copies if we find a real use for them, and never
     // created otherwise.
-    for (auto &PossibleCopy : ValueInfo.Infos) {
+    for (const auto &PossibleCopy : ValueInfo.Infos) {
       ValueDFS VD;
       // Determine where we are going to place the copy by the copy type.
       // The predicate info for branches always come first, they will get
@@ -788,7 +772,7 @@ PredicateInfo::~PredicateInfo() {
   // Collect function pointers in set first, as SmallSet uses a SmallVector
   // internally and we have to remove the asserting value handles first.
   SmallPtrSet<Function *, 20> FunctionPtrs;
-  for (auto &F : CreatedDeclarations)
+  for (const auto &F : CreatedDeclarations)
     FunctionPtrs.insert(&*F);
   CreatedDeclarations.clear();
 
@@ -799,7 +783,7 @@ PredicateInfo::~PredicateInfo() {
   }
 }
 
-Optional<PredicateConstraint> PredicateBase::getConstraint() const {
+std::optional<PredicateConstraint> PredicateBase::getConstraint() const {
   switch (Type) {
   case PT_Assume:
   case PT_Branch: {
@@ -816,7 +800,7 @@ Optional<PredicateConstraint> PredicateBase::getConstraint() const {
     CmpInst *Cmp = dyn_cast<CmpInst>(Condition);
     if (!Cmp) {
       // TODO: Make this an assertion once RenamedOp is fully accurate.
-      return None;
+      return std::nullopt;
     }
 
     CmpInst::Predicate Pred;
@@ -829,7 +813,7 @@ Optional<PredicateConstraint> PredicateBase::getConstraint() const {
       OtherOp = Cmp->getOperand(0);
     } else {
       // TODO: Make this an assertion once RenamedOp is fully accurate.
-      return None;
+      return std::nullopt;
     }
 
     // Invert predicate along false edge.
@@ -841,7 +825,7 @@ Optional<PredicateConstraint> PredicateBase::getConstraint() const {
   case PT_Switch:
     if (Condition != RenamedOp) {
       // TODO: Make this an assertion once RenamedOp is fully accurate.
-      return None;
+      return std::nullopt;
     }
 
     return {{CmpInst::ICMP_EQ, cast<PredicateSwitch>(this)->CaseValue}};
@@ -867,15 +851,14 @@ void PredicateInfoPrinterLegacyPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 // Replace ssa_copy calls created by PredicateInfo with their operand.
 static void replaceCreatedSSACopys(PredicateInfo &PredInfo, Function &F) {
-  for (auto I = inst_begin(F), E = inst_end(F); I != E;) {
-    Instruction *Inst = &*I++;
-    const auto *PI = PredInfo.getPredicateInfoFor(Inst);
-    auto *II = dyn_cast<IntrinsicInst>(Inst);
+  for (Instruction &Inst : llvm::make_early_inc_range(instructions(F))) {
+    const auto *PI = PredInfo.getPredicateInfoFor(&Inst);
+    auto *II = dyn_cast<IntrinsicInst>(&Inst);
     if (!PI || !II || II->getIntrinsicID() != Intrinsic::ssa_copy)
       continue;
 
-    Inst->replaceAllUsesWith(II->getOperand(0));
-    Inst->eraseFromParent();
+    Inst.replaceAllUsesWith(II->getOperand(0));
+    Inst.eraseFromParent();
   }
 }
 

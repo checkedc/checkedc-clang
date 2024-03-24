@@ -14,16 +14,15 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/ADT/STLExtras.h"
 
 #include "../utils/ExprSequence.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 using namespace clang::tidy::utils;
 
-
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 
@@ -129,8 +128,12 @@ bool UseAfterMoveFinder::find(Stmt *FunctionBody, const Expr *MovingCall,
   Visited.clear();
 
   const CFGBlock *Block = BlockMap->blockContainingStmt(MovingCall);
-  if (!Block)
-    return false;
+  if (!Block) {
+    // This can happen if MovingCall is in a constructor initializer, which is
+    // not included in the CFG because the CFG is built only from the function
+    // body.
+    Block = &TheCFG->getEntry();
+  }
 
   return findInternal(Block, MovingCall, MovedVariable, TheUseAfterMove);
 }
@@ -154,9 +157,12 @@ bool UseAfterMoveFinder::findInternal(const CFGBlock *Block,
 
   // Ignore all reinitializations where the move potentially comes after the
   // reinit.
+  // If `Reinit` is identical to `MovingCall`, we're looking at a move-to-self
+  // (e.g. `a = std::move(a)`). Count these as reinitializations.
   llvm::SmallVector<const Stmt *, 1> ReinitsToDelete;
   for (const Stmt *Reinit : Reinits) {
-    if (MovingCall && Sequence->potentiallyAfter(MovingCall, Reinit))
+    if (MovingCall && Reinit != MovingCall &&
+        Sequence->potentiallyAfter(MovingCall, Reinit))
       ReinitsToDelete.push_back(Reinit);
   }
   for (const Stmt *Reinit : ReinitsToDelete) {
@@ -221,10 +227,9 @@ void UseAfterMoveFinder::getUsesAndReinits(
   }
 
   // Sort the uses by their occurrence in the source code.
-  std::sort(Uses->begin(), Uses->end(),
-            [](const DeclRefExpr *D1, const DeclRefExpr *D2) {
-              return D1->getExprLoc() < D2->getExprLoc();
-            });
+  llvm::sort(*Uses, [](const DeclRefExpr *D1, const DeclRefExpr *D2) {
+    return D1->getExprLoc() < D2->getExprLoc();
+  });
 }
 
 bool isStandardSmartPointer(const ValueDecl *VD) {
@@ -252,11 +257,11 @@ void UseAfterMoveFinder::getDeclRefs(
     llvm::SmallPtrSetImpl<const DeclRefExpr *> *DeclRefs) {
   DeclRefs->clear();
   for (const auto &Elem : *Block) {
-    Optional<CFGStmt> S = Elem.getAs<CFGStmt>();
+    std::optional<CFGStmt> S = Elem.getAs<CFGStmt>();
     if (!S)
       continue;
 
-    auto addDeclRefs = [this, Block,
+    auto AddDeclRefs = [this, Block,
                         DeclRefs](const ArrayRef<BoundNodes> Matches) {
       for (const auto &Match : Matches) {
         const auto *DeclRef = Match.getNodeAs<DeclRefExpr>("declref");
@@ -275,9 +280,9 @@ void UseAfterMoveFinder::getDeclRefs(
                                       unless(inDecltypeOrTemplateArg()))
                               .bind("declref");
 
-    addDeclRefs(match(traverse(TK_AsIs, findAll(DeclRefMatcher)), *S->getStmt(),
+    AddDeclRefs(match(traverse(TK_AsIs, findAll(DeclRefMatcher)), *S->getStmt(),
                       *Context));
-    addDeclRefs(match(findAll(cxxOperatorCallExpr(
+    AddDeclRefs(match(findAll(cxxOperatorCallExpr(
                                   hasAnyOverloadedOperatorName("*", "->", "[]"),
                                   hasArgument(0, DeclRefMatcher))
                                   .bind("operator")),
@@ -310,9 +315,7 @@ void UseAfterMoveFinder::getReinits(
                // Assignment. In addition to the overloaded assignment operator,
                // test for built-in assignment as well, since template functions
                // may be instantiated to use std::move() on built-in types.
-               binaryOperator(hasOperatorName("="), hasLHS(DeclRefMatcher)),
-               cxxOperatorCallExpr(hasOverloadedOperatorName("="),
-                                   hasArgument(0, DeclRefMatcher)),
+               binaryOperation(hasOperatorName("="), hasLHS(DeclRefMatcher)),
                // Declaration. We treat this as a type of reinitialization too,
                // so we don't need to treat it separately.
                declStmt(hasDescendant(equalsNode(MovedVariable))),
@@ -350,7 +353,7 @@ void UseAfterMoveFinder::getReinits(
   Stmts->clear();
   DeclRefs->clear();
   for (const auto &Elem : *Block) {
-    Optional<CFGStmt> S = Elem.getAs<CFGStmt>();
+    std::optional<CFGStmt> S = Elem.getAs<CFGStmt>();
     if (!S)
       continue;
 
@@ -398,9 +401,16 @@ void UseAfterMoveCheck::registerMatchers(MatchFinder *Finder) {
   auto CallMoveMatcher =
       callExpr(callee(functionDecl(hasName("::std::move"))), argumentCountIs(1),
                hasArgument(0, declRefExpr().bind("arg")),
-               anyOf(hasAncestor(lambdaExpr().bind("containing-lambda")),
+               anyOf(hasAncestor(compoundStmt(
+                         hasParent(lambdaExpr().bind("containing-lambda")))),
                      hasAncestor(functionDecl().bind("containing-func"))),
-               unless(inDecltypeOrTemplateArg()))
+               unless(inDecltypeOrTemplateArg()),
+               // try_emplace is a common maybe-moving function that returns a
+               // bool to tell callers whether it moved. Ignore std::move inside
+               // try_emplace to avoid false positives as we don't track uses of
+               // the bool.
+               unless(hasParent(cxxMemberCallExpr(
+                   callee(cxxMethodDecl(hasName("try_emplace")))))))
           .bind("call-move");
 
   Finder->addMatcher(
@@ -448,12 +458,10 @@ void UseAfterMoveCheck::check(const MatchFinder::MatchResult &Result) {
   if (!Arg->getDecl()->getDeclContext()->isFunctionOrMethod())
     return;
 
-  UseAfterMoveFinder finder(Result.Context);
+  UseAfterMoveFinder Finder(Result.Context);
   UseAfterMove Use;
-  if (finder.find(FunctionBody, MovingCall, Arg->getDecl(), &Use))
+  if (Finder.find(FunctionBody, MovingCall, Arg->getDecl(), &Use))
     emitDiagnostic(MovingCall, Arg, Use, this, Result.Context);
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

@@ -67,16 +67,12 @@ Status OptionValueBoolean::SetValueFromString(llvm::StringRef value_str,
   return error;
 }
 
-lldb::OptionValueSP OptionValueBoolean::DeepCopy() const {
-  return OptionValueSP(new OptionValueBoolean(*this));
-}
-
 void OptionValueBoolean::AutoComplete(CommandInterpreter &interpreter,
                                       CompletionRequest &request) {
   llvm::StringRef autocomplete_entries[] = {"true", "false", "on", "off",
                                             "yes",  "no",    "1",  "0"};
 
-  auto entries = llvm::makeArrayRef(autocomplete_entries);
+  auto entries = llvm::ArrayRef(autocomplete_entries);
 
   // only suggest "true" or "false" by default
   if (request.GetCursorArgumentPrefix().empty())

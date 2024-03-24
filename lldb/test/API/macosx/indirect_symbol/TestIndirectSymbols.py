@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class TestIndirectFunctions(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -71,12 +69,12 @@ class TestIndirectFunctions(TestBase):
         # symbol:
 
         threads = lldbutil.continue_to_breakpoint(process, break_indirect)
-        self.assertTrue(
-            len(threads) == 1,
+        self.assertEqual(
+            len(threads), 1,
             "Stopped at breakpoint in indirect function.")
         curr_function = thread.GetFrameAtIndex(0).GetFunctionName()
-        self.assertTrue(
-            curr_function == "call_through_indirect_hidden",
+        self.assertEqual(
+            curr_function, "call_through_indirect_hidden",
             "Stepped into indirect symbols.")
 
         # Delete this breakpoint so it won't get in the way:
@@ -90,24 +88,24 @@ class TestIndirectFunctions(TestBase):
         # symbol:
         thread.StepInto()
         curr_function = thread.GetFrameAtIndex(0).GetFunctionName()
-        self.assertTrue(
-            curr_function == "call_through_indirect_hidden",
+        self.assertEqual(
+            curr_function, "call_through_indirect_hidden",
             "Stepped into indirect symbols.")
 
         # And the last bit is to set a breakpoint on the re-exported symbol and
         # make sure we are again in out target function.
         break_reexported = target.BreakpointCreateByName(
             "reexport_to_indirect")
-        self.assertTrue(break_reexported, VALID_BREAKPOINT)
+        self.assertEqual(break_reexported.GetNumLocations(), 1, VALID_BREAKPOINT)
 
         # Now continue should take us to the second call through the indirect
         # symbol:
 
         threads = lldbutil.continue_to_breakpoint(process, break_reexported)
-        self.assertTrue(
-            len(threads) == 1,
+        self.assertEqual(
+            len(threads), 1,
             "Stopped at breakpoint in reexported function target.")
         curr_function = thread.GetFrameAtIndex(0).GetFunctionName()
-        self.assertTrue(
-            curr_function == "call_through_indirect_hidden",
+        self.assertEqual(
+            curr_function, "call_through_indirect_hidden",
             "Stepped into indirect symbols.")

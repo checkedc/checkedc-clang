@@ -10,9 +10,9 @@
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
 #include "MtUnsafeCheck.h"
+#include "ThreadCanceltypeAsynchronousCheck.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace concurrency {
 
 class ConcurrencyModule : public ClangTidyModule {
@@ -20,6 +20,8 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<concurrency::MtUnsafeCheck>(
         "concurrency-mt-unsafe");
+    CheckFactories.registerCheck<ThreadCanceltypeAsynchronousCheck>(
+        "concurrency-thread-canceltype-asynchronous");
   }
 };
 
@@ -33,5 +35,4 @@ static ClangTidyModuleRegistry::Add<concurrency::ConcurrencyModule>
 // and thus register the ConcurrencyModule.
 volatile int ConcurrencyModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

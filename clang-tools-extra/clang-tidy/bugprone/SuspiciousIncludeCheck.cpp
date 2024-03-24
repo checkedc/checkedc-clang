@@ -9,10 +9,9 @@
 #include "SuspiciousIncludeCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Preprocessor.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 class SuspiciousIncludePPCallbacks : public PPCallbacks {
@@ -24,9 +23,9 @@ public:
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
-                          CharSourceRange FilenameRange, const FileEntry *File,
-                          StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          CharSourceRange FilenameRange,
+                          OptionalFileEntryRef File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
 
 private:
@@ -72,7 +71,7 @@ void SuspiciousIncludeCheck::registerPPCallbacks(
 
 void SuspiciousIncludePPCallbacks::InclusionDirective(
     SourceLocation HashLoc, const Token &IncludeTok, StringRef FileName,
-    bool IsAngled, CharSourceRange FilenameRange, const FileEntry *File,
+    bool IsAngled, CharSourceRange FilenameRange, OptionalFileEntryRef File,
     StringRef SearchPath, StringRef RelativePath, const Module *Imported,
     SrcMgr::CharacteristicKind FileType) {
   if (IncludeTok.getIdentifierInfo()->getPPKeywordID() == tok::pp_import)
@@ -80,7 +79,7 @@ void SuspiciousIncludePPCallbacks::InclusionDirective(
 
   SourceLocation DiagLoc = FilenameRange.getBegin().getLocWithOffset(1);
 
-  const Optional<StringRef> IFE =
+  const std::optional<StringRef> IFE =
       utils::getFileExtension(FileName, Check.ImplementationFileExtensions);
   if (!IFE)
     return;
@@ -93,10 +92,9 @@ void SuspiciousIncludePPCallbacks::InclusionDirective(
     llvm::sys::path::replace_extension(GuessedFileName,
                                        (HFE.size() ? "." : "") + HFE);
 
-    const DirectoryLookup *CurDir;
-    Optional<FileEntryRef> File =
+    OptionalFileEntryRef File =
         PP->LookupFile(DiagLoc, GuessedFileName, IsAngled, nullptr, nullptr,
-                       CurDir, nullptr, nullptr, nullptr, nullptr, nullptr);
+                       nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     if (File) {
       Check.diag(DiagLoc, "did you mean to include '%0'?", DiagnosticIDs::Note)
           << GuessedFileName;
@@ -104,6 +102,4 @@ void SuspiciousIncludePPCallbacks::InclusionDirective(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

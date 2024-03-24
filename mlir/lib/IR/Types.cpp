@@ -16,12 +16,10 @@ using namespace mlir::detail;
 // Type
 //===----------------------------------------------------------------------===//
 
-Dialect &Type::getDialect() const {
-  return impl->getAbstractType().getDialect();
-}
-
 MLIRContext *Type::getContext() const { return getDialect().getContext(); }
 
+bool Type::isFloat8E5M2() const { return isa<Float8E5M2Type>(); }
+bool Type::isFloat8E4M3FN() const { return isa<Float8E4M3FNType>(); }
 bool Type::isBF16() const { return isa<BFloat16Type>(); }
 bool Type::isF16() const { return isa<Float16Type>(); }
 bool Type::isF32() const { return isa<Float32Type>(); }

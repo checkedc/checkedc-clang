@@ -2,7 +2,7 @@
 ; RUN: llvm-as %s -o %t.o
 ; RUN: ld.lld %t.o -o %t.so -shared
 ; RUN: llvm-readelf -S %t.so | FileCheck %s
-; RUN: ld.lld %t.o -o %t.so -shared --gc-sections
+; RUN: ld.lld %t.o -o %t.so -shared --gc-sections -z nostart-stop-gc
 ; RUN: llvm-readelf -S %t.so | FileCheck --check-prefix=GC %s
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -15,12 +15,12 @@ target triple = "x86_64-unknown-linux-gnu"
 @__start_foo_section = external global i32
 @__stop_bar_section = external global i32
 
-define hidden i32* @use1() {
-  ret i32* @__start_foo_section
+define hidden ptr @use1() {
+  ret ptr @__start_foo_section
 }
 
-define i32* @use2() {
-  ret i32* @__stop_bar_section
+define ptr @use2() {
+  ret ptr @__stop_bar_section
 }
 
 ; CHECK-NOT: zed_section

@@ -19,8 +19,7 @@ namespace ast_matchers {
 AST_MATCHER(Expr, isMacroID) { return Node.getExprLoc().isMacroID(); }
 } // namespace ast_matchers
 
-namespace tidy {
-namespace llvm_check {
+namespace tidy::llvm_check {
 
 void PreferIsaOrDynCastInConditionalsCheck::registerMatchers(
     MatchFinder *Finder) {
@@ -47,8 +46,9 @@ void PreferIsaOrDynCastInConditionalsCheck::registerMatchers(
               allOf(callee(namedDecl(hasAnyName("isa", "cast", "cast_or_null",
                                                 "dyn_cast", "dyn_cast_or_null"))
                                .bind("func")),
-                    hasArgument(0, anyOf(declRefExpr().bind("arg"),
-                                         cxxMemberCallExpr().bind("arg"))))))
+                    hasArgument(
+                        0,
+                        mapAnyOf(declRefExpr, cxxMemberCallExpr).bind("arg")))))
           .bind("rhs");
 
   Finder->addMatcher(
@@ -129,6 +129,5 @@ void PreferIsaOrDynCastInConditionalsCheck::check(
   }
 }
 
-} // namespace llvm_check
-} // namespace tidy
+} // namespace tidy::llvm_check
 } // namespace clang

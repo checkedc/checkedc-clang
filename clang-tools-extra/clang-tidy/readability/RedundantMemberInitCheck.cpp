@@ -16,9 +16,7 @@
 using namespace clang::ast_matchers;
 using namespace clang::tidy::matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 void RedundantMemberInitCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IgnoreBaseInCopyConstructors",
@@ -26,26 +24,21 @@ void RedundantMemberInitCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void RedundantMemberInitCheck::registerMatchers(MatchFinder *Finder) {
-  auto Construct =
-      cxxConstructExpr(
-          hasDeclaration(cxxConstructorDecl(hasParent(
-              cxxRecordDecl(unless(isTriviallyDefaultConstructible()))))))
-          .bind("construct");
-
   Finder->addMatcher(
-      traverse(
-          TK_AsIs,
-          cxxConstructorDecl(
-              unless(isDelegatingConstructor()),
-              ofClass(unless(
-                  anyOf(isUnion(), ast_matchers::isTemplateInstantiation()))),
-              forEachConstructorInitializer(
-                  cxxCtorInitializer(
-                      isWritten(), withInitializer(ignoringImplicit(Construct)),
-                      unless(forField(hasType(isConstQualified()))),
-                      unless(forField(hasParent(recordDecl(isUnion())))))
-                      .bind("init")))
-              .bind("constructor")),
+      cxxConstructorDecl(
+          unless(isDelegatingConstructor()), ofClass(unless(isUnion())),
+          forEachConstructorInitializer(
+              cxxCtorInitializer(
+                  withInitializer(
+                      cxxConstructExpr(
+                          hasDeclaration(
+                              cxxConstructorDecl(ofClass(cxxRecordDecl(
+                                  unless(isTriviallyDefaultConstructible()))))))
+                          .bind("construct")),
+                  unless(forField(hasType(isConstQualified()))),
+                  unless(forField(hasParent(recordDecl(isUnion())))))
+                  .bind("init")))
+          .bind("constructor"),
       this);
 }
 
@@ -74,6 +67,4 @@ void RedundantMemberInitCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

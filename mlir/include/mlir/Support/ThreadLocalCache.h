@@ -18,7 +18,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Mutex.h"
-#include "llvm/Support/ThreadLocal.h"
 
 namespace mlir {
 /// This class provides support for defining a thread local object with non
@@ -112,6 +111,6 @@ private:
   /// this object.
   llvm::sys::SmartMutex<true> instanceMutex;
 };
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_SUPPORT_THREADLOCALCACHE_H

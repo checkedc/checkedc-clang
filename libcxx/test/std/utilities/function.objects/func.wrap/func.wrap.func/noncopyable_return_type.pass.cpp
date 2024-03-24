@@ -8,6 +8,14 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
+// FIXME: Building this in MSVC mode fails when instantiating two cases of
+// std::function that only differ in constness of the return type, with this
+// error:
+// include/c++/v1/__functional/function.h:254:31: error: definition with same mangled name '??0?$__base@$$A6AXXZ@__function@__1@std@@QEAA@XZ' as another definition
+//     _LIBCPP_INLINE_VISIBILITY __base() {}
+// include/c++/v1/__functional/function.h:254:31: note: previous definition is here
+// XFAIL: msvc
+
 // <functional>
 
 #include <functional>
@@ -16,9 +24,8 @@
 #include "test_macros.h"
 
 // Prevent warning on the `const NonCopyable()` function type.
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic ignored "-Wignored-qualifiers"
-#endif
+TEST_CLANG_DIAGNOSTIC_IGNORED("-Wignored-qualifiers")
+TEST_GCC_DIAGNOSTIC_IGNORED("-Wignored-qualifiers")
 
 struct NonCopyable {
     NonCopyable() = default;

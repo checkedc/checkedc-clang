@@ -29,8 +29,8 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -40,6 +40,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 
 using namespace clang;
 
@@ -50,34 +51,109 @@ using namespace clang;
 /// \param Out the raw_ostream instance to use for printing.
 ///
 /// \param Policy the printing policy for EnumConstantDecl printing.
-static void printIntegral(const TemplateArgument &TemplArg,
-                          raw_ostream &Out, const PrintingPolicy& Policy) {
+///
+/// \param IncludeType If set, ensure that the type of the expression printed
+/// matches the type of the template argument.
+static void printIntegral(const TemplateArgument &TemplArg, raw_ostream &Out,
+                          const PrintingPolicy &Policy, bool IncludeType) {
   const Type *T = TemplArg.getIntegralType().getTypePtr();
   const llvm::APSInt &Val = TemplArg.getAsIntegral();
 
-  if (const EnumType *ET = T->getAs<EnumType>()) {
-    for (const EnumConstantDecl* ECD : ET->getDecl()->enumerators()) {
-      // In Sema::CheckTemplateArugment, enum template arguments value are
-      // extended to the size of the integer underlying the enum type.  This
-      // may create a size difference between the enum value and template
-      // argument value, requiring isSameValue here instead of operator==.
-      if (llvm::APSInt::isSameValue(ECD->getInitVal(), Val)) {
-        ECD->printQualifiedName(Out, Policy);
-        return;
+  if (Policy.UseEnumerators) {
+    if (const EnumType *ET = T->getAs<EnumType>()) {
+      for (const EnumConstantDecl *ECD : ET->getDecl()->enumerators()) {
+        // In Sema::CheckTemplateArugment, enum template arguments value are
+        // extended to the size of the integer underlying the enum type.  This
+        // may create a size difference between the enum value and template
+        // argument value, requiring isSameValue here instead of operator==.
+        if (llvm::APSInt::isSameValue(ECD->getInitVal(), Val)) {
+          ECD->printQualifiedName(Out, Policy);
+          return;
+        }
       }
     }
   }
 
-  if (T->isBooleanType() && !Policy.MSVCFormatting) {
-    Out << (Val.getBoolValue() ? "true" : "false");
+  if (Policy.MSVCFormatting)
+    IncludeType = false;
+
+  if (T->isBooleanType()) {
+    if (!Policy.MSVCFormatting)
+      Out << (Val.getBoolValue() ? "true" : "false");
+    else
+      Out << Val;
   } else if (T->isCharType()) {
-    const char Ch = Val.getZExtValue();
-    Out << ((Ch == '\'') ? "'\\" : "'");
-    Out.write_escaped(StringRef(&Ch, 1), /*UseHexEscapes=*/ true);
-    Out << "'";
-  } else {
+    if (IncludeType) {
+      if (T->isSpecificBuiltinType(BuiltinType::SChar))
+        Out << "(signed char)";
+      else if (T->isSpecificBuiltinType(BuiltinType::UChar))
+        Out << "(unsigned char)";
+    }
+    CharacterLiteral::print(Val.getZExtValue(), CharacterLiteral::Ascii, Out);
+  } else if (T->isAnyCharacterType() && !Policy.MSVCFormatting) {
+    CharacterLiteral::CharacterKind Kind;
+    if (T->isWideCharType())
+      Kind = CharacterLiteral::Wide;
+    else if (T->isChar8Type())
+      Kind = CharacterLiteral::UTF8;
+    else if (T->isChar16Type())
+      Kind = CharacterLiteral::UTF16;
+    else if (T->isChar32Type())
+      Kind = CharacterLiteral::UTF32;
+    else
+      Kind = CharacterLiteral::Ascii;
+    CharacterLiteral::print(Val.getExtValue(), Kind, Out);
+  } else if (IncludeType) {
+    if (const auto *BT = T->getAs<BuiltinType>()) {
+      switch (BT->getKind()) {
+      case BuiltinType::ULongLong:
+        Out << Val << "ULL";
+        break;
+      case BuiltinType::LongLong:
+        Out << Val << "LL";
+        break;
+      case BuiltinType::ULong:
+        Out << Val << "UL";
+        break;
+      case BuiltinType::Long:
+        Out << Val << "L";
+        break;
+      case BuiltinType::UInt:
+        Out << Val << "U";
+        break;
+      case BuiltinType::Int:
+        Out << Val;
+        break;
+      default:
+        Out << "(" << T->getCanonicalTypeInternal().getAsString(Policy) << ")"
+            << Val;
+        break;
+      }
+    } else
+      Out << "(" << T->getCanonicalTypeInternal().getAsString(Policy) << ")"
+          << Val;
+  } else
     Out << Val;
+}
+
+static unsigned getArrayDepth(QualType type) {
+  unsigned count = 0;
+  while (const auto *arrayType = type->getAsArrayTypeUnsafe()) {
+    count++;
+    type = arrayType->getElementType();
   }
+  return count;
+}
+
+static bool needsAmpersandOnTemplateArg(QualType paramType, QualType argType) {
+  // Generally, if the parameter type is a pointer, we must be taking the
+  // address of something and need a &.  However, if the argument is an array,
+  // this could be implicit via array-to-pointer decay.
+  if (!paramType->isPointerType())
+    return paramType->isMemberPointerType();
+  if (argType->isArrayType())
+    return getArrayDepth(argType) == getArrayDepth(paramType->getPointeeType());
+  return true;
 }
 
 //===----------------------------------------------------------------------===//
@@ -195,12 +271,12 @@ bool TemplateArgument::containsUnexpandedParameterPack() const {
   return getDependence() & TemplateArgumentDependence::UnexpandedPack;
 }
 
-Optional<unsigned> TemplateArgument::getNumTemplateExpansions() const {
+std::optional<unsigned> TemplateArgument::getNumTemplateExpansions() const {
   assert(getKind() == TemplateExpansion);
   if (TemplateArg.NumExpansions)
     return TemplateArg.NumExpansions - 1;
 
-  return None;
+  return std::nullopt;
 }
 
 QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
@@ -245,26 +321,15 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
 
   case Declaration:
     getParamTypeForDecl().Profile(ID);
-    ID.AddPointer(getAsDecl()? getAsDecl()->getCanonicalDecl() : nullptr);
+    ID.AddPointer(getAsDecl());
     break;
 
+  case TemplateExpansion:
+    ID.AddInteger(TemplateArg.NumExpansions);
+    LLVM_FALLTHROUGH;
   case Template:
-  case TemplateExpansion: {
-    TemplateName Template = getAsTemplateOrTemplatePattern();
-    if (TemplateTemplateParmDecl *TTP
-          = dyn_cast_or_null<TemplateTemplateParmDecl>(
-                                                Template.getAsTemplateDecl())) {
-      ID.AddBoolean(true);
-      ID.AddInteger(TTP->getDepth());
-      ID.AddInteger(TTP->getPosition());
-      ID.AddBoolean(TTP->isParameterPack());
-    } else {
-      ID.AddBoolean(false);
-      ID.AddPointer(Context.getCanonicalTemplateName(Template)
-                                                          .getAsVoidPointer());
-    }
+    getAsTemplateOrTemplatePattern().Profile(ID);
     break;
-  }
 
   case Integral:
     getAsIntegral().Profile(ID);
@@ -298,7 +363,8 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
            TemplateArg.NumExpansions == Other.TemplateArg.NumExpansions;
 
   case Declaration:
-    return getAsDecl() == Other.getAsDecl();
+    return getAsDecl() == Other.getAsDecl() &&
+           getParamTypeForDecl() == Other.getParamTypeForDecl();
 
   case Integral:
     return getIntegralType() == Other.getIntegralType() &&
@@ -340,8 +406,9 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
   llvm_unreachable("Invalid TemplateArgument Kind!");
 }
 
-void TemplateArgument::print(const PrintingPolicy &Policy,
-                             raw_ostream &Out) const {
+void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
+                             bool IncludeType) const {
+
   switch (getKind()) {
   case Null:
     Out << "(no value)";
@@ -358,23 +425,26 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
     NamedDecl *ND = getAsDecl();
     if (getParamTypeForDecl()->isRecordType()) {
       if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(ND)) {
-        // FIXME: Include the type if it's not obvious from the context.
-        TPO->printAsInit(Out);
+        TPO->getType().getUnqualifiedType().print(Out, Policy);
+        TPO->printAsInit(Out, Policy);
         break;
       }
     }
-    if (!getParamTypeForDecl()->isReferenceType())
-      Out << '&';
+    if (auto *VD = dyn_cast<ValueDecl>(ND)) {
+      if (needsAmpersandOnTemplateArg(getParamTypeForDecl(), VD->getType()))
+        Out << "&";
+    }
     ND->printQualifiedName(Out);
     break;
   }
 
   case NullPtr:
+    // FIXME: Include the type if it's not obvious from the context.
     Out << "nullptr";
     break;
 
   case Template:
-    getAsTemplate().print(Out, Policy);
+    getAsTemplate().print(Out, Policy, TemplateName::Qualified::Fully);
     break;
 
   case TemplateExpansion:
@@ -383,7 +453,7 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
     break;
 
   case Integral:
-    printIntegral(*this, Out, Policy);
+    printIntegral(*this, Out, Policy, IncludeType);
     break;
 
   case Expression:
@@ -399,7 +469,7 @@ void TemplateArgument::print(const PrintingPolicy &Policy,
       else
         Out << ", ";
 
-      P.print(Policy, Out);
+      P.print(Policy, Out, IncludeType);
     }
     Out << ">";
     break;
@@ -410,7 +480,7 @@ void TemplateArgument::dump(raw_ostream &Out) const {
   LangOptions LO; // FIXME! see also TemplateName::dump().
   LO.CPlusPlus = true;
   LO.Bool = true;
-  print(PrintingPolicy(LO), Out);
+  print(PrintingPolicy(LO), Out, /*IncludeType*/ true);
 }
 
 LLVM_DUMP_METHOD void TemplateArgument::dump() const { dump(llvm::errs()); }
@@ -477,7 +547,7 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
     return DB << "nullptr";
 
   case TemplateArgument::Integral:
-    return DB << Arg.getAsIntegral().toString(10);
+    return DB << toString(Arg.getAsIntegral(), 10);
 
   case TemplateArgument::Template:
     return DB << Arg.getAsTemplate();
@@ -505,7 +575,7 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
     LangOptions LangOpts;
     LangOpts.CPlusPlus = true;
     PrintingPolicy Policy(LangOpts);
-    Arg.print(Policy, OS);
+    Arg.print(Policy, OS, /*IncludeType*/ true);
     return DB << OS.str();
   }
   }
@@ -537,6 +607,17 @@ ASTTemplateArgumentListInfo::Create(const ASTContext &C,
   return new (Mem) ASTTemplateArgumentListInfo(List);
 }
 
+const ASTTemplateArgumentListInfo *
+ASTTemplateArgumentListInfo::Create(const ASTContext &C,
+                                    const ASTTemplateArgumentListInfo *List) {
+  if (!List)
+    return nullptr;
+  std::size_t size =
+      totalSizeToAlloc<TemplateArgumentLoc>(List->getNumTemplateArgs());
+  void *Mem = C.Allocate(size, alignof(ASTTemplateArgumentListInfo));
+  return new (Mem) ASTTemplateArgumentListInfo(List);
+}
+
 ASTTemplateArgumentListInfo::ASTTemplateArgumentListInfo(
     const TemplateArgumentListInfo &Info) {
   LAngleLoc = Info.getLAngleLoc();
@@ -546,6 +627,17 @@ ASTTemplateArgumentListInfo::ASTTemplateArgumentListInfo(
   TemplateArgumentLoc *ArgBuffer = getTrailingObjects<TemplateArgumentLoc>();
   for (unsigned i = 0; i != NumTemplateArgs; ++i)
     new (&ArgBuffer[i]) TemplateArgumentLoc(Info[i]);
+}
+
+ASTTemplateArgumentListInfo::ASTTemplateArgumentListInfo(
+    const ASTTemplateArgumentListInfo *Info) {
+  LAngleLoc = Info->getLAngleLoc();
+  RAngleLoc = Info->getRAngleLoc();
+  NumTemplateArgs = Info->getNumTemplateArgs();
+
+  TemplateArgumentLoc *ArgBuffer = getTrailingObjects<TemplateArgumentLoc>();
+  for (unsigned i = 0; i != NumTemplateArgs; ++i)
+    new (&ArgBuffer[i]) TemplateArgumentLoc((*Info)[i]);
 }
 
 void ASTTemplateKWAndArgsInfo::initializeFrom(

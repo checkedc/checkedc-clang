@@ -52,7 +52,7 @@ class EffectOpInterfaceBase<string name, string baseEffect>
         Collects all of the operation's effects into `effects`.
       }],
       "void", "getEffects",
-         (ins "SmallVectorImpl<::mlir::SideEffects::EffectInstance<"
+         (ins "::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<"
               # baseEffect # ">> &":$effects)
     >,
   ];
@@ -94,13 +94,6 @@ class EffectOpInterfaceBase<string name, string baseEffect>
       return effects.empty();
     }
 
-    /// Returns true if the given operation has no effects for this interface.
-    static bool hasNoEffect(Operation *op) {
-      if (auto interface = dyn_cast<}] # name # [{>(op))
-        return interface.hasNoEffect();
-      return op->hasTrait<::mlir::OpTrait::HasRecursiveSideEffects>();
-    }
-
     /// Collect all of the effect instances that operate on the provided value
     /// and place them in 'effects'.
     void getEffectsOnValue(::mlir::Value value,
@@ -108,6 +101,22 @@ class EffectOpInterfaceBase<string name, string baseEffect>
               }] # baseEffect # [{>> & effects) {
       getEffects(effects);
       llvm::erase_if(effects, [&](auto &it) { return it.getValue() != value; });
+    }
+
+    /// Return the effect of the given type `Effect` that is applied to the
+    /// given value, or std::nullopt if no effect exists.
+    template <typename Effect>
+    ::std::optional<::mlir::SideEffects::EffectInstance<}] # baseEffect # [{>>
+    getEffectOnValue(::mlir::Value value) {
+      llvm::SmallVector<::mlir::SideEffects::EffectInstance<
+              }] # baseEffect # [{>, 4> effects;
+      getEffects(effects);
+      auto it = llvm::find_if(effects, [&](auto &it) {
+        return isa<Effect>(it.getEffect()) && it.getValue() == value;
+      });
+      if (it == effects.end())
+        return std::nullopt;
+      return *it;
     }
 
     /// Collect all of the effect instances that operate on the provided symbol

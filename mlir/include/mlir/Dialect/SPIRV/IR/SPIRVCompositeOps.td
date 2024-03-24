@@ -19,7 +19,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // -----
 
-def SPV_CompositeConstructOp : SPV_Op<"CompositeConstruct", [NoSideEffect]> {
+def SPIRV_CompositeConstructOp : SPIRV_Op<"CompositeConstruct", [Pure]> {
   let summary = [{
     Construct a new composite object from a set of constituent objects.
   }];
@@ -46,30 +46,34 @@ def SPV_CompositeConstructOp : SPV_Op<"CompositeConstruct", [NoSideEffect]> {
     <!-- End of AutoGen section -->
 
     ```
-    composite-construct-op ::= ssa-id `=` `spv.CompositeConstruct`
+    composite-construct-op ::= ssa-id `=` `spirv.CompositeConstruct`
                                (ssa-use (`,` ssa-use)* )? `:` composite-type
     ```
 
     #### Example:
 
     ```mlir
-    %0 = spv.CompositeConstruct %1, %2, %3 : vector<3xf32>
+    %0 = spirv.CompositeConstruct %1, %2, %3 : vector<3xf32>
     ```
   }];
 
   let arguments = (ins
-    Variadic<SPV_Type>:$constituents
+    Variadic<SPIRV_Type>:$constituents
   );
 
   let results = (outs
-    SPV_Composite:$result
+    SPIRV_Composite:$result
   );
+
+  let assemblyFormat = [{
+    $constituents attr-dict `:` `(` type(operands) `)` `->` type($result)
+  }];
 }
 
 // -----
 
-def SPV_CompositeExtractOp : SPV_Op<"CompositeExtract",
-                                    [NoSideEffect, UsableInSpecConstantOp]> {
+def SPIRV_CompositeExtractOp : SPIRV_Op<"CompositeExtract",
+                                        [Pure, UsableInSpecConstantOp]> {
   let summary = "Extract a part of a composite object.";
 
   let description = [{
@@ -86,7 +90,7 @@ def SPV_CompositeExtractOp : SPV_Op<"CompositeExtract",
     <!-- End of AutoGen section -->
 
     ```
-    composite-extract-op ::= ssa-id `=` `spv.CompositeExtract` ssa-use
+    composite-extract-op ::= ssa-id `=` `spirv.CompositeExtract` ssa-use
                              `[` integer-literal (',' integer-literal)* `]`
                              `:` composite-type
     ```
@@ -94,24 +98,24 @@ def SPV_CompositeExtractOp : SPV_Op<"CompositeExtract",
     #### Example:
 
     ```mlir
-    %0 = spv.Variable : !spv.ptr<!spv.array<4x!spv.array<4xf32>>, Function>
-    %1 = spv.Load "Function" %0 ["Volatile"] : !spv.array<4x!spv.array<4xf32>>
-    %2 = spv.CompositeExtract %1[1 : i32] : !spv.array<4x!spv.array<4xf32>>
+    %0 = spirv.Variable : !spirv.ptr<!spirv.array<4x!spirv.array<4xf32>>, Function>
+    %1 = spirv.Load "Function" %0 ["Volatile"] : !spirv.array<4x!spirv.array<4xf32>>
+    %2 = spirv.CompositeExtract %1[1 : i32] : !spirv.array<4x!spirv.array<4xf32>>
     ```
 
   }];
 
   let arguments = (ins
-    SPV_Composite:$composite,
+    SPIRV_Composite:$composite,
     I32ArrayAttr:$indices
   );
 
   let results = (outs
-    SPV_Type:$component
+    SPIRV_Type:$component
   );
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$composite, "ArrayRef<int32_t>":$indices)>
+    OpBuilder<(ins "Value":$composite, "ArrayRef<int32_t>":$indices)>
   ];
 
   let hasFolder = 1;
@@ -119,8 +123,8 @@ def SPV_CompositeExtractOp : SPV_Op<"CompositeExtract",
 
 // -----
 
-def SPV_CompositeInsertOp : SPV_Op<"CompositeInsert",
-                                   [NoSideEffect, UsableInSpecConstantOp]> {
+def SPIRV_CompositeInsertOp : SPIRV_Op<"CompositeInsert",
+                                       [Pure, UsableInSpecConstantOp]> {
   let summary = [{
     Make a copy of a composite object, while modifying one part of it.
   }];
@@ -141,7 +145,7 @@ def SPV_CompositeInsertOp : SPV_Op<"CompositeInsert",
     <!-- End of AutoGen section -->
 
     ```
-    composite-insert-op ::= ssa-id `=` `spv.CompositeInsert` ssa-use, ssa-use
+    composite-insert-op ::= ssa-id `=` `spirv.CompositeInsert` ssa-use, ssa-use
                             `[` integer-literal (',' integer-literal)* `]`
                             `:` object-type `into` composite-type
     ```
@@ -149,33 +153,33 @@ def SPV_CompositeInsertOp : SPV_Op<"CompositeInsert",
     #### Example:
 
     ```mlir
-    %0 = spv.CompositeInsert %object, %composite[1 : i32] : f32 into !spv.array<4xf32>
+    %0 = spirv.CompositeInsert %object, %composite[1 : i32] : f32 into !spirv.array<4xf32>
     ```
   }];
 
   let arguments = (ins
-    SPV_Type:$object,
-    SPV_Composite:$composite,
+    SPIRV_Type:$object,
+    SPIRV_Composite:$composite,
     I32ArrayAttr:$indices
   );
 
   let results = (outs
-    SPV_Composite:$result
+    SPIRV_Composite:$result
   );
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$object, "Value":$composite,
-      "ArrayRef<int32_t>":$indices)>
+    OpBuilder<(ins "Value":$object, "Value":$composite,
+                      "ArrayRef<int32_t>":$indices)>
   ];
 }
 
 // -----
 
-def SPV_VectorExtractDynamicOp : SPV_Op<"VectorExtractDynamic",
-            [NoSideEffect,
-            TypesMatchWith<"type of 'result' matches element type of 'vector'",
-                     "vector", "result",
-                     "$_self.cast<mlir::VectorType>().getElementType()">]> {
+def SPIRV_VectorExtractDynamicOp : SPIRV_Op<"VectorExtractDynamic", [
+    Pure,
+    TypesMatchWith<"type of 'result' matches element type of 'vector'",
+                   "vector", "result",
+                   "$_self.cast<mlir::VectorType>().getElementType()">]> {
   let summary = [{
     Extract a single, dynamically selected, component of a vector.
   }];
@@ -194,44 +198,38 @@ def SPV_VectorExtractDynamicOp : SPV_Op<"VectorExtractDynamic",
 
     <!-- End of AutoGen section -->
 
-    ```
-	scalar-type ::= integer-type | float-type | boolean-type 
-    vector-extract-dynamic-op ::= `spv.VectorExtractDynamic ` ssa-use `[` ssa-use `]`
-                                    `:` `vector<` integer-literal `x` scalar-type `>` `,`
-                                    integer-type
-    ```mlir
-
     #### Example:
 
     ```
-    %2 = spv.VectorExtractDynamic %0[%1] : vector<8xf32>, i32
+    %2 = spirv.VectorExtractDynamic %0[%1] : vector<8xf32>, i32
     ```
   }];
 
   let arguments = (ins
-    SPV_Vector:$vector,
-    SPV_Integer:$index
+    SPIRV_Vector:$vector,
+    SPIRV_Integer:$index
   );
 
   let results = (outs
-    SPV_Scalar:$result
+    SPIRV_Scalar:$result
   );
 
-  let verifier = [{ return success(); }];
-  
+  let hasVerifier = 0;
+
   let assemblyFormat = [{
-    $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index) 
+    $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index)
   }];
 }
 
 // -----
 
-def SPV_VectorInsertDynamicOp : SPV_Op<"VectorInsertDynamic",
-        [NoSideEffect,
-        TypesMatchWith<"type of 'component' matches element type of 'vector'",
-                "vector", "component",
-                "$_self.cast<mlir::VectorType>().getElementType()">,
-                AllTypesMatch<["vector", "result"]>]> {
+def SPIRV_VectorInsertDynamicOp : SPIRV_Op<"VectorInsertDynamic", [
+    Pure,
+    TypesMatchWith<
+      "type of 'component' matches element type of 'vector'",
+      "vector", "component",
+      "$_self.cast<mlir::VectorType>().getElementType()">,
+    AllTypesMatch<["vector", "result"]>]> {
   let summary = [{
     Make a copy of a vector, with a single, variably selected, component
     modified.
@@ -255,35 +253,95 @@ def SPV_VectorInsertDynamicOp : SPV_Op<"VectorInsertDynamic",
     <!-- End of AutoGen section -->
 
     ```
-    scalar-type ::= integer-type | float-type | boolean-type 
-    vector-insert-dynamic-op ::= `spv.VectorInsertDynamic ` ssa-use `,`
+    scalar-type ::= integer-type | float-type | boolean-type
+    vector-insert-dynamic-op ::= `spirv.VectorInsertDynamic ` ssa-use `,`
                                   ssa-use `[` ssa-use `]`
                                   `:` `vector<` integer-literal `x` scalar-type `>` `,`
                                   integer-type
-    ```mlir
+    ```
 
     #### Example:
 
-    ```
+    ```mlir
     %scalar = ... : f32
-    %2 = spv.VectorInsertDynamic %scalar %0[%1] : f32, vector<8xf32>, i32
+    %2 = spirv.VectorInsertDynamic %scalar %0[%1] : f32, vector<8xf32>, i32
     ```
   }];
 
   let arguments = (ins
-    SPV_Vector:$vector,
-    SPV_Scalar:$component,
-    SPV_Integer:$index
+    SPIRV_Vector:$vector,
+    SPIRV_Scalar:$component,
+    SPIRV_Integer:$index
   );
 
   let results = (outs
-    SPV_Vector:$result
+    SPIRV_Vector:$result
   );
 
-  let verifier = [{ return success(); }];
-  
+  let hasVerifier = 0;
+
   let assemblyFormat = [{
-    $component `,` $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index) 
+    $component `,` $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index)
+  }];
+}
+
+// -----
+
+def SPIRV_VectorShuffleOp : SPIRV_Op<"VectorShuffle", [
+    Pure, AllElementTypesMatch<["vector1", "vector2", "result"]>]> {
+  let summary = [{
+    Select arbitrary components from two vectors to make a new vector.
+  }];
+
+  let description = [{
+    Result Type must be an OpTypeVector. The number of components in Result
+    Type must be the same as the number of Component operands.
+
+    Vector 1 and Vector 2 must both have vector types, with the same
+    Component Type as Result Type. They do not have to have the same number
+    of components as Result Type or with each other. They are logically
+    concatenated, forming a single vector with Vector 1’s components
+    appearing before Vector 2’s. The components of this logical vector are
+    logically numbered with a single consecutive set of numbers from 0 to N
+    - 1, where N is the total number of components.
+
+    Components are these logical numbers (see above), selecting which of the
+    logically numbered components form the result. Each component is an
+    unsigned 32-bit integer.  They can select the components in any order
+    and can repeat components. The first component of the result is selected
+    by the first Component operand,  the second component of the result is
+    selected by the second Component operand, etc. A Component literal may
+    also be FFFFFFFF, which means the corresponding result component has no
+    source and is undefined. All Component literals must either be FFFFFFFF
+    or in [0, N - 1] (inclusive).
+
+    Note: A vector “swizzle” can be done by using the vector for both Vector
+    operands, or using an OpUndef for one of the Vector operands.
+
+    <!-- End of AutoGen section -->
+
+    #### Example:
+
+    ```mlir
+    %0 = spirv.VectorShuffle [1: i32, 3: i32, 5: i32]
+                           %vector1: vector<4xf32>, %vector2: vector<2xf32>
+                        -> vector<3xf32>
+    ```
+  }];
+
+  let arguments = (ins
+    SPIRV_Vector:$vector1,
+    SPIRV_Vector:$vector2,
+    I32ArrayAttr:$components
+  );
+
+  let results = (outs
+    SPIRV_Vector:$result
+  );
+
+  let assemblyFormat = [{
+    attr-dict $components $vector1 `:` type($vector1) `,`
+                          $vector2 `:` type($vector2) `->` type($result)
   }];
 }
 

@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class TestCStepping(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -115,14 +113,14 @@ class TestCStepping(TestBase):
         frame.EvaluateExpression("(int) printf (print_string)")
 
         frame = thread.GetFrameAtIndex(0)
-        self.assertTrue(
-            current_line == frame.GetLineEntry().GetLine(),
+        self.assertEqual(
+            current_line, frame.GetLineEntry().GetLine(),
             "The line stayed the same after expression.")
-        self.assertTrue(
-            current_file == frame.GetLineEntry().GetFileSpec(),
+        self.assertEqual(
+            current_file, frame.GetLineEntry().GetFileSpec(),
             "The file stayed the same after expression.")
-        self.assertTrue(
-            thread.GetStopReason() == lldb.eStopReasonBreakpoint,
+        self.assertEqual(
+            thread.GetStopReason(), lldb.eStopReasonBreakpoint,
             "We still say we stopped for a breakpoint.")
         self.assertTrue(thread.GetStopReasonDataAtIndex(0) == current_bp[
                         0] and thread.GetStopReasonDataAtIndex(1) == current_bp[1], "And it is the same breakpoint.")
@@ -132,8 +130,8 @@ class TestCStepping(TestBase):
         stop_id_after_expression = process.GetStopID()
         stop_id_after_including_expressions = process.GetStopID(True)
 
-        self.assertTrue(
-            stop_id_before_expression == stop_id_after_expression,
+        self.assertEqual(
+            stop_id_before_expression, stop_id_after_expression,
             "Expression calling doesn't change stop ID")
 
         self.assertTrue(
@@ -146,14 +144,14 @@ class TestCStepping(TestBase):
         frame.EvaluateExpression("((char *) 0)[0] = 'a'")
 
         frame = thread.GetFrameAtIndex(0)
-        self.assertTrue(
-            current_line == frame.GetLineEntry().GetLine(),
+        self.assertEqual(
+            current_line, frame.GetLineEntry().GetLine(),
             "The line stayed the same after expression.")
-        self.assertTrue(
-            current_file == frame.GetLineEntry().GetFileSpec(),
+        self.assertEqual(
+            current_file, frame.GetLineEntry().GetFileSpec(),
             "The file stayed the same after expression.")
-        self.assertTrue(
-            thread.GetStopReason() == lldb.eStopReasonBreakpoint,
+        self.assertEqual(
+            thread.GetStopReason(), lldb.eStopReasonBreakpoint,
             "We still say we stopped for a breakpoint.")
         self.assertTrue(thread.GetStopReasonDataAtIndex(0) == current_bp[
                         0] and thread.GetStopReasonDataAtIndex(1) == current_bp[1], "And it is the same breakpoint.")
@@ -166,14 +164,14 @@ class TestCStepping(TestBase):
 
         process.Continue()
 
-        self.assertTrue(thread.GetFrameAtIndex(0).GetFunctionName() == "a")
-        self.assertTrue(thread.GetStopReason() == lldb.eStopReasonPlanComplete)
+        self.assertEqual(thread.GetFrameAtIndex(0).GetFunctionName(), "a")
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonPlanComplete)
 
         # And one more time should get us back to main:
         process.Continue()
 
-        self.assertTrue(thread.GetFrameAtIndex(0).GetFunctionName() == "main")
-        self.assertTrue(thread.GetStopReason() == lldb.eStopReasonPlanComplete)
+        self.assertEqual(thread.GetFrameAtIndex(0).GetFunctionName(), "main")
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonPlanComplete)
 
         # Now make sure we can call a function, break in the called function,
         # then have "continue" get us back out again:
@@ -202,8 +200,8 @@ class TestCStepping(TestBase):
 
         # See that we are still in b:
         func_name = thread.GetFrameAtIndex(0).GetFunctionName()
-        self.assertTrue(
-            func_name == "b",
+        self.assertEqual(
+            func_name, "b",
             "Should be in 'b', were in %s" %
             (func_name))
 
@@ -211,10 +209,10 @@ class TestCStepping(TestBase):
         # should end up back in "a" as if nothing had happened:
         process.Continue()
 
-        self.assertTrue(thread.GetFrameAtIndex(
-            0).GetLineEntry().GetLine() == current_line)
-        self.assertTrue(thread.GetFrameAtIndex(
-            0).GetLineEntry().GetFileSpec() == current_file)
+        self.assertEqual(
+            thread.GetFrameAtIndex(0).GetLineEntry().GetLine(), current_line)
+        self.assertEqual(
+            thread.GetFrameAtIndex(0).GetLineEntry().GetFileSpec(), current_file)
 
         # Now we are going to test step in targeting a function:
 
@@ -238,30 +236,29 @@ class TestCStepping(TestBase):
 
         threads = lldbutil.continue_to_breakpoint(
             process, break_before_complex_1)
-        self.assertTrue(len(threads) == 1)
+        self.assertEqual(len(threads), 1)
         thread = threads[0]
         break_before_complex_1.SetEnabled(False)
 
         thread.StepInto("b")
-        self.assertTrue(thread.GetFrameAtIndex(0).GetFunctionName() == "b")
+        self.assertEqual(thread.GetFrameAtIndex(0).GetFunctionName(), "b")
 
         # Now continue out and stop at the next call to complex.  This time
         # step all the way into complex:
         threads = lldbutil.continue_to_breakpoint(
             process, break_before_complex_2)
-        self.assertTrue(len(threads) == 1)
+        self.assertEqual(len(threads), 1)
         thread = threads[0]
         break_before_complex_2.SetEnabled(False)
 
         thread.StepInto("complex")
-        self.assertTrue(thread.GetFrameAtIndex(
-            0).GetFunctionName() == "complex")
+        self.assertEqual(thread.GetFrameAtIndex(0).GetFunctionName(), "complex")
 
         # Now continue out and stop at the next call to complex.  This time
         # enable breakpoints in a and c and then step targeting b:
         threads = lldbutil.continue_to_breakpoint(
             process, break_before_complex_3)
-        self.assertTrue(len(threads) == 1)
+        self.assertEqual(len(threads), 1)
         thread = threads[0]
         break_before_complex_3.SetEnabled(False)
 
@@ -272,7 +269,7 @@ class TestCStepping(TestBase):
         threads = lldbutil.get_stopped_threads(
             process, lldb.eStopReasonBreakpoint)
 
-        self.assertTrue(len(threads) == 1)
+        self.assertEqual(len(threads), 1)
         thread = threads[0]
         stop_break_id = thread.GetStopReasonDataAtIndex(0)
         self.assertTrue(stop_break_id == break_at_start_of_a.GetID()
@@ -282,15 +279,15 @@ class TestCStepping(TestBase):
         break_at_start_of_c.SetEnabled(False)
 
         process.Continue()
-        self.assertTrue(thread.GetFrameAtIndex(0).GetFunctionName() == "b")
+        self.assertEqual(thread.GetFrameAtIndex(0).GetFunctionName(), "b")
 
         # Now continue out and stop at the next call to complex.  This time
         # enable breakpoints in a and c and then step targeting b:
         threads = lldbutil.continue_to_breakpoint(
             process, break_before_complex_4)
-        self.assertTrue(len(threads) == 1)
+        self.assertEqual(len(threads), 1)
         thread = threads[0]
         break_before_complex_4.SetEnabled(False)
 
         thread.StepInto("NoSuchFunction")
-        self.assertTrue(thread.GetFrameAtIndex(0).GetFunctionName() == "main")
+        self.assertEqual(thread.GetFrameAtIndex(0).GetFunctionName(), "main")

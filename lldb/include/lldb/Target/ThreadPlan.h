@@ -81,7 +81,7 @@ namespace lldb_private {
 //
 //  Cleaning up after your plans:
 //
-//  When the plan is moved from the plan stack its WillPop method is always
+//  When the plan is moved from the plan stack its DidPop method is always
 //  called, no matter why.  Once it is moved off the plan stack it is done, and
 //  won't get a chance to run again.  So you should undo anything that affects
 //  target state in this method.  But be sure to leave the plan able to
@@ -144,39 +144,42 @@ namespace lldb_private {
 //  implement DoPlanExplainsStop, the result is cached in PlanExplainsStop so
 //  the DoPlanExplainsStop itself will only get called once per stop.
 //
-//  Master plans:
+//  Controlling plans:
 //
 //  In the normal case, when we decide to stop, we will  collapse the plan
 //  stack up to the point of the plan that understood the stop reason.
 //  However, if a plan wishes to stay on the stack after an event it didn't
-//  directly handle it can designate itself a "Master" plan by responding true
-//  to IsMasterPlan, and then if it wants not to be discarded, it can return
-//  false to OkayToDiscard, and it and all its dependent plans will be
+//  directly handle it can designate itself a "Controlling" plan by responding
+//  true to IsControllingPlan, and then if it wants not to be discarded, it can
+//  return false to OkayToDiscard, and it and all its dependent plans will be
 //  preserved when we resume execution.
 //
-//  The other effect of being a master plan is that when the Master plan is
+//  The other effect of being a controlling plan is that when the Controlling
+//  plan is
 //  done , if it has set "OkayToDiscard" to false, then it will be popped &
 //  execution will stop and return to the user.  Remember that if OkayToDiscard
 //  is false, the plan will be popped and control will be given to the next
 //  plan above it on the stack  So setting OkayToDiscard to false means the
-//  user will regain control when the MasterPlan is completed.
+//  user will regain control when the ControllingPlan is completed.
 //
 //  Between these two controls this allows things like: a
-//  MasterPlan/DontDiscard Step Over to hit a breakpoint, stop and return
+//  ControllingPlan/DontDiscard Step Over to hit a breakpoint, stop and return
 //  control to the user, but then when the user continues, the step out
 //  succeeds.  Even more tricky, when the breakpoint is hit, the user can
 //  continue to step in/step over/etc, and finally when they continue, they
 //  will finish up the Step Over.
 //
-//  FIXME: MasterPlan & OkayToDiscard aren't really orthogonal.  MasterPlan
+//  FIXME: ControllingPlan & OkayToDiscard aren't really orthogonal.
+//  ControllingPlan
 //  designation means that this plan controls it's fate and the fate of plans
-//  below it.  OkayToDiscard tells whether the MasterPlan wants to stay on the
-//  stack.  I originally thought "MasterPlan-ness" would need to be a fixed
+//  below it.  OkayToDiscard tells whether the ControllingPlan wants to stay on
+//  the stack.  I originally thought "ControllingPlan-ness" would need to be a
+//  fixed
 //  characteristic of a ThreadPlan, in which case you needed the extra control.
 //  But that doesn't seem to be true.  So we should be able to convert to only
-//  MasterPlan status to mean the current "MasterPlan/DontDiscard".  Then no
-//  plans would be MasterPlans by default, and you would set the ones you
-//  wanted to be "user level" in this way.
+//  ControllingPlan status to mean the current "ControllingPlan/DontDiscard".
+//  Then no plans would be ControllingPlans by default, and you would set the
+//  ones you wanted to be "user level" in this way.
 //
 //
 //  Actually Stopping:
@@ -224,9 +227,11 @@ namespace lldb_private {
 //
 //  Cleaning up the plan stack:
 //
-//  One of the complications of MasterPlans is that you may get past the limits
+//  One of the complications of ControllingPlans is that you may get past the
+//  limits
 //  of a plan without triggering it to clean itself up.  For instance, if you
-//  are doing a MasterPlan StepOver, and hit a breakpoint in a called function,
+//  are doing a ControllingPlan StepOver, and hit a breakpoint in a called
+//  function,
 //  then step over enough times to step out of the initial StepOver range, each
 //  of the step overs will explain the stop & take themselves off the stack,
 //  but control would never be returned to the original StepOver.  Eventually,
@@ -260,8 +265,8 @@ namespace lldb_private {
 //  One other little detail here, sometimes a plan will push another plan onto
 //  the plan stack to do some part of the first plan's job, and it would be
 //  convenient to tell that plan how it should respond to ShouldReportStop.
-//  You can do that by setting the stop_vote in the child plan when you create
-//  it.
+//  You can do that by setting the report_stop_vote in the child plan when you
+//  create it.
 //
 //  Suppressing the initial eStateRunning event:
 //
@@ -275,14 +280,13 @@ namespace lldb_private {
 //  eVoteNo from ShouldReportStop, to force a running event to be reported
 //  return eVoteYes, in general though you should return eVoteNoOpinion which
 //  will allow the ThreadList to figure out the right thing to do.  The
-//  run_vote argument to the constructor works like stop_vote, and is a way for
-//  a plan to instruct a sub-plan on how to respond to ShouldReportStop.
+//  report_run_vote argument to the constructor works like report_stop_vote, and
+//  is a way for a plan to instruct a sub-plan on how to respond to
+//  ShouldReportStop.
 
 class ThreadPlan : public std::enable_shared_from_this<ThreadPlan>,
                    public UserID {
 public:
-  enum ThreadScope { eAllThreads, eSomeThreads, eThisThread };
-
   // We use these enums so that we can cast a base thread plan to it's real
   // type without having to resort to dynamic casting.
   enum ThreadPlanKind {
@@ -298,14 +302,8 @@ public:
     eKindStepInRange,
     eKindRunToAddress,
     eKindStepThrough,
-    eKindStepUntil,
-    eKindTestCondition
-
+    eKindStepUntil
   };
-
-  // Constructors and Destructors
-  ThreadPlan(ThreadPlanKind kind, const char *name, Thread &thread,
-             Vote stop_vote, Vote run_vote);
 
   virtual ~ThreadPlan();
 
@@ -368,6 +366,12 @@ public:
 
   virtual bool ShouldStop(Event *event_ptr) = 0;
 
+  /// Returns whether this thread plan overrides the `ShouldStop` of
+  /// subsequently processed plans.
+  ///
+  /// When processing the thread plan stack, this function gives plans the
+  /// ability to continue - even when subsequent plans return true from
+  /// `ShouldStop`. \see Thread::ShouldStop
   virtual bool ShouldAutoContinue(Event *event_ptr) { return false; }
 
   // Whether a "stop class" event should be reported to the "outside world".
@@ -375,11 +379,13 @@ public:
 
   virtual Vote ShouldReportStop(Event *event_ptr);
 
-  virtual Vote ShouldReportRun(Event *event_ptr);
+  Vote ShouldReportRun(Event *event_ptr);
 
   virtual void SetStopOthers(bool new_value);
 
   virtual bool StopOthers();
+  
+  virtual bool ShouldRunBeforePublicStop() { return false; }
 
   // This is the wrapper for DoWillResume that does generic ThreadPlan logic,
   // then calls DoWillResume.
@@ -387,11 +393,11 @@ public:
 
   virtual bool WillStop() = 0;
 
-  bool IsMasterPlan() { return m_is_master_plan; }
+  bool IsControllingPlan() { return m_is_controlling_plan; }
 
-  bool SetIsMasterPlan(bool value) {
-    bool old_value = m_is_master_plan;
-    m_is_master_plan = value;
+  bool SetIsControllingPlan(bool value) {
+    bool old_value = m_is_controlling_plan;
+    m_is_controlling_plan = value;
     return old_value;
   }
 
@@ -414,16 +420,7 @@ public:
 
   virtual void DidPush();
 
-  virtual void WillPop();
-
-  // This pushes a plan onto the plan stack of the current plan's thread.
-  // Also sets the plans to private and not master plans.  A plan pushed by 
-  // another thread plan is never either of the above.
-  void PushPlan(lldb::ThreadPlanSP &thread_plan_sp) {
-    GetThread().PushPlan(thread_plan_sp);
-    thread_plan_sp->SetPrivate(false);
-    thread_plan_sp->SetIsMasterPlan(false);
-  }
+  virtual void DidPop();
 
   ThreadPlanKind GetKind() const { return m_kind; }
 
@@ -446,15 +443,6 @@ public:
   void DoTraceLog() {
     if (m_tracer_sp && m_tracer_sp->TracingEnabled())
       m_tracer_sp->Log();
-  }
-
-  // Some thread plans hide away the actual stop info which caused any
-  // particular stop.  For instance the ThreadPlanCallFunction restores the
-  // original stop reason so that stopping and calling a few functions won't
-  // lose the history of the run. This call can be implemented to get you back
-  // to the real stop info.
-  virtual lldb::StopInfoSP GetRealStopInfo() { 
-    return GetThread().GetStopInfo();
   }
 
   // If the completion of the thread plan stepped out of a function, the return
@@ -481,14 +469,11 @@ public:
   // to restore the state when it is done.  This will do that job. This is
   // mostly useful for artificial plans like CallFunction plans.
 
-  virtual bool RestoreThreadState() {
-    // Nothing to do in general.
-    return true;
-  }
+  virtual void RestoreThreadState() {}
 
   virtual bool IsVirtualStep() { return false; }
 
-  virtual bool SetIterationCount(size_t count) {
+  bool SetIterationCount(size_t count) {
     if (m_takes_iteration_count) {
       // Don't tell me to do something 0 times...
       if (count == 0)
@@ -498,14 +483,11 @@ public:
     return m_takes_iteration_count;
   }
 
-  virtual size_t GetIterationCount() {
-    if (!m_takes_iteration_count)
-      return 0;
-    else
-      return m_iteration_count;
-  }
-
 protected:
+  // Constructors and Destructors
+  ThreadPlan(ThreadPlanKind kind, const char *name, Thread &thread,
+             Vote report_stop_vote, Vote report_run_vote);
+
   // Classes that inherit from ThreadPlan can see and modify these
 
   virtual bool DoWillResume(lldb::StateType resume_state, bool current_plan) {
@@ -513,6 +495,15 @@ protected:
   }
 
   virtual bool DoPlanExplainsStop(Event *event_ptr) = 0;
+
+  // This pushes a plan onto the plan stack of the current plan's thread.
+  // Also sets the plans to private and not controlling plans.  A plan pushed by
+  // another thread plan is never either of the above.
+  void PushPlan(lldb::ThreadPlanSP &thread_plan_sp) {
+    GetThread().PushPlan(thread_plan_sp);
+    thread_plan_sp->SetPrivate(true);
+    thread_plan_sp->SetIsControllingPlan(false);
+  }
 
   // This gets the previous plan to the current plan (for forwarding requests).
   // This is mostly a formal requirement, it allows us to make the Thread's
@@ -531,14 +522,6 @@ protected:
     GetThread().SetStopInfo(stop_reason_sp);
   }
 
-  void CachePlanExplainsStop(bool does_explain) {
-    m_cached_plan_explains_stop = does_explain ? eLazyBoolYes : eLazyBoolNo;
-  }
-
-  LazyBool GetCachedPlanExplainsStop() const {
-    return m_cached_plan_explains_stop;
-  }
-
   virtual lldb::StateType GetPlanRunState() = 0;
 
   bool IsUsuallyUnexplainedStopReason(lldb::StopReason);
@@ -546,13 +529,17 @@ protected:
   Status m_status;
   Process &m_process;
   lldb::tid_t m_tid;
-  Vote m_stop_vote;
-  Vote m_run_vote;
+  Vote m_report_stop_vote;
+  Vote m_report_run_vote;
   bool m_takes_iteration_count;
   bool m_could_not_resolve_hw_bp;
   int32_t m_iteration_count = 1;
 
 private:
+  void CachePlanExplainsStop(bool does_explain) {
+    m_cached_plan_explains_stop = does_explain ? eLazyBoolYes : eLazyBoolNo;
+  }
+
   // For ThreadPlan only
   static lldb::user_id_t GetNextID();
 
@@ -566,7 +553,7 @@ private:
   bool m_plan_complete;
   bool m_plan_private;
   bool m_okay_to_discard;
-  bool m_is_master_plan;
+  bool m_is_controlling_plan;
   bool m_plan_succeeded;
 
   lldb::ThreadPlanTracerSP m_tracer_sp;

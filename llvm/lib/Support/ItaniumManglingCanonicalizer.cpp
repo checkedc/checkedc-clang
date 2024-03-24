@@ -27,8 +27,7 @@ struct FoldingSetNodeIDBuilder {
     ID.AddString(llvm::StringRef(Str.begin(), Str.size()));
   }
   template <typename T>
-  std::enable_if_t<std::is_integral<T>::value || std::is_enum<T>::value>
-  operator()(T V) {
+  std::enable_if_t<std::is_integral_v<T> || std::is_enum_v<T>> operator()(T V) {
     ID.AddInteger((unsigned long long)V);
   }
   void operator()(itanium_demangle::NodeArray A) {
@@ -189,25 +188,11 @@ public:
   bool trackedNodeIsUsed() const { return TrackedNodeIsUsed; }
 };
 
-/// Convert St3foo to NSt3fooE so that equivalences naming one also affect the
-/// other.
-template<>
-struct CanonicalizerAllocator::MakeNodeImpl<
-           itanium_demangle::StdQualifiedName> {
-  CanonicalizerAllocator &Self;
-  Node *make(Node *Child) {
-    Node *StdNamespace = Self.makeNode<itanium_demangle::NameType>("std");
-    if (!StdNamespace)
-      return nullptr;
-    return Self.makeNode<itanium_demangle::NestedName>(StdNamespace, Child);
-  }
-};
-
 // FIXME: Also expand built-in substitutions?
 
 using CanonicalizingDemangler =
     itanium_demangle::ManglingParser<CanonicalizerAllocator>;
-}
+} // namespace
 
 struct ItaniumManglingCanonicalizer::Impl {
   CanonicalizingDemangler Demangler = {nullptr, nullptr};

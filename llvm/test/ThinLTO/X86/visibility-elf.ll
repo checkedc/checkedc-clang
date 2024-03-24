@@ -22,16 +22,16 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-; CHECK:      @var1 = external global i32, align 4
+; CHECK:      @var1 = external hidden global i32, align 4
 ; CHECK-NEXT: @var2 = available_externally hidden global i32 1, align 4
 
 @var1 = weak global i32 1, align 4
 @var2 = extern_weak global i32
 
-declare void @ext(void ()*)
+declare void @ext(ptr)
 
-; CHECK: declare i32 @hidden_def_weak_def()
-; CHECK: declare void @protected_def_weak_def()
+; CHECK: declare hidden i32 @hidden_def_weak_def()
+; CHECK: declare protected void @protected_def_weak_def()
 ; CHECK: declare hidden void @protected_def_weak_hidden_def()
 ;; Currently the visibility is not propagated onto an unimported function,
 ;; because we don't have summaries for declarations.
@@ -45,7 +45,7 @@ declare void @ext(void ()*)
 
 ; CHECK2: define hidden i32 @hidden_def_weak_def()
 ; CHECK2: define protected void @protected_def_weak_def()
-; CHECK2: define protected void @protected_def_weak_hidden_def()
+; CHECK2: define hidden void @protected_def_weak_hidden_def()
 ; CHECK2: define hidden void @hidden_def_ref()
 ; CHECK2: define hidden void @hidden_def_weak_ref()
 ; CHECK2: define protected void @protected_def_hidden_ref()
@@ -53,7 +53,7 @@ declare void @ext(void ()*)
 
 define weak i32 @hidden_def_weak_def() {
 entry:
-  %0 = load i32, i32* @var2
+  %0 = load i32, ptr @var2
   ret i32 %0
 }
 
@@ -75,13 +75,13 @@ declare hidden void @protected_def_hidden_ref()
 
 define i32 @main() {
 entry:
-  call void @ext(void ()* bitcast (i32 ()* @hidden_def_weak_def to void ()*))
-  call void @ext(void ()* @protected_def_weak_def)
-  call void @ext(void ()* @protected_def_weak_hidden_def)
-  call void @ext(void ()* @hidden_def_ref)
-  call void @ext(void ()* @hidden_def_weak_ref)
-  call void @ext(void ()* @protected_def_hidden_ref)
-  call void @ext(void ()* @not_imported)
+  call void @ext(ptr @hidden_def_weak_def)
+  call void @ext(ptr @protected_def_weak_def)
+  call void @ext(ptr @protected_def_weak_hidden_def)
+  call void @ext(ptr @hidden_def_ref)
+  call void @ext(ptr @hidden_def_weak_ref)
+  call void @ext(ptr @protected_def_hidden_ref)
+  call void @ext(ptr @not_imported)
 
   ;; Calls ensure the functions are imported.
   call i32 @hidden_def_weak_def()
@@ -102,7 +102,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define hidden i32 @hidden_def_weak_def() {
 entry:
-  %0 = load i32, i32* @var1
+  %0 = load i32, ptr @var1
   ret i32 %0
 }
 

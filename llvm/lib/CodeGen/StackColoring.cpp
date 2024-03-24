@@ -36,14 +36,12 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/Passes.h"
-#include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/WinEHFuncInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Use.h"
@@ -678,9 +676,8 @@ unsigned StackColoring::collectMarkers(unsigned NumSlot) {
     // to this bb).
     BitVector BetweenStartEnd;
     BetweenStartEnd.resize(NumSlot);
-    for (MachineBasicBlock::const_pred_iterator PI = MBB->pred_begin(),
-             PE = MBB->pred_end(); PI != PE; ++PI) {
-      BlockBitVecMap::const_iterator I = SeenStartMap.find(*PI);
+    for (const MachineBasicBlock *Pred : MBB->predecessors()) {
+      BlockBitVecMap::const_iterator I = SeenStartMap.find(Pred);
       if (I != SeenStartMap.end()) {
         BetweenStartEnd |= I->second;
       }
@@ -688,6 +685,8 @@ unsigned StackColoring::collectMarkers(unsigned NumSlot) {
 
     // Walk the instructions in the block to look for start/end ops.
     for (MachineInstr &MI : *MBB) {
+      if (MI.isDebugInstr())
+        continue;
       if (MI.getOpcode() == TargetOpcode::LIFETIME_START ||
           MI.getOpcode() == TargetOpcode::LIFETIME_END) {
         int Slot = getStartOrEndSlot(MI);
@@ -819,9 +818,8 @@ void StackColoring::calculateLocalLiveness() {
 
       // Compute LiveIn by unioning together the LiveOut sets of all preds.
       BitVector LocalLiveIn;
-      for (MachineBasicBlock::const_pred_iterator PI = BB->pred_begin(),
-           PE = BB->pred_end(); PI != PE; ++PI) {
-        LivenessMap::const_iterator I = BlockLiveness.find(*PI);
+      for (MachineBasicBlock *Pred : BB->predecessors()) {
+        LivenessMap::const_iterator I = BlockLiveness.find(Pred);
         // PR37130: transformations prior to stack coloring can
         // sometimes leave behind statically unreachable blocks; these
         // can be safely skipped here.
@@ -1145,6 +1143,9 @@ void StackColoring::remapInstructions(DenseMap<int, int> &SlotRemap) {
   LLVM_DEBUG(dbgs() << "Fixed " << FixedMemOp << " machine memory operands.\n");
   LLVM_DEBUG(dbgs() << "Fixed " << FixedDbg << " debug locations.\n");
   LLVM_DEBUG(dbgs() << "Fixed " << FixedInstr << " machine instructions.\n");
+  (void) FixedMemOp;
+  (void) FixedDbg;
+  (void) FixedInstr;
 }
 
 void StackColoring::removeInvalidSlotRanges() {
@@ -1319,6 +1320,11 @@ bool StackColoring::runOnMachineFunction(MachineFunction &Func) {
 
         int FirstSlot = SortedSlots[I];
         int SecondSlot = SortedSlots[J];
+
+        // Objects with different stack IDs cannot be merged.
+        if (MFI->getStackID(FirstSlot) != MFI->getStackID(SecondSlot))
+          continue;
+
         LiveInterval *First = &*Intervals[FirstSlot];
         LiveInterval *Second = &*Intervals[SecondSlot];
         auto &FirstS = LiveStarts[FirstSlot];

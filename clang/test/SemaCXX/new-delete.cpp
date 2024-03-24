@@ -1,7 +1,10 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s -triple=i686-pc-linux-gnu -Wno-new-returns-null
 // RUN: %clang_cc1 -fsyntax-only -verify %s -triple=i686-pc-linux-gnu -Wno-new-returns-null -std=c++98
 // RUN: %clang_cc1 -fsyntax-only -verify %s -triple=i686-pc-linux-gnu -Wno-new-returns-null -std=c++11
 // RUN: %clang_cc1 -fsyntax-only -verify %s -triple=i686-pc-linux-gnu -Wno-new-returns-null -std=c++14
+// RUN: %clang_cc1 -fsyntax-only -verify=expected,cxx17 %s -triple=i686-pc-linux-gnu -Wno-new-returns-null %std_cxx17-
+
+// FIXME Location is (frontend)
+// cxx17-note@*:* {{candidate function not viable: requires 2 arguments, but 3 were provided}}
 
 #include <stddef.h>
 
@@ -32,10 +35,10 @@ inline void *operator new(size_t) { // no warning, due to __attribute__((used))
 }
 
 // PR5823
-void* operator new(const size_t); // expected-note 2 {{candidate}}
-void* operator new(size_t, int*); // expected-note 3 {{candidate}}
-void* operator new(size_t, float*); // expected-note 3 {{candidate}}
-void* operator new(size_t, S); // expected-note 2 {{candidate}}
+void* operator new(const size_t); // expected-note {{candidate}}
+void* operator new(size_t, int*); // expected-note 2{{candidate}}
+void* operator new(size_t, float*); // expected-note 2{{candidate}}
+void* operator new(size_t, S); // expected-note {{candidate}}
 
 struct foo { };
 
@@ -130,7 +133,7 @@ void bad_news(int *ip)
   (void)new (0, 0) int; // expected-error {{no matching function for call to 'operator new'}}
   (void)new (0L) int; // expected-error {{call to 'operator new' is ambiguous}}
   // This must fail, because the member version shouldn't be found.
-  (void)::new ((S*)0) U; // expected-error {{no matching function for call to 'operator new'}}
+  (void)::new ((S*)0) U; // expected-error {{no matching 'operator new' function for non-allocating placement new expression; include <new>}}
   // This must fail, because any member version hides all global versions.
   (void)new U; // expected-error {{no matching function for call to 'operator new'}}
   (void)new (int[]); // expected-error {{array size must be specified in new expression with no initializer}}
@@ -141,6 +144,14 @@ void bad_news(int *ip)
 #if __cplusplus < 201103L
   (void)new int[]{}; // expected-error {{array size must be specified in new expression with no initializer}}
 #endif
+}
+
+void no_matching_placement_new() {
+  struct X { int n; };
+  __attribute__((aligned(__alignof(X)))) unsigned char buffer[sizeof(X)];
+  (void)new(buffer) X; // expected-error {{no matching 'operator new' function for non-allocating placement new expression; include <new>}}
+  (void)new(+buffer) X; // expected-error {{no matching 'operator new' function for non-allocating placement new expression; include <new>}}
+  (void)new(&buffer) X; // expected-error {{no matching 'operator new' function for non-allocating placement new expression; include <new>}}
 }
 
 void good_deletes()
@@ -345,7 +356,7 @@ void h(unsigned i) {
   (void)new T(i); // expected-error {{array 'new' cannot have initialization arguments}}
 }
 template void h<unsigned>(unsigned);
-template void h<unsigned[10]>(unsigned); // expected-note {{in instantiation of function template specialization 'Test1::h<unsigned int [10]>' requested here}}
+template void h<unsigned[10]>(unsigned); // expected-note {{in instantiation of function template specialization 'Test1::h<unsigned int[10]>' requested here}}
 
 }
 
@@ -414,7 +425,11 @@ namespace PR7810 {
   };
   struct Y {
     // cv is ignored in arguments
+#if __cplusplus < 202002L
     static void operator delete(void *volatile);
+#else
+    static void operator delete(void *);
+#endif
   };
 }
 
@@ -471,7 +486,7 @@ namespace ArrayNewNeedsDtor {
 #endif
   struct B { B(); A a; };
 #if __cplusplus <= 199711L
-  // expected-error@-2 {{field of type 'ArrayNewNeedsDtor::A' has private destructor}}
+  // expected-error@-2 {{field of type 'A' has private destructor}}
 #else
   // expected-note@-4 {{destructor of 'B' is implicitly deleted because field 'a' has an inaccessible destructor}}
 #endif

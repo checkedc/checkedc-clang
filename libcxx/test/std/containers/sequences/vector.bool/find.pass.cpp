@@ -11,7 +11,7 @@
 
 // std::find with vector<bool>::iterator
 
-// https://bugs.llvm.org/show_bug.cgi?id=16816
+// https://llvm.org/PR16816
 
 #include <vector>
 #include <algorithm>
@@ -20,7 +20,7 @@
 
 #include "test_macros.h"
 
-int main(int, char**)
+TEST_CONSTEXPR_CXX20 bool tests()
 {
     {
         for (unsigned i = 1; i < 256; ++i)
@@ -41,5 +41,14 @@ int main(int, char**)
         }
     }
 
-  return 0;
+    return true;
+}
+
+int main(int, char**)
+{
+    tests();
+#if TEST_STD_VER > 17
+    static_assert(tests());
+#endif
+    return 0;
 }

@@ -20,7 +20,7 @@ using namespace llvm;
 
 char SlotIndexes::ID = 0;
 
-SlotIndexes::SlotIndexes() : MachineFunctionPass(ID), mf(nullptr) {
+SlotIndexes::SlotIndexes() : MachineFunctionPass(ID) {
   initializeSlotIndexesPass(*PassRegistry::getPassRegistry());
 }
 
@@ -83,7 +83,7 @@ bool SlotIndexes::runOnMachineFunction(MachineFunction &fn) {
     SlotIndex blockStartIndex(&indexList.back(), SlotIndex::Slot_Block);
 
     for (MachineInstr &MI : MBB) {
-      if (MI.isDebugInstr())
+      if (MI.isDebugOrPseudoInstr())
         continue;
 
       // Insert a store index for the instr.
@@ -179,21 +179,12 @@ void SlotIndexes::renumberIndexes(IndexList::iterator curItr) {
 void SlotIndexes::repairIndexesInRange(MachineBasicBlock *MBB,
                                        MachineBasicBlock::iterator Begin,
                                        MachineBasicBlock::iterator End) {
-  // FIXME: Is this really necessary? The only caller repairIntervalsForRange()
-  // does the same thing.
-  // Find anchor points, which are at the beginning/end of blocks or at
-  // instructions that already have indexes.
-  while (Begin != MBB->begin() && !hasIndex(*Begin))
-    --Begin;
-  while (End != MBB->end() && !hasIndex(*End))
-    ++End;
-
   bool includeStart = (Begin == MBB->begin());
   SlotIndex startIdx;
   if (includeStart)
     startIdx = getMBBStartIdx(MBB);
   else
-    startIdx = getInstructionIndex(*Begin);
+    startIdx = getInstructionIndex(*--Begin);
 
   SlotIndex endIdx;
   if (End == MBB->end())
@@ -241,19 +232,18 @@ void SlotIndexes::repairIndexesInRange(MachineBasicBlock *MBB,
   for (MachineBasicBlock::iterator I = End; I != Begin;) {
     --I;
     MachineInstr &MI = *I;
-    if (!MI.isDebugInstr() && mi2iMap.find(&MI) == mi2iMap.end())
+    if (!MI.isDebugOrPseudoInstr() && mi2iMap.find(&MI) == mi2iMap.end())
       insertMachineInstrInMaps(MI);
   }
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void SlotIndexes::dump() const {
-  for (IndexList::const_iterator itr = indexList.begin();
-       itr != indexList.end(); ++itr) {
-    dbgs() << itr->getIndex() << " ";
+  for (const IndexListEntry &ILE : indexList) {
+    dbgs() << ILE.getIndex() << " ";
 
-    if (itr->getInstr()) {
-      dbgs() << *itr->getInstr();
+    if (ILE.getInstr()) {
+      dbgs() << *ILE.getInstr();
     } else {
       dbgs() << "\n";
     }
@@ -280,4 +270,3 @@ LLVM_DUMP_METHOD void SlotIndex::dump() const {
   dbgs() << "\n";
 }
 #endif
-

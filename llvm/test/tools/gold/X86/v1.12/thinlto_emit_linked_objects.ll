@@ -1,5 +1,5 @@
-; RUN: rm -f %t*.o.thinlto.bc
-; RUN: rm -f %t*.o.imports
+; RUN: rm -f ptr.o.thinlto.bc
+; RUN: rm -f ptr.o.imports
 
 ; First generate bitcode with a module summary index for each file
 ; RUN: opt -module-summary %s -o %t1.o
@@ -35,7 +35,7 @@
 ; should not be set.
 ; RUN: llvm-bcanalyzer --dump %t1.o.thinlto.bc | FileCheck %s -check-prefixes=CHECK-BC1
 ; CHECK-BC1: <GLOBALVAL_SUMMARY_BLOCK
-; CHECK-BC1: <FLAGS op0=33/>
+; CHECK-BC1: <FLAGS op0=[[#]]/>
 ; CHECK-BC1: </GLOBALVAL_SUMMARY_BLOCK
 
 ; Nothing interesting in the corresponding object file, so

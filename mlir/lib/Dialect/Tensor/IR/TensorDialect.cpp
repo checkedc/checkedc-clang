@@ -6,11 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 using namespace mlir;
 using namespace mlir::tensor;
+
+#include "mlir/Dialect/Tensor/IR/TensorOpsDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // TensorDialect Dialect Interfaces
@@ -20,15 +25,19 @@ namespace {
 struct TensorInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
   bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
-                       BlockAndValueMapping &valueMapping) const final {
+                       IRMapping &valueMapping) const final {
     return true;
   }
   bool isLegalToInline(Operation *, Region *, bool wouldBeCloned,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
     return true;
   }
 };
-} // end anonymous namespace
+} // namespace
+
+//===----------------------------------------------------------------------===//
+// TensorDialect Methods
+//===----------------------------------------------------------------------===//
 
 void TensorDialect::initialize() {
   addOperations<

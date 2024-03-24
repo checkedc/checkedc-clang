@@ -29,7 +29,7 @@ protected:
     size_t Slot = State.getNearestSlot(Addr);
 
     Metadata[Slot].Addr = Addr;
-    Metadata[Slot].Size = Size;
+    Metadata[Slot].RequestedSize = Size;
     Metadata[Slot].IsDeallocated = IsDeallocated;
     Metadata[Slot].AllocationTrace.ThreadID = 123;
     Metadata[Slot].DeallocationTrace.ThreadID = 321;
@@ -40,7 +40,8 @@ protected:
 
   void setupState() {
     State.GuardedPagePool = 0x2000;
-    State.GuardedPagePoolEnd = 0xb000;
+    State.GuardedPagePoolEnd = 0xc000;
+    InternalFaultAddr = State.GuardedPagePoolEnd - 0x10;
     State.MaxSimultaneousAllocations = 4; // 0x3000, 0x5000, 0x7000, 0x9000.
     State.PageSize = 0x1000;
   }
@@ -80,7 +81,8 @@ protected:
         __gwp_asan_get_metadata(&State, Metadata, ErrorPtr);
     EXPECT_NE(nullptr, Meta);
     EXPECT_EQ(Metadata[Index].Addr, __gwp_asan_get_allocation_address(Meta));
-    EXPECT_EQ(Metadata[Index].Size, __gwp_asan_get_allocation_size(Meta));
+    EXPECT_EQ(Metadata[Index].RequestedSize,
+              __gwp_asan_get_allocation_size(Meta));
     EXPECT_EQ(Metadata[Index].AllocationTrace.ThreadID,
               __gwp_asan_get_allocation_thread_id(Meta));
 
@@ -99,6 +101,7 @@ protected:
   static uintptr_t BacktraceConstants[kNumBacktraceConstants];
   AllocatorState State = {};
   AllocationMetadata Metadata[4] = {};
+  uintptr_t InternalFaultAddr;
 };
 
 uintptr_t CrashHandlerAPITest::BacktraceConstants[kNumBacktraceConstants] = {
@@ -124,7 +127,7 @@ TEST_F(CrashHandlerAPITest, PointerNotAllocated) {
   EXPECT_TRUE(__gwp_asan_error_is_mine(&State, FailureAddress));
   EXPECT_EQ(Error::UNKNOWN,
             __gwp_asan_diagnose_error(&State, Metadata, FailureAddress));
-  EXPECT_EQ(0u, __gwp_asan_get_internal_crash_address(&State));
+  EXPECT_EQ(0u, __gwp_asan_get_internal_crash_address(&State, FailureAddress));
   EXPECT_EQ(nullptr, __gwp_asan_get_metadata(&State, Metadata, FailureAddress));
 }
 
@@ -139,7 +142,8 @@ TEST_F(CrashHandlerAPITest, DoubleFree) {
   EXPECT_TRUE(__gwp_asan_error_is_mine(&State));
   EXPECT_EQ(Error::DOUBLE_FREE,
             __gwp_asan_diagnose_error(&State, Metadata, 0x0));
-  EXPECT_EQ(FailureAddress, __gwp_asan_get_internal_crash_address(&State));
+  EXPECT_EQ(FailureAddress,
+            __gwp_asan_get_internal_crash_address(&State, InternalFaultAddr));
   checkMetadata(Index, FailureAddress);
 }
 
@@ -154,7 +158,8 @@ TEST_F(CrashHandlerAPITest, InvalidFree) {
   EXPECT_TRUE(__gwp_asan_error_is_mine(&State));
   EXPECT_EQ(Error::INVALID_FREE,
             __gwp_asan_diagnose_error(&State, Metadata, 0x0));
-  EXPECT_EQ(FailureAddress, __gwp_asan_get_internal_crash_address(&State));
+  EXPECT_EQ(FailureAddress,
+            __gwp_asan_get_internal_crash_address(&State, InternalFaultAddr));
   checkMetadata(Index, FailureAddress);
 }
 
@@ -167,7 +172,8 @@ TEST_F(CrashHandlerAPITest, InvalidFreeNoMetadata) {
   EXPECT_TRUE(__gwp_asan_error_is_mine(&State));
   EXPECT_EQ(Error::INVALID_FREE,
             __gwp_asan_diagnose_error(&State, Metadata, 0x0));
-  EXPECT_EQ(FailureAddress, __gwp_asan_get_internal_crash_address(&State));
+  EXPECT_EQ(FailureAddress,
+            __gwp_asan_get_internal_crash_address(&State, InternalFaultAddr));
   EXPECT_EQ(nullptr, __gwp_asan_get_metadata(&State, Metadata, FailureAddress));
 }
 
@@ -179,7 +185,7 @@ TEST_F(CrashHandlerAPITest, UseAfterFree) {
   EXPECT_TRUE(__gwp_asan_error_is_mine(&State, FailureAddress));
   EXPECT_EQ(Error::USE_AFTER_FREE,
             __gwp_asan_diagnose_error(&State, Metadata, FailureAddress));
-  EXPECT_EQ(0u, __gwp_asan_get_internal_crash_address(&State));
+  EXPECT_EQ(0u, __gwp_asan_get_internal_crash_address(&State, FailureAddress));
   checkMetadata(Index, FailureAddress);
 }
 
@@ -191,7 +197,7 @@ TEST_F(CrashHandlerAPITest, BufferOverflow) {
   EXPECT_TRUE(__gwp_asan_error_is_mine(&State, FailureAddress));
   EXPECT_EQ(Error::BUFFER_OVERFLOW,
             __gwp_asan_diagnose_error(&State, Metadata, FailureAddress));
-  EXPECT_EQ(0u, __gwp_asan_get_internal_crash_address(&State));
+  EXPECT_EQ(0u, __gwp_asan_get_internal_crash_address(&State, FailureAddress));
   checkMetadata(Index, FailureAddress);
 }
 
@@ -203,6 +209,6 @@ TEST_F(CrashHandlerAPITest, BufferUnderflow) {
   EXPECT_TRUE(__gwp_asan_error_is_mine(&State, FailureAddress));
   EXPECT_EQ(Error::BUFFER_UNDERFLOW,
             __gwp_asan_diagnose_error(&State, Metadata, FailureAddress));
-  EXPECT_EQ(0u, __gwp_asan_get_internal_crash_address(&State));
+  EXPECT_EQ(0u, __gwp_asan_get_internal_crash_address(&State, FailureAddress));
   checkMetadata(Index, FailureAddress);
 }

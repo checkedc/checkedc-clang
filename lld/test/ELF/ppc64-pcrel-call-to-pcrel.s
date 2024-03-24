@@ -10,38 +10,38 @@
 # RUN: llvm-mc -filetype=obj -triple=powerpc64le %p/Inputs/ppc64-callee-global-hidden.s -o %t2.o
 # RUN: ld.lld -T %t.script -shared %t1.o %t2.o -o %t.so
 # RUN: llvm-readelf -s %t.so | FileCheck %s --check-prefix=SYMBOL
-# RUN: llvm-objdump -d --no-show-raw-insn --mcpu=pwr10 %t.so | FileCheck --check-prefix=CHECK --check-prefix=CHECK-HIDDEN %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t.so | FileCheck --check-prefix=CHECK --check-prefix=CHECK-HIDDEN %s
 
 # RUN: llvm-mc -filetype=obj -triple=powerpc64le -defsym GLOBAL=1 %s -o %t3.o
 # RUN: ld.lld -T %t.script %t3.o -o %t
 # RUN: llvm-readelf -s %t | FileCheck %s --check-prefix=SYMBOL-GLOBAL
-# RUN: llvm-objdump -d --no-show-raw-insn --mcpu=pwr10 %t | FileCheck %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t | FileCheck %s
 
 # RUN: llvm-mc -filetype=obj -triple=powerpc64 -defsym HIDDEN=1 %s -o %t1.o
 # RUN: llvm-mc -filetype=obj -triple=powerpc64 %p/Inputs/ppc64-callee-global-hidden.s -o %t2.o
 # RUN: ld.lld -T %t.script -shared %t1.o %t2.o -o %t.so
 # RUN: llvm-readelf -s %t.so | FileCheck %s --check-prefix=SYMBOL
-# RUN: llvm-objdump -d --no-show-raw-insn --mcpu=pwr10 %t.so | FileCheck --check-prefix=CHECK --check-prefix=CHECK-HIDDEN %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t.so | FileCheck --check-prefix=CHECK --check-prefix=CHECK-HIDDEN %s
 
 # RUN: llvm-mc -filetype=obj -triple=powerpc64 -defsym GLOBAL=1 %s -o %t3.o
 # RUN: ld.lld -T %t.script %t3.o -o %t
 # RUN: llvm-readelf -s %t | FileCheck %s --check-prefix=SYMBOL-GLOBAL
-# RUN: llvm-objdump -d --no-show-raw-insn --mcpu=pwr10 %t | FileCheck %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t | FileCheck %s
 
 # SYMBOL:      2: 0000000010010000 0 NOTYPE LOCAL DEFAULT 5 callee1_stother0_default
-# SYMBOL-NEXT: 3: 0000000010020004 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 6 callee2_stother1_default
-# SYMBOL-NEXT: 4: 0000000010010004 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 5 caller1
-# SYMBOL-NEXT: 5: 000000001002000c 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 6 caller2
-# SYMBOL-NEXT: 6: 0000000010030000 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 7 caller3
-# SYMBOL-NEXT: 7: 0000000010040000 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 8 caller4
-# SYMBOL-NEXT: 8: 0000000010020000 0 NOTYPE LOCAL DEFAULT 6 func_local
+# SYMBOL-NEXT: 3: 0000000010010004 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 5 caller1
+# SYMBOL-NEXT: 4: 0000000010020000 0 NOTYPE LOCAL DEFAULT 6 func_local
+# SYMBOL-NEXT: 5: 0000000010020004 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 6 callee2_stother1_default
+# SYMBOL-NEXT: 6: 000000001002000c 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 6 caller2
+# SYMBOL-NEXT: 7: 0000000010030000 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 7 caller3
+# SYMBOL-NEXT: 8: 0000000010040000 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 8 caller4
 # SYMBOL-NEXT: 9: 0000000010040008 0 NOTYPE LOCAL DEFAULT 9 func_extern
 # SYMBOL-NEXT: 10: 000000001004000c 0 NOTYPE LOCAL HIDDEN 9 callee3_stother0_hidden
 # SYMBOL-NEXT: 11: 0000000010040010 0 NOTYPE LOCAL HIDDEN [<other: 0x22>] 9 callee4_stother1_hidden
 
 # SYMBOL-GLOBAL:      2: 0000000010010004 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 1 caller1
-# SYMBOL-GLOBAL-NEXT: 3: 000000001002000c 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 2 caller2
-# SYMBOL-GLOBAL-NEXT: 4: 0000000010020000 0 NOTYPE LOCAL DEFAULT 2 func_local
+# SYMBOL-GLOBAL-NEXT: 3: 0000000010020000 0 NOTYPE LOCAL DEFAULT 2 func_local
+# SYMBOL-GLOBAL-NEXT: 4: 000000001002000c 0 NOTYPE LOCAL DEFAULT [<other: 0x20>] 2 caller2
 # SYMBOL-GLOBAL-NEXT: 5: 0000000010010000 0 NOTYPE GLOBAL DEFAULT 1 callee1_stother0_default
 # SYMBOL-GLOBAL-NEXT: 6: 0000000010020004 0 NOTYPE GLOBAL DEFAULT [<other: 0x20>] 2 callee2_stother1_default
 

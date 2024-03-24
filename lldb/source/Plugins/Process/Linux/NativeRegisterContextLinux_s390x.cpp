@@ -10,16 +10,14 @@
 
 #include "NativeRegisterContextLinux_s390x.h"
 #include "Plugins/Process/Linux/NativeProcessLinux.h"
+#include "Plugins/Process/Utility/RegisterContextLinux_s390x.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
-
-#include "Plugins/Process/Utility/RegisterContextLinux_s390x.h"
-
-#include <linux/uio.h>
 #include <sys/ptrace.h>
+#include <sys/uio.h>
 
 using namespace lldb_private;
 using namespace lldb_private::process_linux;
@@ -93,9 +91,14 @@ static const RegisterSet g_reg_sets_s390x[k_num_register_sets] = {
 
 std::unique_ptr<NativeRegisterContextLinux>
 NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
-    const ArchSpec &target_arch, NativeThreadProtocol &native_thread) {
+    const ArchSpec &target_arch, NativeThreadLinux &native_thread) {
   return std::make_unique<NativeRegisterContextLinux_s390x>(target_arch,
                                                              native_thread);
+}
+
+llvm::Expected<ArchSpec>
+NativeRegisterContextLinux::DetermineArchitecture(lldb::tid_t tid) {
+  return HostInfo::GetArchitecture();
 }
 
 // NativeRegisterContextLinux_s390x members.
@@ -110,7 +113,8 @@ CreateRegisterInfoInterface(const ArchSpec &target_arch) {
 NativeRegisterContextLinux_s390x::NativeRegisterContextLinux_s390x(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
     : NativeRegisterContextRegisterInfo(
-          native_thread, CreateRegisterInfoInterface(target_arch)) {
+          native_thread, CreateRegisterInfoInterface(target_arch)),
+      NativeRegisterContextLinux(native_thread) {
   // Set up data about ranges of valid registers.
   switch (target_arch.GetMachine()) {
   case llvm::Triple::systemz:
@@ -327,7 +331,7 @@ Status NativeRegisterContextLinux_s390x::WriteRegister(
 }
 
 Status NativeRegisterContextLinux_s390x::ReadAllRegisterValues(
-    lldb::DataBufferSP &data_sp) {
+    lldb::WritableDataBufferSP &data_sp) {
   Status error;
 
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));

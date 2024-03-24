@@ -9,14 +9,14 @@
 ; SI: v_mov_b32_e32 [[VREGA:v[0-9]+]], [[SREGA]]
 ; SI: v_add_f32_e32 [[RESULT:v[0-9]+]], [[SREGB]], [[VREGA]]
 
-; VI: s_load_dword [[SREGA:s[0-9]+]], s{{\[[0-9]+:[0-9]+\]}}, 0x4c
-; VI: s_load_dword [[SREGB:s[0-9]+]], s{{\[[0-9]+:[0-9]+\]}}, 0x70
+; VI-DAG: s_load_dword [[SREGA:s[0-9]+]], s{{\[[0-9]+:[0-9]+\]}}, 0x4c
+; VI-DAG: s_load_dword [[SREGB:s[0-9]+]], s{{\[[0-9]+:[0-9]+\]}}, 0x70
 ; VI: v_mov_b32_e32 [[VREGB:v[0-9]+]], [[SREGB]]
 ; VI: v_add_f32_e32 [[RESULT:v[0-9]+]], [[SREGA]], [[VREGB]]
 
 ; GCN: buffer_store_dword [[RESULT]],
-define amdgpu_kernel void @add_f32(float addrspace(1)* %out, [8 x i32], float %a, [8 x i32], float %b) {
+define amdgpu_kernel void @add_f32(ptr addrspace(1) %out, [8 x i32], float %a, [8 x i32], float %b) {
   %result = fadd float %a, %b
-  store float %result, float addrspace(1)* %out
+  store float %result, ptr addrspace(1) %out
   ret void
 }

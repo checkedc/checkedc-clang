@@ -121,6 +121,8 @@ class Decoder {
                     bool Prologue);
   bool opcode_save_next(const uint8_t *Opcodes, unsigned &Offset,
                         unsigned Length, bool Prologue);
+  bool opcode_save_any_reg(const uint8_t *Opcodes, unsigned &Offset,
+                           unsigned Length, bool Prologue);
   bool opcode_trap_frame(const uint8_t *Opcodes, unsigned &Offset,
                          unsigned Length, bool Prologue);
   bool opcode_machine_frame(const uint8_t *Opcodes, unsigned &Offset,
@@ -129,11 +131,14 @@ class Decoder {
                       bool Prologue);
   bool opcode_clear_unwound_to_call(const uint8_t *Opcodes, unsigned &Offset,
                                     unsigned Length, bool Prologue);
+  bool opcode_pac_sign_lr(const uint8_t *Opcodes, unsigned &Offset,
+                          unsigned Length, bool Prologue);
 
   void decodeOpcodes(ArrayRef<uint8_t> Opcodes, unsigned Offset,
                      bool Prologue);
 
-  void printRegisters(const std::pair<uint16_t, uint32_t> &RegisterMask);
+  void printGPRMask(uint16_t Mask);
+  void printVFPMask(uint32_t Mask);
 
   ErrorOr<object::SectionRef>
   getSectionContaining(const object::COFFObjectFile &COFF, uint64_t Address);
@@ -145,6 +150,17 @@ class Decoder {
   ErrorOr<object::SymbolRef>
   getRelocatedSymbol(const object::COFFObjectFile &COFF,
                      const object::SectionRef &Section, uint64_t Offset);
+
+  ErrorOr<object::SymbolRef>
+  getSymbolForLocation(const object::COFFObjectFile &COFF,
+                       const object::SectionRef &Section,
+                       uint64_t OffsetInSection, uint64_t ImmediateOffset,
+                       uint64_t &SymbolAddress, uint64_t &SymbolOffset,
+                       bool FunctionOnly = false);
+
+  object::SymbolRef getPreferredSymbol(const object::COFFObjectFile &COFF,
+                                       object::SymbolRef Sym,
+                                       uint64_t &SymbolOffset);
 
   bool dumpXDataRecord(const object::COFFObjectFile &COFF,
                        const object::SectionRef &Section,

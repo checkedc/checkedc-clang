@@ -2,6 +2,7 @@
 ; RUN: llc -march=amdgcn -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,PREGFX10,FUNC %s
 ; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,PREGFX10,FUNC %s
 ; RUN: llc -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX10,FUNC %s
+; RUN: llc -march=amdgcn -mcpu=gfx1100 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX10,FUNC %s
 ; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=R600 -check-prefix=FUNC %s
 
 ; These tests check that fdiv is expanded correctly and also test that the
@@ -21,19 +22,21 @@
 ; PREGFX10: s_setreg_imm32_b32 hwreg(HW_REG_MODE, 4, 2), 3
 ; GFX10: s_denorm_mode 15
 ; GCN: v_fma_f32 [[A:v[0-9]+]], -[[NUM_SCALE]], [[NUM_RCP]], 1.0
-; GCN: v_fma_f32 [[B:v[0-9]+]], [[A]], [[NUM_RCP]], [[NUM_RCP]]
+; PREGFX10: v_fma_f32 [[B:v[0-9]+]], [[A]], [[NUM_RCP]], [[NUM_RCP]]
+; GFX10: v_fmac_f32_e32 [[B:v[0-9]+]], [[A]], [[NUM_RCP]]
 ; GCN: v_mul_f32_e32 [[C:v[0-9]+]], [[DEN_SCALE]], [[B]]
 ; GCN: v_fma_f32 [[D:v[0-9]+]], -[[NUM_SCALE]], [[C]], [[DEN_SCALE]]
-; GCN: v_fma_f32 [[E:v[0-9]+]], [[D]], [[B]], [[C]]
+; PREGFX10: v_fma_f32 [[E:v[0-9]+]], [[D]], [[B]], [[C]]
+; GFX10: v_fmac_f32_e32 [[E:v[0-9]+]], [[D]], [[B]]
 ; GCN: v_fma_f32 [[F:v[0-9]+]], -[[NUM_SCALE]], [[E]], [[DEN_SCALE]]
 ; PREGFX10: s_setreg_imm32_b32 hwreg(HW_REG_MODE, 4, 2), 0
 ; GFX10: s_denorm_mode 12
 ; GCN: v_div_fmas_f32 [[FMAS:v[0-9]+]], [[F]], [[B]], [[E]]
 ; GCN: v_div_fixup_f32 v{{[0-9]+}}, [[FMAS]],
-define amdgpu_kernel void @fdiv_f32(float addrspace(1)* %out, float %a, float %b) #0 {
+define amdgpu_kernel void @fdiv_f32(ptr addrspace(1) %out, float %a, float %b) #0 {
 entry:
   %fdiv = fdiv ninf float %a, %b
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -59,17 +62,17 @@ entry:
 ; GFX10: v_fmac_f32_e32 [[B:v[0-9]+]], [[A]], [[NUM_RCP]]
 ; GFX10: v_div_scale_f32 [[DEN_SCALE:v[0-9]+]]
 ; GFX10: v_mul_f32_e32 [[C:v[0-9]+]], [[DEN_SCALE]], [[B]]
-; GFX10: v_fma_f32 [[D:v[0-9]+]], [[C]], -[[NUM_SCALE]], [[DEN_SCALE]]
+; GFX10: v_fma_f32 [[D:v[0-9]+]], -[[NUM_SCALE]], [[C]], [[DEN_SCALE]]
 ; GFX10: v_fmac_f32_e32 [[E:v[0-9]+]], [[D]], [[B]]
-; GFX10: v_fmac_f32_e64 [[F:v[0-9]+]], -[[NUM_SCALE]], [[E]]
+; GFX10: v_fma_f32 [[F:v[0-9]+]], -[[NUM_SCALE]], [[E]], [[DEN_SCALE]]
 ; GFX10-NOT: s_denorm_mode
 
 ; GCN: v_div_fmas_f32 [[FMAS:v[0-9]+]], [[F]], [[B]], [[E]]
 ; GCN: v_div_fixup_f32 v{{[0-9]+}}, [[FMAS]],
-define amdgpu_kernel void @fdiv_f32_denormals(float addrspace(1)* %out, float %a, float %b) #2 {
+define amdgpu_kernel void @fdiv_f32_denormals(ptr addrspace(1) %out, float %a, float %b) #2 {
 entry:
   %fdiv = fdiv float %a, %b
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -79,10 +82,10 @@ entry:
 ; GCN: v_rcp_f32
 ; GCN: v_mul_f32
 ; GCN: v_mul_f32
-define amdgpu_kernel void @fdiv_25ulp_f32(float addrspace(1)* %out, float %a, float %b) #0 {
+define amdgpu_kernel void @fdiv_25ulp_f32(ptr addrspace(1) %out, float %a, float %b) #0 {
 entry:
   %fdiv = fdiv float %a, %b, !fpmath !0
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -91,10 +94,10 @@ entry:
 ; GCN: v_fma_f32
 ; GCN: v_div_fmas_f32
 ; GCN: v_div_fixup_f32
-define amdgpu_kernel void @fdiv_25ulp_denormals_f32(float addrspace(1)* %out, float %a, float %b) #2 {
+define amdgpu_kernel void @fdiv_25ulp_denormals_f32(ptr addrspace(1) %out, float %a, float %b) #2 {
 entry:
   %fdiv = fdiv float %a, %b, !fpmath !0
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -104,11 +107,11 @@ entry:
 ; GCN-NOT: [[RESULT]]
 ; PREGFX10-NOT: s_setreg
 ; GFX10-NOT: s_denorm_mode
-; GCN: buffer_store_dword [[RESULT]]
-define amdgpu_kernel void @fdiv_fast_denormals_f32(float addrspace(1)* %out, float %a, float %b) #2 {
+; GCN: buffer_store_{{dword|b32}} [[RESULT]]
+define amdgpu_kernel void @fdiv_fast_denormals_f32(ptr addrspace(1) %out, float %a, float %b) #2 {
 entry:
   %fdiv = fdiv fast float %a, %b
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -119,11 +122,11 @@ entry:
 ; GCN: v_rcp_f32_e32 [[RCP:v[0-9]+]], s{{[0-9]+}}
 ; GCN: v_mul_f32_e32 [[RESULT:v[0-9]+]], s{{[0-9]+}}, [[RCP]]
 ; GCN-NOT: [[RESULT]]
-; GCN: buffer_store_dword [[RESULT]]
-define amdgpu_kernel void @fdiv_f32_fast_math(float addrspace(1)* %out, float %a, float %b) #0 {
+; GCN: buffer_store_{{dword|b32}} [[RESULT]]
+define amdgpu_kernel void @fdiv_f32_fast_math(ptr addrspace(1) %out, float %a, float %b) #0 {
 entry:
   %fdiv = fdiv fast float %a, %b
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -134,11 +137,11 @@ entry:
 ; GCN: v_rcp_f32_e32 [[RCP:v[0-9]+]], s{{[0-9]+}}
 ; GCN: v_mul_f32_e32 [[RESULT:v[0-9]+]], s{{[0-9]+}}, [[RCP]]
 ; GCN-NOT: [[RESULT]]
-; GCN: buffer_store_dword [[RESULT]]
-define amdgpu_kernel void @fdiv_ulp25_f32_fast_math(float addrspace(1)* %out, float %a, float %b) #0 {
+; GCN: buffer_store_{{dword|b32}} [[RESULT]]
+define amdgpu_kernel void @fdiv_ulp25_f32_fast_math(ptr addrspace(1) %out, float %a, float %b) #0 {
 entry:
   %fdiv = fdiv fast float %a, %b, !fpmath !0
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -149,11 +152,11 @@ entry:
 ; GCN: v_rcp_f32_e32 [[RCP:v[0-9]+]], s{{[0-9]+}}
 ; GCN: v_mul_f32_e32 [[RESULT:v[0-9]+]], s{{[0-9]+}}, [[RCP]]
 ; GCN-NOT: [[RESULT]]
-; GCN: buffer_store_dword [[RESULT]]
-define amdgpu_kernel void @fdiv_f32_arcp_math(float addrspace(1)* %out, float %a, float %b) #0 {
+; GCN: buffer_store_{{dword|b32}} [[RESULT]]
+define amdgpu_kernel void @fdiv_f32_arcp_math(ptr addrspace(1) %out, float %a, float %b) #0 {
 entry:
   %fdiv = fdiv arcp ninf float %a, %b
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -167,10 +170,10 @@ entry:
 ; GCN: v_div_scale_f32
 ; GCN: v_div_scale_f32
 ; GCN: v_div_scale_f32
-define amdgpu_kernel void @fdiv_v2f32(<2 x float> addrspace(1)* %out, <2 x float> %a, <2 x float> %b) #0 {
+define amdgpu_kernel void @fdiv_v2f32(ptr addrspace(1) %out, <2 x float> %a, <2 x float> %b) #0 {
 entry:
   %fdiv = fdiv <2 x float> %a, %b
-  store <2 x float> %fdiv, <2 x float> addrspace(1)* %out
+  store <2 x float> %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -178,10 +181,10 @@ entry:
 ; GCN: v_rcp_f32
 ; GCN: v_rcp_f32
 ; GCN-NOT: v_cmp_gt_f32
-define amdgpu_kernel void @fdiv_ulp25_v2f32(<2 x float> addrspace(1)* %out, <2 x float> %a, <2 x float> %b) #0 {
+define amdgpu_kernel void @fdiv_ulp25_v2f32(ptr addrspace(1) %out, <2 x float> %a, <2 x float> %b) #0 {
 entry:
   %fdiv = fdiv arcp <2 x float> %a, %b, !fpmath !0
-  store <2 x float> %fdiv, <2 x float> addrspace(1)* %out
+  store <2 x float> %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -193,10 +196,10 @@ entry:
 
 ; GCN: v_rcp_f32
 ; GCN: v_rcp_f32
-define amdgpu_kernel void @fdiv_v2f32_fast_math(<2 x float> addrspace(1)* %out, <2 x float> %a, <2 x float> %b) #0 {
+define amdgpu_kernel void @fdiv_v2f32_fast_math(ptr addrspace(1) %out, <2 x float> %a, <2 x float> %b) #0 {
 entry:
   %fdiv = fdiv fast <2 x float> %a, %b
-  store <2 x float> %fdiv, <2 x float> addrspace(1)* %out
+  store <2 x float> %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -208,10 +211,10 @@ entry:
 
 ; GCN: v_rcp_f32
 ; GCN: v_rcp_f32
-define amdgpu_kernel void @fdiv_v2f32_arcp_math(<2 x float> addrspace(1)* %out, <2 x float> %a, <2 x float> %b) #0 {
+define amdgpu_kernel void @fdiv_v2f32_arcp_math(ptr addrspace(1) %out, <2 x float> %a, <2 x float> %b) #0 {
 entry:
   %fdiv = fdiv arcp ninf <2 x float> %a, %b
-  store <2 x float> %fdiv, <2 x float> addrspace(1)* %out
+  store <2 x float> %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -229,12 +232,12 @@ entry:
 ; GCN: v_div_fixup_f32
 ; GCN: v_div_fixup_f32
 ; GCN: v_div_fixup_f32
-define amdgpu_kernel void @fdiv_v4f32(<4 x float> addrspace(1)* %out, <4 x float> addrspace(1)* %in) #0 {
-  %b_ptr = getelementptr <4 x float>, <4 x float> addrspace(1)* %in, i32 1
-  %a = load <4 x float>, <4 x float> addrspace(1) * %in
-  %b = load <4 x float>, <4 x float> addrspace(1) * %b_ptr
+define amdgpu_kernel void @fdiv_v4f32(ptr addrspace(1) %out, ptr addrspace(1) %in) #0 {
+  %b_ptr = getelementptr <4 x float>, ptr addrspace(1) %in, i32 1
+  %a = load <4 x float>, ptr addrspace(1) %in
+  %b = load <4 x float>, ptr addrspace(1) %b_ptr
   %result = fdiv <4 x float> %a, %b
-  store <4 x float> %result, <4 x float> addrspace(1)* %out
+  store <4 x float> %result, ptr addrspace(1) %out
   ret void
 }
 
@@ -252,12 +255,12 @@ define amdgpu_kernel void @fdiv_v4f32(<4 x float> addrspace(1)* %out, <4 x float
 ; GCN: v_rcp_f32
 ; GCN: v_rcp_f32
 ; GCN: v_rcp_f32
-define amdgpu_kernel void @fdiv_v4f32_fast_math(<4 x float> addrspace(1)* %out, <4 x float> addrspace(1)* %in) #0 {
-  %b_ptr = getelementptr <4 x float>, <4 x float> addrspace(1)* %in, i32 1
-  %a = load <4 x float>, <4 x float> addrspace(1) * %in
-  %b = load <4 x float>, <4 x float> addrspace(1) * %b_ptr
+define amdgpu_kernel void @fdiv_v4f32_fast_math(ptr addrspace(1) %out, ptr addrspace(1) %in) #0 {
+  %b_ptr = getelementptr <4 x float>, ptr addrspace(1) %in, i32 1
+  %a = load <4 x float>, ptr addrspace(1) %in
+  %b = load <4 x float>, ptr addrspace(1) %b_ptr
   %result = fdiv fast <4 x float> %a, %b
-  store <4 x float> %result, <4 x float> addrspace(1)* %out
+  store <4 x float> %result, ptr addrspace(1) %out
   ret void
 }
 
@@ -275,12 +278,12 @@ define amdgpu_kernel void @fdiv_v4f32_fast_math(<4 x float> addrspace(1)* %out, 
 ; GCN: v_rcp_f32
 ; GCN: v_rcp_f32
 ; GCN: v_rcp_f32
-define amdgpu_kernel void @fdiv_v4f32_arcp_math(<4 x float> addrspace(1)* %out, <4 x float> addrspace(1)* %in) #0 {
-  %b_ptr = getelementptr <4 x float>, <4 x float> addrspace(1)* %in, i32 1
-  %a = load <4 x float>, <4 x float> addrspace(1) * %in
-  %b = load <4 x float>, <4 x float> addrspace(1) * %b_ptr
+define amdgpu_kernel void @fdiv_v4f32_arcp_math(ptr addrspace(1) %out, ptr addrspace(1) %in) #0 {
+  %b_ptr = getelementptr <4 x float>, ptr addrspace(1) %in, i32 1
+  %a = load <4 x float>, ptr addrspace(1) %in
+  %b = load <4 x float>, ptr addrspace(1) %b_ptr
   %result = fdiv arcp ninf <4 x float> %a, %b
-  store <4 x float> %result, <4 x float> addrspace(1)* %out
+  store <4 x float> %result, ptr addrspace(1) %out
   ret void
 }
 
@@ -293,20 +296,22 @@ define amdgpu_kernel void @fdiv_v4f32_arcp_math(<4 x float> addrspace(1)* %out, 
 ; PREGFX10: s_setreg_imm32_b32 hwreg(HW_REG_MODE, 4, 2), 3
 ; GFX10: s_denorm_mode 15
 ; GCN: v_fma_f32 [[A:v[0-9]+]], -[[NUM_SCALE]], [[NUM_RCP]], 1.0
-; GCN: v_fma_f32 [[B:v[0-9]+]], [[A]], [[NUM_RCP]], [[NUM_RCP]]
+; PREGFX10: v_fma_f32 [[B:v[0-9]+]], [[A]], [[NUM_RCP]], [[NUM_RCP]]
+; GFX10: v_fmac_f32_e32 [[B:v[0-9]+]], [[A]], [[NUM_RCP]]
 ; GCN: v_mul_f32_e32 [[C:v[0-9]+]], [[DEN_SCALE]], [[B]]
 ; GCN: v_fma_f32 [[D:v[0-9]+]], -[[NUM_SCALE]], [[C]], [[DEN_SCALE]]
-; GCN: v_fma_f32 [[E:v[0-9]+]], [[D]], [[B]], [[C]]
+; PREGFX10: v_fma_f32 [[E:v[0-9]+]], [[D]], [[B]], [[C]]
+; GFX10: v_fmac_f32_e32 [[E:v[0-9]+]], [[D]], [[B]]
 ; GCN: v_fma_f32 [[F:v[0-9]+]], -[[NUM_SCALE]], [[E]], [[DEN_SCALE]]
 ; PREGFX10: s_setreg_imm32_b32 hwreg(HW_REG_MODE, 4, 2), 0
 ; GFX10: s_denorm_mode 12
 ; GCN: v_div_fmas_f32 [[FMAS:v[0-9]+]], [[F]], [[B]], [[E]]
 ; GCN: v_div_fixup_f32 v{{[0-9]+}}, [[FMAS]],
 
-define amdgpu_kernel void @fdiv_f32_correctly_rounded_divide_sqrt(float addrspace(1)* %out, float %a) #0 {
+define amdgpu_kernel void @fdiv_f32_correctly_rounded_divide_sqrt(ptr addrspace(1) %out, float %a) #0 {
 entry:
   %fdiv = fdiv float 1.000000e+00, %a
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 
@@ -331,17 +336,17 @@ entry:
 ; GFX10: v_fmac_f32_e32 [[B:v[0-9]+]], [[A]], [[NUM_RCP]]
 ; GFX10: v_div_scale_f32 [[DEN_SCALE:v[0-9]+]]
 ; GFX10: v_mul_f32_e32 [[C:v[0-9]+]], [[DEN_SCALE]], [[B]]
-; GFX10: v_fma_f32 [[D:v[0-9]+]], [[C]], -[[NUM_SCALE]], [[DEN_SCALE]]
+; GFX10: v_fma_f32 [[D:v[0-9]+]], -[[NUM_SCALE]], [[C]], [[DEN_SCALE]]
 ; GFX10: v_fmac_f32_e32 [[E:v[0-9]+]], [[D]], [[B]]
-; GFX10: v_fmac_f32_e64 [[F:v[0-9]+]], -[[NUM_SCALE]], [[E]]
+; GFX10: v_fma_f32 [[F:v[0-9]+]], -[[NUM_SCALE]], [[E]], [[DEN_SCALE]]
 ; GFX10-NOT: s_denorm_mode
 
 ; GCN: v_div_fmas_f32 [[FMAS:v[0-9]+]], [[F]], [[B]], [[E]]
 ; GCN: v_div_fixup_f32 v{{[0-9]+}}, [[FMAS]],
-define amdgpu_kernel void @fdiv_f32_denorms_correctly_rounded_divide_sqrt(float addrspace(1)* %out, float %a) #2 {
+define amdgpu_kernel void @fdiv_f32_denorms_correctly_rounded_divide_sqrt(ptr addrspace(1) %out, float %a) #2 {
 entry:
   %fdiv = fdiv float 1.000000e+00, %a
-  store float %fdiv, float addrspace(1)* %out
+  store float %fdiv, ptr addrspace(1) %out
   ret void
 }
 

@@ -87,9 +87,10 @@ struct DriverOptions {
   bool warnOnNonstandardUsage{false}; // -Mstandard
   bool warningsAreErrors{false}; // -Werror
   Fortran::parser::Encoding encoding{Fortran::parser::Encoding::LATIN_1};
-  bool parseOnly{false};
+  bool lineDirectives{true}; // -P disables
+  bool syntaxOnly{false};
   bool dumpProvenance{false};
-  bool dumpCookedChars{false};
+  bool noReformat{false}; // -E -fno-reformat
   bool dumpUnparse{false};
   bool dumpParseTree{false};
   bool timeParse{false};
@@ -110,7 +111,7 @@ void Exec(std::vector<llvm::StringRef> &argv, bool verbose = false) {
     ErrMsg = Program.getError().message();
   if (!Program ||
       llvm::sys::ExecuteAndWait(
-          Program.get(), argv, llvm::None, {}, 0, 0, &ErrMsg)) {
+          Program.get(), argv, std::nullopt, {}, 0, 0, &ErrMsg)) {
     llvm::errs() << "execvp(" << argv[0] << ") failed: " << ErrMsg << '\n';
     exit(EXIT_FAILURE);
   }
@@ -176,8 +177,13 @@ std::string CompileFortran(
     parsing.DumpProvenance(llvm::outs());
     return {};
   }
-  if (driver.dumpCookedChars) {
-    parsing.DumpCookedChars(llvm::outs());
+  if (options.prescanAndReformat) {
+    parsing.messages().Emit(llvm::errs(), allCookedSources);
+    if (driver.noReformat) {
+      parsing.DumpCookedChars(llvm::outs());
+    } else {
+      parsing.EmitPreprocessedSource(llvm::outs(), driver.lineDirectives);
+    }
     return {};
   }
   parsing.Parse(llvm::outs());
@@ -195,7 +201,7 @@ std::string CompileFortran(
   parsing.messages().Emit(llvm::errs(), parsing.allCooked());
   if (!parsing.consumedWholeFile()) {
     parsing.EmitMessage(llvm::errs(), parsing.finalRestingPlace(),
-        "parser FAIL (final position)");
+        "parser FAIL (final position)", "error: ", llvm::raw_ostream::RED);
     exitStatus = EXIT_FAILURE;
     return {};
   }
@@ -217,7 +223,7 @@ std::string CompileFortran(
             Fortran::common::LanguageFeature::BackslashEscapes));
     return {};
   }
-  if (driver.parseOnly) {
+  if (driver.syntaxOnly) {
     return {};
   }
 
@@ -302,7 +308,7 @@ int main(int argc, char *const argv[]) {
   while (!args.empty()) {
     std::string arg{std::move(args.front())};
     args.pop_front();
-    if (arg.empty()) {
+    if (arg.empty() || arg == "-Xflang") {
     } else if (arg.at(0) != '-') {
       anyFiles = true;
       auto dot{arg.rfind(".")};
@@ -353,8 +359,12 @@ int main(int argc, char *const argv[]) {
       driver.warningsAreErrors = true;
     } else if (arg == "-ed") {
       options.features.Enable(Fortran::common::LanguageFeature::OldDebugLines);
-    } else if (arg == "-E" || arg == "-fpreprocess-only") {
-      driver.dumpCookedChars = true;
+    } else if (arg == "-E") {
+      options.prescanAndReformat = true;
+    } else if (arg == "-P") {
+      driver.lineDirectives = false;
+    } else if (arg == "-fno-reformat") {
+      driver.noReformat = true;
     } else if (arg == "-fbackslash") {
       options.features.Enable(
           Fortran::common::LanguageFeature::BackslashEscapes);
@@ -369,8 +379,8 @@ int main(int argc, char *const argv[]) {
       driver.dumpUnparse = true;
     } else if (arg == "-ftime-parse") {
       driver.timeParse = true;
-    } else if (arg == "-fparse-only") {
-      driver.parseOnly = true;
+    } else if (arg == "-fparse-only" || arg == "-fsyntax-only") {
+      driver.syntaxOnly = true;
     } else if (arg == "-c") {
       driver.compileOnly = true;
     } else if (arg == "-o") {
@@ -405,7 +415,7 @@ int main(int argc, char *const argv[]) {
           << "  -ed                  enable fixed form D lines\n"
           << "  -E                   prescan & preprocess only\n"
           << "  -ftime-parse         measure parsing time\n"
-          << "  -fparse-only         parse only, no output except messages\n"
+          << "  -fsyntax-only        parse only, no output except messages\n"
           << "  -funparse            parse & reformat only, no code "
              "generation\n"
           << "  -fdump-provenance    dump the provenance table (no code)\n"

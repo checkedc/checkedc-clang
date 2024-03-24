@@ -67,6 +67,20 @@ MLIR_CAPI_EXPORTED MlirType mlirIndexTypeGet(MlirContext ctx);
 // Floating-point types.
 //===----------------------------------------------------------------------===//
 
+/// Checks whether the given type is an f8E5M2 type.
+MLIR_CAPI_EXPORTED bool mlirTypeIsAFloat8E5M2(MlirType type);
+
+/// Creates an f8E5M2 type in the given context. The type is owned by the
+/// context.
+MLIR_CAPI_EXPORTED MlirType mlirFloat8E5M2TypeGet(MlirContext ctx);
+
+/// Checks whether the given type is an f8E4M3FN type.
+MLIR_CAPI_EXPORTED bool mlirTypeIsAFloat8E4M3FN(MlirType type);
+
+/// Creates an f8E4M3FN type in the given context. The type is owned by the
+/// context.
+MLIR_CAPI_EXPORTED MlirType mlirFloat8E4M3FNTypeGet(MlirContext ctx);
+
 /// Checks whether the given type is a bf16 type.
 MLIR_CAPI_EXPORTED bool mlirTypeIsABF16(MlirType type);
 
@@ -150,9 +164,18 @@ MLIR_CAPI_EXPORTED int64_t mlirShapedTypeGetDimSize(MlirType type,
 /// in shaped types.
 MLIR_CAPI_EXPORTED bool mlirShapedTypeIsDynamicSize(int64_t size);
 
+/// Returns the value indicating a dynamic size in a shaped type. Prefer
+/// mlirShapedTypeIsDynamicSize to direct comparisons with this value.
+MLIR_CAPI_EXPORTED int64_t mlirShapedTypeGetDynamicSize(void);
+
 /// Checks whether the given value is used as a placeholder for dynamic strides
 /// and offsets in shaped types.
 MLIR_CAPI_EXPORTED bool mlirShapedTypeIsDynamicStrideOrOffset(int64_t val);
+
+/// Returns the value indicating a dynamic stride or offset in a shaped type.
+/// Prefer mlirShapedTypeGetDynamicStrideOrOffset to direct comparisons with
+/// this value.
+MLIR_CAPI_EXPORTED int64_t mlirShapedTypeGetDynamicStrideOrOffset(void);
 
 //===----------------------------------------------------------------------===//
 // Vector type.
@@ -170,10 +193,10 @@ MLIR_CAPI_EXPORTED MlirType mlirVectorTypeGet(intptr_t rank,
 
 /// Same as "mlirVectorTypeGet" but returns a nullptr wrapping MlirType on
 /// illegal arguments, emitting appropriate diagnostics.
-MLIR_CAPI_EXPORTED MlirType mlirVectorTypeGetChecked(intptr_t rank,
+MLIR_CAPI_EXPORTED MlirType mlirVectorTypeGetChecked(MlirLocation loc,
+                                                     intptr_t rank,
                                                      const int64_t *shape,
-                                                     MlirType elementType,
-                                                     MlirLocation loc);
+                                                     MlirType elementType);
 
 //===----------------------------------------------------------------------===//
 // Ranked / Unranked Tensor type.
@@ -188,18 +211,24 @@ MLIR_CAPI_EXPORTED bool mlirTypeIsARankedTensor(MlirType type);
 /// Checks whether the given type is an unranked tensor type.
 MLIR_CAPI_EXPORTED bool mlirTypeIsAUnrankedTensor(MlirType type);
 
-/// Creates a tensor type of a fixed rank with the given shape and element type
-/// in the same context as the element type. The type is owned by the context.
+/// Creates a tensor type of a fixed rank with the given shape, element type,
+/// and optional encoding in the same context as the element type. The type is
+/// owned by the context. Tensor types without any specific encoding field
+/// should assign mlirAttributeGetNull() to this parameter.
 MLIR_CAPI_EXPORTED MlirType mlirRankedTensorTypeGet(intptr_t rank,
                                                     const int64_t *shape,
-                                                    MlirType elementType);
+                                                    MlirType elementType,
+                                                    MlirAttribute encoding);
 
 /// Same as "mlirRankedTensorTypeGet" but returns a nullptr wrapping MlirType on
 /// illegal arguments, emitting appropriate diagnostics.
-MLIR_CAPI_EXPORTED MlirType mlirRankedTensorTypeGetChecked(intptr_t rank,
-                                                           const int64_t *shape,
-                                                           MlirType elementType,
-                                                           MlirLocation loc);
+MLIR_CAPI_EXPORTED MlirType mlirRankedTensorTypeGetChecked(
+    MlirLocation loc, intptr_t rank, const int64_t *shape, MlirType elementType,
+    MlirAttribute encoding);
+
+/// Gets the 'encoding' attribute from the ranked tensor type, returning a null
+/// attribute if none.
+MLIR_CAPI_EXPORTED MlirAttribute mlirRankedTensorTypeGetEncoding(MlirType type);
 
 /// Creates an unranked tensor type with the given element type in the same
 /// context as the element type. The type is owned by the context.
@@ -208,7 +237,7 @@ MLIR_CAPI_EXPORTED MlirType mlirUnrankedTensorTypeGet(MlirType elementType);
 /// Same as "mlirUnrankedTensorTypeGet" but returns a nullptr wrapping MlirType
 /// on illegal arguments, emitting appropriate diagnostics.
 MLIR_CAPI_EXPORTED MlirType
-mlirUnrankedTensorTypeGetChecked(MlirType elementType, MlirLocation loc);
+mlirUnrankedTensorTypeGetChecked(MlirLocation loc, MlirType elementType);
 
 //===----------------------------------------------------------------------===//
 // Ranked / Unranked MemRef type.
@@ -223,53 +252,54 @@ MLIR_CAPI_EXPORTED bool mlirTypeIsAUnrankedMemRef(MlirType type);
 /// Creates a MemRef type with the given rank and shape, a potentially empty
 /// list of affine layout maps, the given memory space and element type, in the
 /// same context as element type. The type is owned by the context.
-MLIR_CAPI_EXPORTED MlirType mlirMemRefTypeGet(
-    MlirType elementType, intptr_t rank, const int64_t *shape, intptr_t numMaps,
-    MlirAffineMap const *affineMaps, unsigned memorySpace);
+MLIR_CAPI_EXPORTED MlirType mlirMemRefTypeGet(MlirType elementType,
+                                              intptr_t rank,
+                                              const int64_t *shape,
+                                              MlirAttribute layout,
+                                              MlirAttribute memorySpace);
 
 /// Same as "mlirMemRefTypeGet" but returns a nullptr-wrapping MlirType o
 /// illegal arguments, emitting appropriate diagnostics.
 MLIR_CAPI_EXPORTED MlirType mlirMemRefTypeGetChecked(
-    MlirType elementType, intptr_t rank, const int64_t *shape, intptr_t numMaps,
-    MlirAffineMap const *affineMaps, unsigned memorySpace, MlirLocation loc);
+    MlirLocation loc, MlirType elementType, intptr_t rank, const int64_t *shape,
+    MlirAttribute layout, MlirAttribute memorySpace);
 
 /// Creates a MemRef type with the given rank, shape, memory space and element
 /// type in the same context as the element type. The type has no affine maps,
 /// i.e. represents a default row-major contiguous memref. The type is owned by
 /// the context.
-MLIR_CAPI_EXPORTED MlirType mlirMemRefTypeContiguousGet(MlirType elementType,
-                                                        intptr_t rank,
-                                                        const int64_t *shape,
-                                                        unsigned memorySpace);
+MLIR_CAPI_EXPORTED MlirType
+mlirMemRefTypeContiguousGet(MlirType elementType, intptr_t rank,
+                            const int64_t *shape, MlirAttribute memorySpace);
 
 /// Same as "mlirMemRefTypeContiguousGet" but returns a nullptr wrapping
 /// MlirType on illegal arguments, emitting appropriate diagnostics.
 MLIR_CAPI_EXPORTED MlirType mlirMemRefTypeContiguousGetChecked(
-    MlirType elementType, intptr_t rank, const int64_t *shape,
-    unsigned memorySpace, MlirLocation loc);
+    MlirLocation loc, MlirType elementType, intptr_t rank, const int64_t *shape,
+    MlirAttribute memorySpace);
 
 /// Creates an Unranked MemRef type with the given element type and in the given
 /// memory space. The type is owned by the context of element type.
-MLIR_CAPI_EXPORTED MlirType mlirUnrankedMemRefTypeGet(MlirType elementType,
-                                                      unsigned memorySpace);
+MLIR_CAPI_EXPORTED MlirType
+mlirUnrankedMemRefTypeGet(MlirType elementType, MlirAttribute memorySpace);
 
 /// Same as "mlirUnrankedMemRefTypeGet" but returns a nullptr wrapping
 /// MlirType on illegal arguments, emitting appropriate diagnostics.
 MLIR_CAPI_EXPORTED MlirType mlirUnrankedMemRefTypeGetChecked(
-    MlirType elementType, unsigned memorySpace, MlirLocation loc);
+    MlirLocation loc, MlirType elementType, MlirAttribute memorySpace);
 
-/// Returns the number of affine layout maps in the given MemRef type.
-MLIR_CAPI_EXPORTED intptr_t mlirMemRefTypeGetNumAffineMaps(MlirType type);
+/// Returns the layout of the given MemRef type.
+MLIR_CAPI_EXPORTED MlirAttribute mlirMemRefTypeGetLayout(MlirType type);
 
-/// Returns the pos-th affine map of the given MemRef type.
-MLIR_CAPI_EXPORTED MlirAffineMap mlirMemRefTypeGetAffineMap(MlirType type,
-                                                            intptr_t pos);
+/// Returns the affine map of the given MemRef type.
+MLIR_CAPI_EXPORTED MlirAffineMap mlirMemRefTypeGetAffineMap(MlirType type);
 
 /// Returns the memory space of the given MemRef type.
-MLIR_CAPI_EXPORTED unsigned mlirMemRefTypeGetMemorySpace(MlirType type);
+MLIR_CAPI_EXPORTED MlirAttribute mlirMemRefTypeGetMemorySpace(MlirType type);
 
 /// Returns the memory spcae of the given Unranked MemRef type.
-MLIR_CAPI_EXPORTED unsigned mlirUnrankedMemrefGetMemorySpace(MlirType type);
+MLIR_CAPI_EXPORTED MlirAttribute
+mlirUnrankedMemrefGetMemorySpace(MlirType type);
 
 //===----------------------------------------------------------------------===//
 // Tuple type.
@@ -317,6 +347,29 @@ MLIR_CAPI_EXPORTED MlirType mlirFunctionTypeGetInput(MlirType type,
 /// Returns the pos-th result type.
 MLIR_CAPI_EXPORTED MlirType mlirFunctionTypeGetResult(MlirType type,
                                                       intptr_t pos);
+
+//===----------------------------------------------------------------------===//
+// Opaque type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is an opaque type.
+MLIR_CAPI_EXPORTED bool mlirTypeIsAOpaque(MlirType type);
+
+/// Creates an opaque type in the given context associated with the dialect
+/// identified by its namespace. The type contains opaque byte data of the
+/// specified length (data need not be null-terminated).
+MLIR_CAPI_EXPORTED MlirType mlirOpaqueTypeGet(MlirContext ctx,
+                                              MlirStringRef dialectNamespace,
+                                              MlirStringRef typeData);
+
+/// Returns the namespace of the dialect with which the given opaque type
+/// is associated. The namespace string is owned by the context.
+MLIR_CAPI_EXPORTED MlirStringRef
+mlirOpaqueTypeGetDialectNamespace(MlirType type);
+
+/// Returns the raw data as a string reference. The data remains live as long as
+/// the context in which the type lives.
+MLIR_CAPI_EXPORTED MlirStringRef mlirOpaqueTypeGetData(MlirType type);
 
 #ifdef __cplusplus
 }

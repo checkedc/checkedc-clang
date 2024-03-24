@@ -15,7 +15,6 @@
 
 #include <cerrno>
 #include <string>
-#include <type_traits>
 
 namespace llvm {
 namespace sys {
@@ -43,4 +42,4 @@ inline decltype(auto) RetryAfterSignal(const FailT &Fail, const Fun &F,
 }  // namespace sys
 }  // namespace llvm
 
-#endif  // LLVM_SYSTEM_ERRNO_H
+#endif // LLVM_SUPPORT_ERRNO_H

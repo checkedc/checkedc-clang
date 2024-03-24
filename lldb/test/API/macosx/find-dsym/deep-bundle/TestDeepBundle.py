@@ -1,7 +1,6 @@
 """Test that a dSYM can be found when a binary is in a deep bundle with multiple pathname components."""
 
 
-#import unittest2
 from time import sleep
 
 import lldb
@@ -13,8 +12,6 @@ from lldbsuite.test import lldbutil
 exe_name = 'deep-bundle'  # must match Makefile
 
 class DeepBundleTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def setUp(self):
         TestBase.setUp(self)
@@ -31,7 +28,6 @@ class DeepBundleTestCase(TestBase):
     @skipUnlessDarwin
     # This test is explicitly a dSYM test, it doesn't need to run for any other config.
     @skipIf(debug_info=no_match(["dsym"]))
-    @skipIfReproducer # File synchronization is not supported during replay.
     def test_attach_and_check_dsyms(self):
         """Test attach to binary, see if the framework dSYM is found"""
         exe = self.getBuildArtifact(exe_name)
@@ -70,7 +66,7 @@ class DeepBundleTestCase(TestBase):
             if mod.GetFileSpec().GetFilename() == 'MyFramework':
                 found_module = True
                 dsym_name = mod.GetSymbolFileSpec().GetFilename()
-                self.assertTrue (dsym_name == 'MyFramework', "Check that we found the dSYM for the bundle that was loaded")
+                self.assertEqual(dsym_name, 'MyFramework', "Check that we found the dSYM for the bundle that was loaded")
             i=i+1
 
         self.assertTrue(found_module, "Check that we found the framework loaded in lldb's image list")

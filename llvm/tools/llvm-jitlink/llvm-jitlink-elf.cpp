@@ -25,8 +25,8 @@ static bool isELFGOTSection(Section &S) { return S.getName() == "$__GOT"; }
 static bool isELFStubsSection(Section &S) { return S.getName() == "$__STUBS"; }
 
 static Expected<Edge &> getFirstRelocationEdge(LinkGraph &G, Block &B) {
-  auto EItr = std::find_if(B.edges().begin(), B.edges().end(),
-                           [](Edge &E) { return E.isRelocation(); });
+  auto EItr =
+      llvm::find_if(B.edges(), [](Edge &E) { return E.isRelocation(); });
   if (EItr == B.edges().end())
     return make_error<StringError>("GOT entry in " + G.getName() + ", \"" +
                                        B.getSection().getName() +
@@ -82,13 +82,12 @@ Error registerELFGraphInfo(Session &S, LinkGraph &G) {
   for (auto &Sec : G.sections()) {
     LLVM_DEBUG({
       dbgs() << "  Section \"" << Sec.getName() << "\": "
-             << (llvm::empty(Sec.symbols()) ? "empty. skipping."
-                                            : "processing...")
+             << (Sec.symbols().empty() ? "empty. skipping." : "processing...")
              << "\n";
     });
 
     // Skip empty sections.
-    if (llvm::empty(Sec.symbols()))
+    if (Sec.symbols().empty())
       continue;
 
     if (FileInfo.SectionInfos.count(Sec.getName()))
@@ -116,11 +115,15 @@ Error registerELFGraphInfo(Session &S, LinkGraph &G) {
           return make_error<StringError>("zero-fill atom in GOT section",
                                          inconvertibleErrorCode());
 
-        if (auto TS = getELFGOTTarget(G, Sym->getBlock()))
-          FileInfo.GOTEntryInfos[TS->getName()] = {Sym->getSymbolContent(),
-                                                   Sym->getAddress()};
-        else
-          return TS.takeError();
+        // If this is a GOT symbol with size (i.e. not the GOT start symbol)
+        // then add it to the GOT entry info table.
+        if (Sym->getSize() != 0) {
+          if (auto TS = getELFGOTTarget(G, Sym->getBlock()))
+            FileInfo.GOTEntryInfos[TS->getName()] = {
+                Sym->getSymbolContent(), Sym->getAddress().getValue()};
+          else
+            return TS.takeError();
+        }
         SectionContainsContent = true;
       } else if (isStubsSection) {
         if (Sym->isSymbolZeroFill())
@@ -129,25 +132,27 @@ Error registerELFGraphInfo(Session &S, LinkGraph &G) {
 
         if (auto TS = getELFStubTarget(G, Sym->getBlock()))
           FileInfo.StubInfos[TS->getName()] = {Sym->getSymbolContent(),
-                                               Sym->getAddress()};
+                                               Sym->getAddress().getValue()};
         else
           return TS.takeError();
         SectionContainsContent = true;
-      } else if (Sym->hasName()) {
-        dbgs() << "Symbol: " << Sym->getName() << "\n";
+      }
+
+      if (Sym->hasName()) {
         if (Sym->isSymbolZeroFill()) {
-          S.SymbolInfos[Sym->getName()] = {Sym->getSize(), Sym->getAddress()};
+          S.SymbolInfos[Sym->getName()] = {Sym->getSize(),
+                                           Sym->getAddress().getValue()};
           SectionContainsZeroFill = true;
         } else {
           S.SymbolInfos[Sym->getName()] = {Sym->getSymbolContent(),
-                                           Sym->getAddress()};
+                                           Sym->getAddress().getValue()};
           SectionContainsContent = true;
         }
       }
     }
 
-    JITTargetAddress SecAddr = FirstSym->getAddress();
-    uint64_t SecSize =
+    auto SecAddr = FirstSym->getAddress();
+    auto SecSize =
         (LastSym->getBlock().getAddress() + LastSym->getBlock().getSize()) -
         SecAddr;
 
@@ -156,11 +161,11 @@ Error registerELFGraphInfo(Session &S, LinkGraph &G) {
                                      "supported yet",
                                      inconvertibleErrorCode());
     if (SectionContainsZeroFill)
-      FileInfo.SectionInfos[Sec.getName()] = {SecSize, SecAddr};
+      FileInfo.SectionInfos[Sec.getName()] = {SecSize, SecAddr.getValue()};
     else
       FileInfo.SectionInfos[Sec.getName()] = {
-          StringRef(FirstSym->getBlock().getContent().data(), SecSize),
-          SecAddr};
+          ArrayRef<char>(FirstSym->getBlock().getContent().data(), SecSize),
+          SecAddr.getValue()};
   }
 
   return Error::success();

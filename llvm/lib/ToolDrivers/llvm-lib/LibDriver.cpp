@@ -28,6 +28,7 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -40,11 +41,14 @@ enum {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Options.inc"
 #undef PREFIX
 
-static const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
   {X1, X2, X10,         X11,         OPT_##ID, opt::Option::KIND##Class,       \
    X9, X8, OPT_##GROUP, OPT_##ALIAS, X7,       X12},
@@ -52,11 +56,10 @@ static const opt::OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
-class LibOptTable : public opt::OptTable {
+class LibOptTable : public opt::GenericOptTable {
 public:
-  LibOptTable() : OptTable(InfoTable, true) {}
+  LibOptTable() : opt::GenericOptTable(InfoTable, true) {}
 };
-
 }
 
 static std::string getDefaultOutputPath(const NewArchiveMember &FirstMember) {
@@ -76,8 +79,8 @@ static std::vector<StringRef> getSearchPaths(opt::InputArgList *Args,
     Ret.push_back(Arg->getValue());
 
   // Add $LIB.
-  Optional<std::string> EnvOpt = sys::Process::GetEnv("LIB");
-  if (!EnvOpt.hasValue())
+  std::optional<std::string> EnvOpt = sys::Process::GetEnv("LIB");
+  if (!EnvOpt)
     return Ret;
   StringRef Env = Saver.save(*EnvOpt);
   while (!Env.empty()) {
@@ -112,8 +115,8 @@ static void doList(opt::InputArgList& Args) {
   std::unique_ptr<MemoryBuffer> B;
   for (auto *Arg : Args.filtered(OPT_INPUT)) {
     // Create or open the archive object.
-    ErrorOr<std::unique_ptr<MemoryBuffer>> MaybeBuf =
-        MemoryBuffer::getFile(Arg->getValue(), -1, false);
+    ErrorOr<std::unique_ptr<MemoryBuffer>> MaybeBuf = MemoryBuffer::getFile(
+        Arg->getValue(), /*IsText=*/false, /*RequiresNullTerminator=*/false);
     fatalOpenError(errorCodeToError(MaybeBuf.getError()), Arg->getValue());
 
     if (identify_magic(MaybeBuf.get()->getBuffer()) == file_magic::archive) {
@@ -229,10 +232,11 @@ static void appendFile(std::vector<NewArchiveMember> &Members,
         (Magic == file_magic::coff_object) ? getCOFFFileMachine(MB)
                                            : getBitcodeFileMachine(MB);
     if (!MaybeFileMachine) {
-      handleAllErrors(MaybeFileMachine.takeError(), [&](const ErrorInfoBase &EIB) {
-        llvm::errs() << MB.getBufferIdentifier() << ": " << EIB.message()
-                     << "\n";
-      });
+      handleAllErrors(MaybeFileMachine.takeError(),
+                      [&](const ErrorInfoBase &EIB) {
+                        llvm::errs() << MB.getBufferIdentifier() << ": "
+                                     << EIB.message() << "\n";
+                      });
       exit(1);
     }
     COFF::MachineTypes FileMachine = *MaybeFileMachine;
@@ -287,14 +291,29 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
 
   // Handle /help
   if (Args.hasArg(OPT_help)) {
-    Table.PrintHelp(outs(), "llvm-lib [options] file...", "LLVM Lib");
+    Table.printHelp(outs(), "llvm-lib [options] file...", "LLVM Lib");
     return 0;
   }
 
+  // Parse /ignore:
+  llvm::StringSet<> IgnoredWarnings;
+  for (auto *Arg : Args.filtered(OPT_ignore))
+    IgnoredWarnings.insert(Arg->getValue());
+
   // If no input files and not told otherwise, silently do nothing to match
   // lib.exe
-  if (!Args.hasArgNoClaim(OPT_INPUT) && !Args.hasArg(OPT_llvmlibempty))
+  if (!Args.hasArgNoClaim(OPT_INPUT) && !Args.hasArg(OPT_llvmlibempty)) {
+    if (!IgnoredWarnings.contains("emptyoutput")) {
+      llvm::errs() << "warning: no input files, not writing output file\n";
+      llvm::errs() << "         pass /llvmlibempty to write empty .lib file,\n";
+      llvm::errs() << "         pass /ignore:emptyoutput to suppress warning\n";
+      if (Args.hasFlag(OPT_WX, OPT_WX_no, false)) {
+        llvm::errs() << "treating warning as error due to /WX\n";
+        return 1;
+      }
+    }
     return 0;
+  }
 
   if (Args.hasArg(OPT_lst)) {
     doList(Args);
@@ -339,8 +358,8 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
       continue;
 
     // Open a file.
-    ErrorOr<std::unique_ptr<MemoryBuffer>> MOrErr =
-        MemoryBuffer::getFile(Path, -1, false);
+    ErrorOr<std::unique_ptr<MemoryBuffer>> MOrErr = MemoryBuffer::getFile(
+        Path, /*IsText=*/false, /*RequiresNullTerminator=*/false);
     fatalOpenError(errorCodeToError(MOrErr.getError()), Path);
     MemoryBufferRef MBRef = (*MOrErr)->getMemBufferRef();
 

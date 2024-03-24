@@ -19,6 +19,7 @@
 #include "clang/Sema/DelayedDiagnostic.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
+#include <optional>
 
 using namespace clang;
 using namespace sema;
@@ -57,7 +58,7 @@ static const AvailabilityAttr *getAttrForPlatform(ASTContext &Context,
 /// \param D The declaration to check.
 /// \param Message If non-null, this will be populated with the message from
 /// the availability attribute that is selected.
-/// \param ClassReceiver If we're checking the the method of a class message
+/// \param ClassReceiver If we're checking the method of a class message
 /// send, the class. Otherwise nullptr.
 static std::pair<AvailabilityResult, const NamedDecl *>
 ShouldDiagnoseAvailabilityOfDecl(Sema &S, const NamedDecl *D,
@@ -192,6 +193,9 @@ shouldDiagnoseAvailabilityByDefault(const ASTContext &Context,
   case llvm::Triple::MacOSX:
     ForceAvailabilityFromVersion = VersionTuple(/*Major=*/10, /*Minor=*/13);
     break;
+  case llvm::Triple::ShaderModel:
+    // Always enable availability diagnostics for shader models.
+    return true;
   default:
     // New targets should always warn about availability.
     return Triple.getVendor() == llvm::Triple::Apple;
@@ -241,16 +245,16 @@ struct AttributeInsertion {
 /// attribute argument.
 /// \param SlotNames The vector that will be populated with slot names. In case
 /// of unsuccessful parsing can contain invalid data.
-/// \returns A number of method parameters if parsing was successful, None
-/// otherwise.
-static Optional<unsigned>
+/// \returns A number of method parameters if parsing was successful,
+/// std::nullopt otherwise.
+static std::optional<unsigned>
 tryParseObjCMethodName(StringRef Name, SmallVectorImpl<StringRef> &SlotNames,
                        const LangOptions &LangOpts) {
   // Accept replacements starting with - or + as valid ObjC method names.
   if (!Name.empty() && (Name.front() == '-' || Name.front() == '+'))
     Name = Name.drop_front(1);
   if (Name.empty())
-    return None;
+    return std::nullopt;
   Name.split(SlotNames, ':');
   unsigned NumParams;
   if (Name.back() == ':') {
@@ -260,7 +264,7 @@ tryParseObjCMethodName(StringRef Name, SmallVectorImpl<StringRef> &SlotNames,
   } else {
     if (SlotNames.size() != 1)
       // Not a valid method name, just a colon-separated string.
-      return None;
+      return std::nullopt;
     NumParams = 0;
   }
   // Verify all slot names are valid.
@@ -268,29 +272,29 @@ tryParseObjCMethodName(StringRef Name, SmallVectorImpl<StringRef> &SlotNames,
   for (StringRef S : SlotNames) {
     if (S.empty())
       continue;
-    if (!isValidIdentifier(S, AllowDollar))
-      return None;
+    if (!isValidAsciiIdentifier(S, AllowDollar))
+      return std::nullopt;
   }
   return NumParams;
 }
 
 /// Returns a source location in which it's appropriate to insert a new
 /// attribute for the given declaration \D.
-static Optional<AttributeInsertion>
+static std::optional<AttributeInsertion>
 createAttributeInsertion(const NamedDecl *D, const SourceManager &SM,
                          const LangOptions &LangOpts) {
   if (isa<ObjCPropertyDecl>(D))
     return AttributeInsertion::createInsertionAfter(D);
   if (const auto *MD = dyn_cast<ObjCMethodDecl>(D)) {
     if (MD->hasBody())
-      return None;
+      return std::nullopt;
     return AttributeInsertion::createInsertionAfter(D);
   }
   if (const auto *TD = dyn_cast<TagDecl>(D)) {
     SourceLocation Loc =
         Lexer::getLocForEndOfToken(TD->getInnerLocStart(), 0, SM, LangOpts);
     if (Loc.isInvalid())
-      return None;
+      return std::nullopt;
     // Insert after the 'struct'/whatever keyword.
     return AttributeInsertion::createInsertionAfter(Loc);
   }
@@ -397,7 +401,7 @@ static void DoEmitAvailabilityWarning(Sema &S, AvailabilityResult K,
         return;
       if (!S.getPreprocessor().isMacroDefined("API_AVAILABLE"))
         return;
-      Optional<AttributeInsertion> Insertion = createAttributeInsertion(
+      std::optional<AttributeInsertion> Insertion = createAttributeInsertion(
           Enclosing, S.getSourceManager(), S.getLangOpts());
       if (!Insertion)
         return;
@@ -499,9 +503,9 @@ static void DoEmitAvailabilityWarning(Sema &S, AvailabilityResult K,
       if (const auto *MethodDecl = dyn_cast<ObjCMethodDecl>(ReferringDecl)) {
         Selector Sel = MethodDecl->getSelector();
         SmallVector<StringRef, 12> SelectorSlotNames;
-        Optional<unsigned> NumParams = tryParseObjCMethodName(
+        std::optional<unsigned> NumParams = tryParseObjCMethodName(
             Replacement, SelectorSlotNames, S.getLangOpts());
-        if (NumParams && NumParams.getValue() == Sel.getNumArgs()) {
+        if (NumParams && *NumParams == Sel.getNumArgs()) {
           assert(SelectorSlotNames.size() == Locs.size());
           for (unsigned I = 0; I < Locs.size(); ++I) {
             if (!Sel.getNameForSlot(I).empty()) {
@@ -630,8 +634,7 @@ public:
                                               const CompoundStmt *Scope) {
     LastDeclUSEFinder Visitor;
     Visitor.D = D;
-    for (auto I = Scope->body_rbegin(), E = Scope->body_rend(); I != E; ++I) {
-      const Stmt *S = *I;
+    for (const Stmt *S : llvm::reverse(Scope->body())) {
       if (!Visitor.TraverseStmt(const_cast<Stmt *>(S)))
         return S;
     }
@@ -666,13 +669,6 @@ public:
         SemaRef.Context.getTargetInfo().getPlatformMinVersion());
   }
 
-  bool TraverseDecl(Decl *D) {
-    // Avoid visiting nested functions to prevent duplicate warnings.
-    if (!D || isa<FunctionDecl>(D))
-      return true;
-    return Base::TraverseDecl(D);
-  }
-
   bool TraverseStmt(Stmt *S) {
     if (!S)
       return true;
@@ -686,17 +682,11 @@ public:
 
   bool TraverseIfStmt(IfStmt *If);
 
-  bool TraverseLambdaExpr(LambdaExpr *E) { return true; }
-
   // for 'case X:' statements, don't bother looking at the 'X'; it can't lead
   // to any useful diagnostics.
   bool TraverseCaseStmt(CaseStmt *CS) { return TraverseStmt(CS->getSubStmt()); }
 
-  bool VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *PRE) {
-    if (PRE->isClassReceiver())
-      DiagnoseDeclAvailability(PRE->getClassReceiver(), PRE->getReceiverLocation());
-    return true;
-  }
+  bool VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *PRE) { return true; }
 
   bool VisitObjCMessageExpr(ObjCMessageExpr *Msg) {
     if (ObjCMethodDecl *D = Msg->getMethodDecl()) {
@@ -909,6 +899,11 @@ void Sema::DiagnoseUnguardedAvailabilityViolations(Decl *D) {
       return;
 
     Body = FD->getBody();
+
+    if (auto *CD = dyn_cast<CXXConstructorDecl>(FD))
+      for (const CXXCtorInitializer *CI : CD->inits())
+        DiagnoseUnguardedAvailability(*this, D).IssueDiagnostics(CI->getInit());
+
   } else if (auto *MD = dyn_cast<ObjCMethodDecl>(D))
     Body = MD->getBody();
   else if (auto *BD = dyn_cast<BlockDecl>(D))
@@ -917,6 +912,17 @@ void Sema::DiagnoseUnguardedAvailabilityViolations(Decl *D) {
   assert(Body && "Need a body here!");
 
   DiagnoseUnguardedAvailability(*this, D).IssueDiagnostics(Body);
+}
+
+FunctionScopeInfo *Sema::getCurFunctionAvailabilityContext() {
+  if (FunctionScopes.empty())
+    return nullptr;
+
+  // Conservatively search the entire current function scope context for
+  // availability violations. This ensures we always correctly analyze nested
+  // classes, blocks, lambdas, etc. that may or may not be inside if(@available)
+  // checks themselves.
+  return FunctionScopes.front();
 }
 
 void Sema::DiagnoseAvailabilityOfDecl(NamedDecl *D,
@@ -941,11 +947,8 @@ void Sema::DiagnoseAvailabilityOfDecl(NamedDecl *D,
     // We need to know the @available context in the current function to
     // diagnose this use, let DiagnoseUnguardedAvailabilityViolations do that
     // when we're done parsing the current function.
-    if (getCurFunctionOrMethodDecl()) {
-      getEnclosingFunction()->HasPotentialAvailabilityViolations = true;
-      return;
-    } else if (getCurBlock() || getCurLambda()) {
-      getCurFunction()->HasPotentialAvailabilityViolations = true;
+    if (FunctionScopeInfo *Context = getCurFunctionAvailabilityContext()) {
+      Context->HasPotentialAvailabilityViolations = true;
       return;
     }
   }

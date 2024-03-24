@@ -34,6 +34,7 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "bpf-isel"
+#define PASS_NAME "BPF DAG->DAG Pattern Instruction Selection"
 
 // Instruction Selector Implementation
 namespace {
@@ -45,12 +46,12 @@ class BPFDAGToDAGISel : public SelectionDAGISel {
   const BPFSubtarget *Subtarget;
 
 public:
-  explicit BPFDAGToDAGISel(BPFTargetMachine &TM)
-      : SelectionDAGISel(TM), Subtarget(nullptr) {}
+  static char ID;
 
-  StringRef getPassName() const override {
-    return "BPF DAG->DAG Pattern Instruction Selection";
-  }
+  BPFDAGToDAGISel() = delete;
+
+  explicit BPFDAGToDAGISel(BPFTargetMachine &TM)
+      : SelectionDAGISel(ID, TM), Subtarget(nullptr) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override {
     // Reset the subtarget each time through.
@@ -96,11 +97,15 @@ private:
 };
 } // namespace
 
+char BPFDAGToDAGISel::ID = 0;
+
+INITIALIZE_PASS(BPFDAGToDAGISel, DEBUG_TYPE, PASS_NAME, false, false)
+
 // ComplexPattern used on BPF Load/Store instructions
 bool BPFDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Base, SDValue &Offset) {
   // if Address is FI, get the TargetFrameIndex.
   SDLoc DL(Addr);
-  if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
+  if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
     Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), MVT::i64);
     Offset = CurDAG->getTargetConstant(0, DL, MVT::i64);
     return true;
@@ -112,12 +117,10 @@ bool BPFDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Base, SDValue &Offset) {
 
   // Addresses of the form Addr+const or Addr|const
   if (CurDAG->isBaseWithConstantOffset(Addr)) {
-    ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Addr.getOperand(1));
+    auto *CN = cast<ConstantSDNode>(Addr.getOperand(1));
     if (isInt<16>(CN->getSExtValue())) {
-
       // If the first operand is a FI, get the TargetFI Node
-      if (FrameIndexSDNode *FIN =
-              dyn_cast<FrameIndexSDNode>(Addr.getOperand(0)))
+      if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr.getOperand(0)))
         Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), MVT::i64);
       else
         Base = Addr.getOperand(0);
@@ -141,11 +144,10 @@ bool BPFDAGToDAGISel::SelectFIAddr(SDValue Addr, SDValue &Base,
     return false;
 
   // Addresses of the form Addr+const or Addr|const
-  ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Addr.getOperand(1));
+  auto *CN = cast<ConstantSDNode>(Addr.getOperand(1));
   if (isInt<16>(CN->getSExtValue())) {
-
     // If the first operand is a FI, get the TargetFI Node
-    if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(Addr.getOperand(0)))
+    if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr.getOperand(0)))
       Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), MVT::i64);
     else
       return false;

@@ -16,13 +16,14 @@ namespace llvm {
 
 class MCAsmInfo;
 class MCInst;
-class MCOperand;
-class MCInstrInfo;
 class MCInstrAnalysis;
+class MCInstrInfo;
+class MCOperand;
+class MCRegister;
 class MCRegisterInfo;
 class MCSubtargetInfo;
-class raw_ostream;
 class StringRef;
+class raw_ostream;
 
 /// Convert `Bytes' to a hex string and output to `OS'
 void dumpBytes(ArrayRef<uint8_t> Bytes, raw_ostream &OS);
@@ -53,6 +54,9 @@ protected:
 
   /// True if we are printing marked up assembly.
   bool UseMarkup = false;
+
+  /// True if we prefer aliases (e.g. nop) to raw mnemonics.
+  bool PrintAliases = true;
 
   /// True if we are printing immediates as hex.
   bool PrintImmHex = false;
@@ -107,7 +111,7 @@ public:
   StringRef getOpcodeName(unsigned Opcode) const;
 
   /// Print the assembler register name.
-  virtual void printRegName(raw_ostream &OS, unsigned RegNo) const;
+  virtual void printRegName(raw_ostream &OS, MCRegister Reg) const;
 
   bool getUseMarkup() const { return UseMarkup; }
   void setUseMarkup(bool Value) { UseMarkup = Value; }

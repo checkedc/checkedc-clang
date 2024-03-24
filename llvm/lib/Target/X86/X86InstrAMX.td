@@ -48,30 +48,36 @@ let Predicates = [HasAMXTILE, In64BitMode] in {
                      VEX, T8XD;
 
     // Pseduo instruction for RA.
-    let hasSideEffects = 1, mayLoad = 1,
+    let isPseudo = true, mayLoad = 1, hasSideEffects = 1,
         Defs = [TMM0,TMM1,TMM2,TMM3,TMM4,TMM5,TMM6,TMM7] in
-    def PLDTILECFG : PseudoI <(outs TILECFG:$cfg), (ins opaquemem:$src), []>;
-
-    let hasSideEffects = 1, mayStore = 1 in
-    def PSTTILECFG : PseudoI<(outs), (ins opaquemem:$dst, TILECFG:$cfg), []>;
-
-    def PTILELOADDV : PseudoI<(outs TILE: $dst), (ins GR16:$src1,
-                                                      GR16:$src2,
-                                                      opaquemem:$src3,
-                                                      TILECFG:$cfg), []>;
+    def PLDTILECFGV : PseudoI<(outs), (ins opaquemem:$src), []>;
+    let isPseudo = true, mayLoad = 1 in
+    def PTILELOADDV : PseudoI<(outs TILE:$dst), (ins GR16:$src1,
+                                                     GR16:$src2,
+                                                     opaquemem:$src3), []>;
+    let isPseudo = true, mayLoad = 1 in
+    def PTILELOADDT1V : PseudoI<(outs TILE:$dst), (ins GR16:$src1,
+                                                       GR16:$src2,
+                                                       opaquemem:$src3), []>;
+    let isPseudo = true, mayStore = 1 in
     def PTILESTOREDV : PseudoI<(outs), (ins GR16:$src1,
                                             GR16:$src2, opaquemem:$src3,
-                                            TILE:$src4, TILECFG:$cfg), []>;
-    def PTILEZEROV : PseudoI<(outs TILE: $dst), (ins GR16:$src1,
-                                                     GR16:$src2,
-                                                     TILECFG:$cfg), []>;
+                                            TILE:$src4), []>;
+    let isPseudo = true, isReMaterializable = 1, isAsCheapAsAMove = 1,
+        canFoldAsLoad = 1 in
+      def PTILEZEROV : PseudoI<(outs TILE:$dst), (ins GR16:$src1, GR16:$src2),
+                                [(set TILE:$dst, (int_x86_tilezero_internal
+                                  GR16:$src1, GR16:$src2))]>;
 
     let usesCustomInserter = 1 in {
       // Pseudo instructions, using immediates instead of tile registers.
       // To be translated to the actual instructions in X86ISelLowering.cpp
+      let mayLoad = 1 in
       def PTILELOADD : PseudoI<(outs), (ins u8imm:$src1, sibmem:$src2), []>;
+      let mayLoad = 1 in
       def PTILELOADDT1 : PseudoI<(outs), (ins u8imm:$src1,
                                           sibmem:$src2), []>;
+      let mayStore = 1 in
       def PTILESTORED : PseudoI<(outs), (ins i8mem:$dst, u8imm:$src), []>;
       def PTILEZERO : PseudoI<(outs), (ins u8imm:$src),
                               [(int_x86_tilezero timm:$src)]>;
@@ -101,10 +107,32 @@ let Predicates = [HasAMXINT8, In64BitMode] in {
     }
 
     // Pseduo instruction for RA.
-    let Constraints = "$src4 = $dst" in
-    def PTDPBSSDV : PseudoI<(outs TILE: $dst), (ins GR16:$src1,
-                            GR16:$src2, GR16:$src3, TILE:$src4,
-                            TILE:$src5, TILE:$src6, TILECFG:$cfg), []>;
+    let isPseudo = true, Constraints = "$src4 = $dst" in {
+      def PTDPBSSDV : PseudoI<(outs TILE:$dst), (ins GR16:$src1,
+                              GR16:$src2, GR16:$src3, TILE:$src4,
+                              TILE:$src5, TILE:$src6),
+                              [(set TILE: $dst,
+                              (int_x86_tdpbssd_internal GR16:$src1, GR16:$src2,
+                              GR16:$src3, TILE:$src4, TILE:$src5, TILE:$src6))]>;
+      def PTDPBSUDV : PseudoI<(outs TILE: $dst), (ins GR16:$src1,
+                              GR16:$src2, GR16:$src3, TILE:$src4,
+                              TILE:$src5, TILE:$src6),
+                              [(set TILE: $dst,
+                              (int_x86_tdpbsud_internal GR16:$src1, GR16:$src2,
+                               GR16:$src3, TILE:$src4, TILE:$src5, TILE:$src6))]>;
+      def PTDPBUSDV : PseudoI<(outs TILE: $dst), (ins GR16:$src1,
+                              GR16:$src2, GR16:$src3, TILE:$src4,
+                              TILE:$src5, TILE:$src6),
+                              [(set TILE: $dst,
+                              (int_x86_tdpbusd_internal GR16:$src1, GR16:$src2,
+                              GR16:$src3, TILE:$src4, TILE:$src5, TILE:$src6))]>;
+      def PTDPBUUDV : PseudoI<(outs TILE: $dst), (ins GR16:$src1,
+                              GR16:$src2, GR16:$src3, TILE:$src4,
+                              TILE:$src5, TILE:$src6),
+                              [(set TILE: $dst,
+                              (int_x86_tdpbuud_internal GR16:$src1, GR16:$src2,
+                              GR16:$src3, TILE:$src4, TILE:$src5, TILE:$src6))]>;
+    }
 
     let usesCustomInserter = 1 in {
       // Pseudo instructions, using immediates instead of tile registers.
@@ -137,6 +165,16 @@ let Predicates = [HasAMXBF16, In64BitMode] in {
                       "tdpbf16ps\t{$src3, $src2, $dst|$dst, $src2, $src3}",
                       []>, VEX_4V, T8XS;
 
+    // Pseduo instruction for RA.
+    let isPseudo = true, Constraints = "$src4 = $dst" in
+      def PTDPBF16PSV : PseudoI<(outs TILE: $dst), (ins GR16:$src1,
+                                 GR16:$src2, GR16:$src3, TILE:$src4,
+                                 TILE:$src5, TILE:$src6),
+                                 [(set TILE: $dst,
+                                  (int_x86_tdpbf16ps_internal GR16:$src1,
+                                   GR16:$src2, GR16:$src3, TILE:$src4,
+                                   TILE:$src5, TILE:$src6))]>;
+
     let usesCustomInserter = 1 in {
       // Pseudo instructions, using immediates instead of tile registers.
       // To be translated to the actual instructions in X86ISelLowering.cpp
@@ -147,3 +185,33 @@ let Predicates = [HasAMXBF16, In64BitMode] in {
     }
   }
 } // HasAMXTILE, HasAMXBF16
+
+//AMX-FP16
+let Predicates = [HasAMXFP16, In64BitMode] in {
+  let SchedRW = [WriteSystem] in {
+    let Constraints = "$src1 = $dst" in {
+      def TDPFP16PS : I<0x5c, MRMSrcReg4VOp3, (outs TILE:$dst),
+                        (ins TILE:$src1, TILE:$src2, TILE:$src3),
+                        "tdpfp16ps\t{$src3, $src2, $src1|$src1, $src2, $src3}",
+                        []>, VEX_4V, T8XD;
+    }
+
+    // Pseduo instruction for RA.
+    let isPseudo = true, Constraints = "$src4 = $dst" in {
+      def PTDPFP16PSV : PseudoI<(outs TILE: $dst), (ins GR16:$src1,
+                                 GR16:$src2, GR16:$src3, TILE:$src4,
+                                 TILE:$src5, TILE:$src6),
+                                 [(set TILE: $dst,
+                                  (int_x86_tdpfp16ps_internal GR16:$src1,
+                                   GR16:$src2, GR16:$src3, TILE:$src4,
+                                   TILE:$src5, TILE:$src6))]>;
+    }
+
+    let  usesCustomInserter = 1 in {
+      def PTDPFP16PS : PseudoI<(outs), (ins u8imm:$src1,
+                               u8imm:$src2, u8imm:$src3),
+                               [(int_x86_tdpfp16ps timm:$src1,
+                                 timm:$src2, timm:$src3)]>;
+    }
+  }
+} // HasAMXTILE, HasAMXFP16

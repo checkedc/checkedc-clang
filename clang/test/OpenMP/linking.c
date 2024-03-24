@@ -58,12 +58,12 @@
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:     -fopenmp=lib -target i386-unknown-linux \
 // RUN:   | FileCheck --check-prefix=CHECK-LIB-LD-32 %s
-// CHECK-LIB-LD-32: error: unsupported argument 'lib' to option 'fopenmp='
+// CHECK-LIB-LD-32: error: unsupported argument 'lib' to option '-fopenmp='
 //
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:     -fopenmp=lib -target x86_64-unknown-linux \
 // RUN:   | FileCheck --check-prefix=CHECK-LIB-LD-64 %s
-// CHECK-LIB-LD-64: error: unsupported argument 'lib' to option 'fopenmp='
+// CHECK-LIB-LD-64: error: unsupported argument 'lib' to option '-fopenmp='
 //
 // RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
 // RUN:     -fopenmp -fopenmp=libgomp -target i386-unknown-linux \
@@ -81,7 +81,7 @@
 // CHECK-LD-OVERRIDE-64: "-lgomp" "-lrt"
 // CHECK-LD-OVERRIDE-64: "-lpthread" "-lc"
 //
-// RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN: %clang -no-canonical-prefixes -fuse-ld=link %s -### -o %t.o 2>&1 \
 // RUN:     -fopenmp=libomp -target x86_64-msvc-win32 -rtlib=platform \
 // RUN:   | FileCheck --check-prefix=CHECK-MSVC-LINK-64 %s
 // CHECK-MSVC-LINK-64: link.exe
@@ -95,7 +95,7 @@
 // SIMD-ONLY11-NOT: libomp
 // SIMD-ONLY11-NOT: libgomp
 //
-// RUN: %clang -no-canonical-prefixes %s -### -o %t.o 2>&1 \
+// RUN: %clang -no-canonical-prefixes %s -fuse-ld=link -### -o %t.o 2>&1 \
 // RUN:     -fopenmp=libiomp5 -target x86_64-msvc-win32 -rtlib=platform \
 // RUN:   | FileCheck --check-prefix=CHECK-MSVC-ILINK-64 %s
 

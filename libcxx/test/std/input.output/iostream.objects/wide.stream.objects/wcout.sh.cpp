@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: libcpp-has-no-stdout
-
 // <iostream>
 
 // istream wcout;
 
+// XFAIL: no-wide-characters
+
+// UNSUPPORTED: executor-has-no-bash
 // FILE_DEPENDENCIES: ../check-stdout.sh
 // RUN: %{build}
 // RUN: %{exec} bash check-stdout.sh "%t.exe" "1234"

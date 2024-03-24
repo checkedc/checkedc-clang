@@ -1,4 +1,7 @@
-// RUN: %clang_cc1 -fsyntax-only -fdouble-square-bracket-attributes -verify %s
+// RUN: %clang_cc1 -fsyntax-only -std=c2x -verify %s
+
+// This is the latest version of fallthrough that we support.
+_Static_assert(__has_c_attribute(fallthrough) == 201910L);
 
 void f(int n) {
   switch (n) {
@@ -57,7 +60,7 @@ struct [[fallthrough]] S { // expected-error {{'fallthrough' attribute cannot be
 [[fallthrough]] // expected-error {{'fallthrough' attribute cannot be applied to a declaration}}
 void g(void) {
   [[fallthrough]] int n; // expected-error {{'fallthrough' attribute cannot be applied to a declaration}}
-  [[fallthrough]] ++n; // expected-error-re {{{{^}}fallthrough attribute is only allowed on empty statements}}
+  [[fallthrough]] ++n; // expected-error {{'fallthrough' attribute only applies to empty statements}}
 
   switch (n) {
     // FIXME: This should be an error.
@@ -65,7 +68,7 @@ void g(void) {
     return;
 
   case 0:
-    [[fallthrough, fallthrough]]; // expected-error {{multiple times}}
+    [[fallthrough, fallthrough]]; // ok
   case 1:
     [[fallthrough(0)]]; // expected-error {{argument list}}
   case 2:

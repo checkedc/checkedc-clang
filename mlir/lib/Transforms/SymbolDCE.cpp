@@ -11,13 +11,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "mlir/Transforms/Passes.h"
+
+#include "mlir/IR/SymbolTable.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_SYMBOLDCE
+#include "mlir/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
 namespace {
-struct SymbolDCE : public SymbolDCEBase<SymbolDCE> {
+struct SymbolDCE : public impl::SymbolDCEBase<SymbolDCE> {
   void runOnOperation() override;
 
   /// Compute the liveness of the symbols within the given symbol table.
@@ -28,7 +34,7 @@ struct SymbolDCE : public SymbolDCEBase<SymbolDCE> {
                                 bool symbolTableIsHidden,
                                 DenseSet<Operation *> &liveSymbols);
 };
-} // end anonymous namespace
+} // namespace
 
 void SymbolDCE::runOnOperation() {
   Operation *symbolTableOp = getOperation();
@@ -61,10 +67,11 @@ void SymbolDCE::runOnOperation() {
     if (!nestedSymbolTable->hasTrait<OpTrait::SymbolTable>())
       return;
     for (auto &block : nestedSymbolTable->getRegion(0)) {
-      for (Operation &op :
-           llvm::make_early_inc_range(block.without_terminator())) {
-        if (isa<SymbolOpInterface>(&op) && !liveSymbols.count(&op))
+      for (Operation &op : llvm::make_early_inc_range(block)) {
+        if (isa<SymbolOpInterface>(&op) && !liveSymbols.count(&op)) {
           op.erase();
+          ++numDCE;
+        }
       }
     }
   });
@@ -84,7 +91,7 @@ LogicalResult SymbolDCE::computeLiveness(Operation *symbolTableOp,
   // are known to be live.
   for (auto &block : symbolTableOp->getRegion(0)) {
     // Add all non-symbols or symbols that can't be discarded.
-    for (Operation &op : block.without_terminator()) {
+    for (Operation &op : block) {
       SymbolOpInterface symbol = dyn_cast<SymbolOpInterface>(&op);
       if (!symbol) {
         worklist.push_back(&op);
@@ -113,7 +120,7 @@ LogicalResult SymbolDCE::computeLiveness(Operation *symbolTableOp,
     }
 
     // Collect the uses held by this operation.
-    Optional<SymbolTable::UseRange> uses = SymbolTable::getSymbolUses(op);
+    std::optional<SymbolTable::UseRange> uses = SymbolTable::getSymbolUses(op);
     if (!uses) {
       return op->emitError()
              << "operation contains potentially unknown symbol table, "
@@ -125,11 +132,9 @@ LogicalResult SymbolDCE::computeLiveness(Operation *symbolTableOp,
       // Lookup the symbols referenced by this use.
       resolvedSymbols.clear();
       if (failed(symbolTable.lookupSymbolIn(
-              op->getParentOp(), use.getSymbolRef(), resolvedSymbols))) {
-        return use.getUser()->emitError()
-               << "unable to resolve reference to symbol "
-               << use.getSymbolRef();
-      }
+              op->getParentOp(), use.getSymbolRef(), resolvedSymbols)))
+        // Ignore references to unknown symbols.
+        continue;
 
       // Mark each of the resolved symbols as live.
       for (Operation *resolvedSymbol : resolvedSymbols)

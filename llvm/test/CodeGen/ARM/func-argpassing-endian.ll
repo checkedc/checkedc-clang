@@ -20,7 +20,7 @@ define void @arg_longint( i64 %val ) {
 ; CHECK-BE-NEXT:    str r1, [r0]
 ; CHECK-BE-NEXT:    bx lr
    %tmp = trunc i64 %val to i32
-   store i32 %tmp, i32* @var32
+   store i32 %tmp, ptr @var32
    ret void
 }
 
@@ -31,7 +31,7 @@ define void @arg_double( double %val ) {
 ; CHECK-NEXT:    movt r2, :upper16:vardouble
 ; CHECK-NEXT:    strd r0, r1, [r2]
 ; CHECK-NEXT:    bx lr
-    store double  %val, double* @vardouble
+    store double  %val, ptr @vardouble
     ret void
 }
 
@@ -53,7 +53,7 @@ define void @arg_v4i32(<4 x i32> %vec ) {
 ; CHECK-BE-NEXT:    vst1.32 {d16[0]}, [r0:32]
 ; CHECK-BE-NEXT:    bx lr
     %tmp = extractelement <4 x i32> %vec, i32 0
-    store i32 %tmp, i32* @var32
+    store i32 %tmp, ptr @var32
     ret void
 }
 
@@ -65,7 +65,7 @@ define void @arg_v2f64(<2 x double> %vec ) {
 ; CHECK-NEXT:    strd r0, r1, [r2]
 ; CHECK-NEXT:    bx lr
     %tmp = extractelement <2 x double> %vec, i32 0
-    store double %tmp, double* @vardouble
+    store double %tmp, ptr @vardouble
     ret void
 }
 
@@ -100,35 +100,13 @@ define double @return_double() {
 }
 
 define <4 x i32> @return_v4i32() {
-; CHECK-LE-LABEL: return_v4i32:
-; CHECK-LE:       @ %bb.0:
-; CHECK-LE-NEXT:    adr r0, .LCPI6_0
-; CHECK-LE-NEXT:    vld1.64 {d16, d17}, [r0:128]
-; CHECK-LE-NEXT:    vmov r0, r1, d16
-; CHECK-LE-NEXT:    vmov r2, r3, d17
-; CHECK-LE-NEXT:    bx lr
-; CHECK-LE-NEXT:    .p2align 4
-; CHECK-LE-NEXT:  @ %bb.1:
-; CHECK-LE-NEXT:  .LCPI6_0:
-; CHECK-LE-NEXT:    .long 42 @ double 9.1245819032257467E-313
-; CHECK-LE-NEXT:    .long 43
-; CHECK-LE-NEXT:    .long 44 @ double 9.5489810615176143E-313
-; CHECK-LE-NEXT:    .long 45
-;
-; CHECK-BE-LABEL: return_v4i32:
-; CHECK-BE:       @ %bb.0:
-; CHECK-BE-NEXT:    adr r0, .LCPI6_0
-; CHECK-BE-NEXT:    vld1.64 {d16, d17}, [r0:128]
-; CHECK-BE-NEXT:    vmov r1, r0, d16
-; CHECK-BE-NEXT:    vmov r3, r2, d17
-; CHECK-BE-NEXT:    bx lr
-; CHECK-BE-NEXT:    .p2align 4
-; CHECK-BE-NEXT:  @ %bb.1:
-; CHECK-BE-NEXT:  .LCPI6_0:
-; CHECK-BE-NEXT:    .long 42 @ double 8.912382324178626E-313
-; CHECK-BE-NEXT:    .long 43
-; CHECK-BE-NEXT:    .long 44 @ double 9.3367814824704935E-313
-; CHECK-BE-NEXT:    .long 45
+; CHECK-LABEL: return_v4i32:
+; CHECK:       @ %bb.0:
+; CHECK-NEXT:    mov r0, #42
+; CHECK-NEXT:    mov r1, #43
+; CHECK-NEXT:    mov r2, #44
+; CHECK-NEXT:    mov r3, #45
+; CHECK-NEXT:    bx lr
    ret < 4 x i32> < i32 42, i32 43, i32 44, i32 45 >
 }
 
@@ -233,7 +211,7 @@ define void @caller_return_longint() {
 ; CHECK-BE-NEXT:    pop {r11, pc}
    %val = call i64 @return_longint()
    %tmp = trunc i64 %val to i32
-   store i32 %tmp, i32* @var32
+   store i32 %tmp, ptr @var32
    ret void
 }
 
@@ -275,7 +253,7 @@ define void @caller_return_double() {
 ; CHECK-BE-NEXT:    .long 1374389535
   %val = call double @return_double( )
   %tmp = fadd double %val, 3.14
-  store double  %tmp, double* @vardouble
+  store double  %tmp, ptr @vardouble
   ret void
 }
 
@@ -291,6 +269,6 @@ define void @caller_return_v2f64() {
 ; CHECK-NEXT:    pop {r11, pc}
    %val = call <2 x double> @return_v2f64( )
    %tmp = extractelement <2 x double> %val, i32 0
-    store double %tmp, double* @vardouble
+    store double %tmp, ptr @vardouble
     ret void
 }

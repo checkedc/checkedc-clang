@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cppcoreguidelines {
+namespace clang::tidy::cppcoreguidelines {
 
 void SlicingCheck::registerMatchers(MatchFinder *Finder) {
   // When we see:
@@ -71,7 +69,7 @@ void SlicingCheck::registerMatchers(MatchFinder *Finder) {
 /// Warns on methods overridden in DerivedDecl with respect to BaseDecl.
 /// FIXME: this warns on all overrides outside of the sliced path in case of
 /// multiple inheritance.
-void SlicingCheck::DiagnoseSlicedOverriddenMethods(
+void SlicingCheck::diagnoseSlicedOverriddenMethods(
     const Expr &Call, const CXXRecordDecl &DerivedDecl,
     const CXXRecordDecl &BaseDecl) {
   if (DerivedDecl.getCanonicalDecl() == BaseDecl.getCanonicalDecl())
@@ -92,7 +90,7 @@ void SlicingCheck::DiagnoseSlicedOverriddenMethods(
     if (const auto *BaseRecordType = Base.getType()->getAs<RecordType>()) {
       if (const auto *BaseRecord = cast_or_null<CXXRecordDecl>(
               BaseRecordType->getDecl()->getDefinition()))
-        DiagnoseSlicedOverriddenMethods(Call, *BaseRecord, BaseDecl);
+        diagnoseSlicedOverriddenMethods(Call, *BaseRecord, BaseDecl);
     }
   }
 }
@@ -115,7 +113,7 @@ void SlicingCheck::check(const MatchFinder::MatchResult &Result) {
   //   class A { virtual void f(); };
   //   class B : public A {};
   // because in that case calling A::f is the same as calling B::f.
-  DiagnoseSlicedOverriddenMethods(*Call, *DerivedDecl, *BaseDecl);
+  diagnoseSlicedOverriddenMethods(*Call, *DerivedDecl, *BaseDecl);
 
   // Warn when slicing member variables.
   const auto &BaseLayout =
@@ -131,6 +129,4 @@ void SlicingCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace cppcoreguidelines
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cppcoreguidelines

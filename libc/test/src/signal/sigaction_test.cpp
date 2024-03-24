@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/errno.h"
-#define __LLVM_LIBC_INTERNAL_SIGACTION
-#include "include/signal.h"
 #include "src/signal/raise.h"
 #include "src/signal/sigaction.h"
 
 #include "test/ErrnoSetterMatcher.h"
 #include "utils/UnitTest/Test.h"
+
+#include <errno.h>
+#include <signal.h>
 
 using __llvm_libc::testing::ErrnoSetterMatcher::Fails;
 using __llvm_libc::testing::ErrnoSetterMatcher::Succeeds;
@@ -25,7 +25,7 @@ TEST(LlvmLibcSigaction, Invalid) {
 
 // SIGKILL cannot have its action changed, but it can be examined.
 TEST(LlvmLibcSigaction, Sigkill) {
-  struct __sigaction action;
+  struct sigaction action;
   EXPECT_THAT(__llvm_libc::sigaction(SIGKILL, nullptr, &action), Succeeds());
   EXPECT_THAT(__llvm_libc::sigaction(SIGKILL, &action, nullptr), Fails(EINVAL));
 }
@@ -37,7 +37,7 @@ TEST(LlvmLibcSigaction, CustomAction) {
   // Zero this incase tests get run multiple times in the future.
   sigusr1Count = 0;
 
-  struct __sigaction action;
+  struct sigaction action;
   EXPECT_THAT(__llvm_libc::sigaction(SIGUSR1, nullptr, &action), Succeeds());
 
   action.sa_handler = +[](int signal) {
@@ -53,11 +53,11 @@ TEST(LlvmLibcSigaction, CustomAction) {
   action.sa_handler = SIG_DFL;
   EXPECT_THAT(__llvm_libc::sigaction(SIGUSR1, &action, nullptr), Succeeds());
 
-  EXPECT_DEATH([] { __llvm_libc::raise(SIGUSR1); }, SIGUSR1);
+  EXPECT_DEATH([] { __llvm_libc::raise(SIGUSR1); }, WITH_SIGNAL(SIGUSR1));
 }
 
 TEST(LlvmLibcSigaction, Ignore) {
-  struct __sigaction action;
+  struct sigaction action;
   EXPECT_THAT(__llvm_libc::sigaction(SIGUSR1, nullptr, &action), Succeeds());
   action.sa_handler = SIG_IGN;
   EXPECT_THAT(__llvm_libc::sigaction(SIGUSR1, &action, nullptr), Succeeds());

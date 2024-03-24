@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr size_type find_last_of(const charT* s, size_type pos = npos) const;
@@ -21,6 +23,7 @@ void
 test(const S& s, const typename S::value_type* str, typename S::size_type pos,
      typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_last_of(str, pos));
     assert(s.find_last_of(str, pos) == x);
     if (x != S::npos)
         assert(x <= pos && x < s.size());
@@ -30,6 +33,7 @@ template <class S>
 void
 test(const S& s, const typename S::value_type* str, typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_last_of(str));
     assert(s.find_last_of(str) == x);
     if (x != S::npos)
         assert(x < s.size());

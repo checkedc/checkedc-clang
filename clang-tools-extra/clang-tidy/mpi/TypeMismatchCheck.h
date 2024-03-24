@@ -11,10 +11,10 @@
 
 #include "../ClangTidyCheck.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/StaticAnalyzer/Checkers/MPIFunctionClassifier.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace mpi {
+namespace clang::tidy::mpi {
 
 /// This check verifies if buffer type and MPI (Message Passing Interface)
 /// datatype pairs match. All MPI datatypes defined by the MPI standard (3.1)
@@ -22,7 +22,7 @@ namespace mpi {
 /// null pointer constants are skipped, in the course of verification.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/mpi-type-mismatch.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/mpi/type-mismatch.html
 class TypeMismatchCheck : public ClangTidyCheck {
 public:
   TypeMismatchCheck(StringRef Name, ClangTidyContext *Context)
@@ -30,6 +30,8 @@ public:
 
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+
+  void onEndOfTranslationUnit() override;
 
 private:
   /// Check if the buffer type MPI datatype pairs match.
@@ -41,10 +43,10 @@ private:
   void checkArguments(ArrayRef<const Type *> BufferTypes,
                       ArrayRef<const Expr *> BufferExprs,
                       ArrayRef<StringRef> MPIDatatypes, const LangOptions &LO);
+
+  std::optional<ento::mpi::MPIFunctionClassifier> FuncClassifier;
 };
 
-} // namespace mpi
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::mpi
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MPI_TYPE_MISMATCH_H

@@ -12,8 +12,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MCA_STAGE_H
-#define LLVM_MCA_STAGE_H
+#ifndef LLVM_MCA_STAGES_STAGE_H
+#define LLVM_MCA_STAGES_STAGE_H
 
 #include "llvm/MCA/HWEventListener.h"
 #include "llvm/Support/Error.h"
@@ -47,6 +47,9 @@ public:
   /// Called once at the start of each cycle.  This can be used as a setup
   /// phase to prepare for the executions during the cycle.
   virtual Error cycleStart() { return ErrorSuccess(); }
+
+  /// Called after the pipeline is resumed from pausing state.
+  virtual Error cycleResume() { return ErrorSuccess(); }
 
   /// Called once at the end of each cycle.
   virtual Error cycleEnd() { return ErrorSuccess(); }
@@ -82,6 +85,16 @@ public:
   }
 };
 
+/// This is actually not an error but a marker to indicate that
+/// the instruction stream is paused.
+struct InstStreamPause : public ErrorInfo<InstStreamPause> {
+  static char ID;
+
+  std::error_code convertToErrorCode() const override {
+    return llvm::inconvertibleErrorCode();
+  }
+  void log(raw_ostream &OS) const override { OS << "Stream is paused"; }
+};
 } // namespace mca
 } // namespace llvm
-#endif // LLVM_MCA_STAGE_H
+#endif // LLVM_MCA_STAGES_STAGE_H

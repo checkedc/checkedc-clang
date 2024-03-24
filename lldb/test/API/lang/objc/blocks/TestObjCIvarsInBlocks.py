@@ -8,8 +8,6 @@ from lldbsuite.test import lldbutil
 
 class TestObjCIvarsInBlocks(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -42,13 +40,15 @@ class TestObjCIvarsInBlocks(TestBase):
         process = target.LaunchSimple(
             None, None, self.get_process_working_directory())
         self.assertTrue(process, "Created a process.")
-        self.assertTrue(
-            process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            process.GetState(), lldb.eStateStopped,
             "Stopped it too.")
+
+        self.runCmd('settings set target.prefer-dynamic-value no-dynamic-values')
 
         thread_list = lldbutil.get_threads_stopped_at_breakpoint(
             process, breakpoint)
-        self.assertTrue(len(thread_list) == 1)
+        self.assertEqual(len(thread_list), 1)
         thread = thread_list[0]
 
         frame = thread.GetFrameAtIndex(0)
@@ -68,13 +68,13 @@ class TestObjCIvarsInBlocks(TestBase):
 
         error = lldb.SBError()
         direct_value = direct_blocky.GetValueAsSigned(error)
-        self.assertTrue(error.Success(), "Got direct value for blocky_ivar")
+        self.assertSuccess(error, "Got direct value for blocky_ivar")
 
         indirect_value = indirect_blocky.GetValueAsSigned(error)
-        self.assertTrue(error.Success(), "Got indirect value for blocky_ivar")
+        self.assertSuccess(error, "Got indirect value for blocky_ivar")
 
-        self.assertTrue(
-            direct_value == indirect_value,
+        self.assertEqual(
+            direct_value, indirect_value,
             "Direct and indirect values are equal.")
 
         # Now make sure that we can get at the captured ivar through the expression parser.
@@ -102,18 +102,18 @@ class TestObjCIvarsInBlocks(TestBase):
             error.Success(),
             "Got value from indirect access using the expression parser")
 
-        self.assertTrue(
-            direct_value == indirect_value,
+        self.assertEqual(
+            direct_value, indirect_value,
             "Direct ivar access and indirect through expression parser produce same value.")
 
         process.Continue()
-        self.assertTrue(
-            process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            process.GetState(), lldb.eStateStopped,
             "Stopped at the second breakpoint.")
 
         thread_list = lldbutil.get_threads_stopped_at_breakpoint(
             process, breakpoint_two)
-        self.assertTrue(len(thread_list) == 1)
+        self.assertEqual(len(thread_list), 1)
         thread = thread_list[0]
 
         frame = thread.GetFrameAtIndex(0)
@@ -125,6 +125,6 @@ class TestObjCIvarsInBlocks(TestBase):
 
         ret_value_signed = expr.GetValueAsSigned(error)
         self.trace('ret_value_signed = %i' % (ret_value_signed))
-        self.assertTrue(
-            ret_value_signed == 5,
+        self.assertEqual(
+            ret_value_signed, 5,
             "The local variable in the block was what we expected.")

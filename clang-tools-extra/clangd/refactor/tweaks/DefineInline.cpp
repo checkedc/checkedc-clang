@@ -19,43 +19,26 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
-#include "clang/AST/Expr.h"
-#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
-#include "clang/AST/PrettyPrinter.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
-#include "clang/AST/TemplateBase.h"
-#include "clang/AST/Type.h"
-#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
-#include "clang/Driver/Types.h"
-#include "clang/Index/IndexDataConsumer.h"
-#include "clang/Index/IndexSymbol.h"
-#include "clang/Index/IndexingAction.h"
 #include "clang/Lex/Lexer.h"
-#include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/Token.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/FormatAdapters.h"
-#include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstddef>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -69,14 +52,14 @@ namespace {
 // Returns semicolon location for the given FD. Since AST doesn't contain that
 // information, searches for a semicolon by lexing from end of function decl
 // while skipping comments.
-llvm::Optional<SourceLocation> getSemicolonForDecl(const FunctionDecl *FD) {
+std::optional<SourceLocation> getSemicolonForDecl(const FunctionDecl *FD) {
   const SourceManager &SM = FD->getASTContext().getSourceManager();
   const LangOptions &LangOpts = FD->getASTContext().getLangOpts();
 
   SourceLocation CurLoc = FD->getEndLoc();
   auto NextTok = Lexer::findNextToken(CurLoc, SM, LangOpts);
   if (!NextTok || !NextTok->is(tok::semi))
-    return llvm::None;
+    return std::nullopt;
   return NextTok->getLocation();
 }
 
@@ -139,7 +122,8 @@ bool checkDeclsAreVisible(const llvm::DenseSet<const Decl *> &DeclRefs,
 // Rewrites body of FD by re-spelling all of the names to make sure they are
 // still valid in context of Target.
 llvm::Expected<std::string> qualifyAllDecls(const FunctionDecl *FD,
-                                            const FunctionDecl *Target) {
+                                            const FunctionDecl *Target,
+                                            const HeuristicResolver *Resolver) {
   // There are three types of spellings that needs to be qualified in a function
   // body:
   // - Types:       Foo                 -> ns::Foo
@@ -162,48 +146,54 @@ llvm::Expected<std::string> qualifyAllDecls(const FunctionDecl *FD,
 
   tooling::Replacements Replacements;
   bool HadErrors = false;
-  findExplicitReferences(FD->getBody(), [&](ReferenceLoc Ref) {
-    // Since we want to qualify only the first qualifier, skip names with a
-    // qualifier.
-    if (Ref.Qualifier)
-      return;
-    // There might be no decl in dependent contexts, there's nothing much we can
-    // do in such cases.
-    if (Ref.Targets.empty())
-      return;
-    // Do not qualify names introduced by macro expansions.
-    if (Ref.NameLoc.isMacroID())
-      return;
+  findExplicitReferences(
+      FD->getBody(),
+      [&](ReferenceLoc Ref) {
+        // Since we want to qualify only the first qualifier, skip names with a
+        // qualifier.
+        if (Ref.Qualifier)
+          return;
+        // There might be no decl in dependent contexts, there's nothing much we
+        // can do in such cases.
+        if (Ref.Targets.empty())
+          return;
+        // Do not qualify names introduced by macro expansions.
+        if (Ref.NameLoc.isMacroID())
+          return;
 
-    for (const NamedDecl *ND : Ref.Targets) {
-      if (ND->getDeclContext() != Ref.Targets.front()->getDeclContext()) {
-        elog("define inline: Targets from multiple contexts: {0}, {1}",
-             printQualifiedName(*Ref.Targets.front()), printQualifiedName(*ND));
-        HadErrors = true;
-        return;
-      }
-    }
-    // All Targets are in the same scope, so we can safely chose first one.
-    const NamedDecl *ND = Ref.Targets.front();
-    // Skip anything from a non-namespace scope, these can be:
-    // - Function or Method scopes, which means decl is local and doesn't need
-    //   qualification.
-    // - From Class/Struct/Union scope, which again doesn't need any qualifiers,
-    //   rather the left side of it requires qualification, like:
-    //   namespace a { class Bar { public: static int x; } }
-    //   void foo() { Bar::x; }
-    //                ~~~~~ -> we need to qualify Bar not x.
-    if (!ND->getDeclContext()->isNamespace())
-      return;
+        for (const NamedDecl *ND : Ref.Targets) {
+          if (ND->getDeclContext() != Ref.Targets.front()->getDeclContext()) {
+            elog("define inline: Targets from multiple contexts: {0}, {1}",
+                 printQualifiedName(*Ref.Targets.front()),
+                 printQualifiedName(*ND));
+            HadErrors = true;
+            return;
+          }
+        }
+        // All Targets are in the same scope, so we can safely chose first one.
+        const NamedDecl *ND = Ref.Targets.front();
+        // Skip anything from a non-namespace scope, these can be:
+        // - Function or Method scopes, which means decl is local and doesn't
+        // need
+        //   qualification.
+        // - From Class/Struct/Union scope, which again doesn't need any
+        // qualifiers,
+        //   rather the left side of it requires qualification, like:
+        //   namespace a { class Bar { public: static int x; } }
+        //   void foo() { Bar::x; }
+        //                ~~~~~ -> we need to qualify Bar not x.
+        if (!ND->getDeclContext()->isNamespace())
+          return;
 
-    const std::string Qualifier = getQualification(
-        FD->getASTContext(), TargetContext, Target->getBeginLoc(), ND);
-    if (auto Err = Replacements.add(
-            tooling::Replacement(SM, Ref.NameLoc, 0, Qualifier))) {
-      HadErrors = true;
-      elog("define inline: Failed to add quals: {0}", std::move(Err));
-    }
-  });
+        const std::string Qualifier = getQualification(
+            FD->getASTContext(), TargetContext, Target->getBeginLoc(), ND);
+        if (auto Err = Replacements.add(
+                tooling::Replacement(SM, Ref.NameLoc, 0, Qualifier))) {
+          HadErrors = true;
+          elog("define inline: Failed to add quals: {0}", std::move(Err));
+        }
+      },
+      Resolver);
 
   if (HadErrors)
     return error(
@@ -230,7 +220,8 @@ llvm::Expected<std::string> qualifyAllDecls(const FunctionDecl *FD,
 /// Generates Replacements for changing template and function parameter names in
 /// \p Dest to be the same as in \p Source.
 llvm::Expected<tooling::Replacements>
-renameParameters(const FunctionDecl *Dest, const FunctionDecl *Source) {
+renameParameters(const FunctionDecl *Dest, const FunctionDecl *Source,
+                 const HeuristicResolver *Resolver) {
   llvm::DenseMap<const Decl *, std::string> ParamToNewName;
   llvm::DenseMap<const NamedDecl *, std::vector<SourceLocation>> RefLocs;
   auto HandleParam = [&](const NamedDecl *DestParam,
@@ -286,7 +277,8 @@ renameParameters(const FunctionDecl *Dest, const FunctionDecl *Source) {
         if (It == ParamToNewName.end())
           return;
         RefLocs[Target].push_back(Ref.NameLoc);
-      });
+      },
+      Resolver);
 
   // Now try to generate edits for all the refs.
   tooling::Replacements Replacements;
@@ -333,13 +325,13 @@ renameParameters(const FunctionDecl *Dest, const FunctionDecl *Source) {
 // Because canonical declaration points to template decl instead of
 // specialization.
 const FunctionDecl *findTarget(const FunctionDecl *FD) {
-  auto CanonDecl = FD->getCanonicalDecl();
+  auto *CanonDecl = FD->getCanonicalDecl();
   if (!FD->isFunctionTemplateSpecialization() || CanonDecl == FD)
     return CanonDecl;
   // For specializations CanonicalDecl is the TemplatedDecl, which is not the
   // target we want to inline into. Instead we traverse previous decls to find
   // the first forward decl for this specialization.
-  auto PrevDecl = FD;
+  auto *PrevDecl = FD;
   while (PrevDecl->getPreviousDecl() != CanonDecl) {
     PrevDecl = PrevDecl->getPreviousDecl();
     assert(PrevDecl && "Found specialization without template decl");
@@ -356,21 +348,21 @@ const SourceLocation getBeginLoc(const FunctionDecl *FD) {
   return FD->getBeginLoc();
 }
 
-llvm::Optional<tooling::Replacement>
+std::optional<tooling::Replacement>
 addInlineIfInHeader(const FunctionDecl *FD) {
   // This includes inline functions and constexpr functions.
   if (FD->isInlined() || llvm::isa<CXXMethodDecl>(FD))
-    return llvm::None;
+    return std::nullopt;
   // Primary template doesn't need inline.
   if (FD->isTemplated() && !FD->isFunctionTemplateSpecialization())
-    return llvm::None;
+    return std::nullopt;
 
   const SourceManager &SM = FD->getASTContext().getSourceManager();
   llvm::StringRef FileName = SM.getFilename(FD->getLocation());
 
   // If it is not a header we don't need to mark function as "inline".
   if (!isHeaderFile(FileName, FD->getASTContext().getLangOpts()))
-    return llvm::None;
+    return std::nullopt;
 
   return tooling::Replacement(SM, FD->getInnerLocStart(), 0, "inline ");
 }
@@ -392,7 +384,7 @@ addInlineIfInHeader(const FunctionDecl *FD) {
 ///
 class DefineInline : public Tweak {
 public:
-  const char *id() const override final;
+  const char *id() const final;
 
   llvm::StringLiteral kind() const override {
     return CodeAction::REFACTOR_KIND;
@@ -451,11 +443,13 @@ public:
       return error("Couldn't find semicolon for target declaration.");
 
     auto AddInlineIfNecessary = addInlineIfInHeader(Target);
-    auto ParamReplacements = renameParameters(Target, Source);
+    auto ParamReplacements =
+        renameParameters(Target, Source, Sel.AST->getHeuristicResolver());
     if (!ParamReplacements)
       return ParamReplacements.takeError();
 
-    auto QualifiedBody = qualifyAllDecls(Source, Target);
+    auto QualifiedBody =
+        qualifyAllDecls(Source, Target, Sel.AST->getHeuristicResolver());
     if (!QualifiedBody)
       return QualifiedBody.takeError();
 

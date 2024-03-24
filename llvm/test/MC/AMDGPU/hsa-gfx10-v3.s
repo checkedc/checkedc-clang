@@ -1,6 +1,6 @@
-// RUN: llvm-mc -triple amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=+xnack < %s | FileCheck --check-prefix=ASM %s
-// RUN: llvm-mc -triple amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=+xnack -filetype=obj < %s > %t
-// RUN: llvm-readobj -elf-output-style=GNU -sections -symbols -relocations %t | FileCheck --check-prefix=READOBJ %s
+// RUN: llvm-mc -triple amdgcn-amd-amdhsa -mcpu=gfx1010 --amdhsa-code-object-version=3 -mattr=+xnack < %s | FileCheck --check-prefix=ASM %s
+// RUN: llvm-mc -triple amdgcn-amd-amdhsa -mcpu=gfx1010 --amdhsa-code-object-version=3 -mattr=+xnack -filetype=obj < %s > %t
+// RUN: llvm-readelf -S -r -s %t | FileCheck --check-prefix=READOBJ %s
 // RUN: llvm-objdump -s -j .rodata %t | FileCheck --check-prefix=OBJDUMP %s
 
 // READOBJ: Section Headers
@@ -13,12 +13,12 @@
 // READOBJ: 0000000000000090 {{[0-9a-f]+}}00000005 R_AMDGPU_REL64 0000000000000000 .text + 210
 
 // READOBJ: Symbol table '.symtab' contains {{[0-9]+}} entries:
-// READOBJ: {{[0-9]+}}: 0000000000000100  0 FUNC    LOCAL  PROTECTED 2 complete
-// READOBJ: {{[0-9]+}}: 0000000000000040 64 OBJECT  LOCAL  DEFAULT   3 complete.kd
-// READOBJ: {{[0-9]+}}: 0000000000000000  0 FUNC    LOCAL  PROTECTED 2 minimal
-// READOBJ: {{[0-9]+}}: 0000000000000000 64 OBJECT  LOCAL  DEFAULT   3 minimal.kd
-// READOBJ: {{[0-9]+}}: 0000000000000200  0 FUNC    LOCAL  PROTECTED 2 special_sgpr
-// READOBJ: {{[0-9]+}}: 0000000000000080 64 OBJECT  LOCAL  DEFAULT   3 special_sgpr.kd
+// READOBJ:      0000000000000000  0 FUNC    LOCAL  PROTECTED 2 minimal
+// READOBJ-NEXT: 0000000000000100  0 FUNC    LOCAL  PROTECTED 2 complete
+// READOBJ-NEXT: 0000000000000200  0 FUNC    LOCAL  PROTECTED 2 special_sgpr
+// READOBJ-NEXT: 0000000000000000 64 OBJECT  LOCAL  DEFAULT   3 minimal.kd
+// READOBJ-NEXT: 0000000000000040 64 OBJECT  LOCAL  DEFAULT   3 complete.kd
+// READOBJ-NEXT: 0000000000000080 64 OBJECT  LOCAL  DEFAULT   3 special_sgpr.kd
 
 // OBJDUMP: Contents of section .rodata
 // Note, relocation for KERNEL_CODE_ENTRY_BYTE_OFFSET is not resolved here.
@@ -28,7 +28,7 @@
 // OBJDUMP-NEXT: 0020 00000000 00000000 00000000 00000000
 // OBJDUMP-NEXT: 0030 0000ac60 80000000 00000000 00000000
 // complete
-// OBJDUMP-NEXT: 0040 01000000 01000000 00000000 00000000
+// OBJDUMP-NEXT: 0040 01000000 01000000 08000000 00000000
 // OBJDUMP-NEXT: 0050 00000000 00000000 00000000 00000000
 // OBJDUMP-NEXT: 0060 00000000 00000000 00000000 00000000
 // OBJDUMP-NEXT: 0070 015001e4 1f0f007f 7f040000 00000000
@@ -68,11 +68,13 @@ special_sgpr:
 .amdhsa_kernel minimal
   .amdhsa_next_free_vgpr 0
   .amdhsa_next_free_sgpr 0
+  .amdhsa_shared_vgpr_count 0
 .end_amdhsa_kernel
 
 // ASM: .amdhsa_kernel minimal
 // ASM: .amdhsa_next_free_vgpr 0
 // ASM-NEXT: .amdhsa_next_free_sgpr 0
+// ASM: .amdhsa_shared_vgpr_count 0
 // ASM: .end_amdhsa_kernel
 
 // Test that we can specify all available directives with non-default values.
@@ -80,6 +82,7 @@ special_sgpr:
 .amdhsa_kernel complete
   .amdhsa_group_segment_fixed_size 1
   .amdhsa_private_segment_fixed_size 1
+  .amdhsa_kernarg_size 8
   .amdhsa_user_sgpr_private_segment_buffer 1
   .amdhsa_user_sgpr_dispatch_ptr 1
   .amdhsa_user_sgpr_queue_ptr 1
@@ -98,7 +101,7 @@ special_sgpr:
   .amdhsa_next_free_sgpr 27
   .amdhsa_reserve_vcc 0
   .amdhsa_reserve_flat_scratch 0
-  .amdhsa_reserve_xnack_mask 0
+  .amdhsa_reserve_xnack_mask 1
   .amdhsa_float_round_mode_32 1
   .amdhsa_float_round_mode_16_64 1
   .amdhsa_float_denorm_mode_32 1
@@ -121,6 +124,8 @@ special_sgpr:
 // ASM: .amdhsa_kernel complete
 // ASM-NEXT: .amdhsa_group_segment_fixed_size 1
 // ASM-NEXT: .amdhsa_private_segment_fixed_size 1
+// ASM-NEXT: .amdhsa_kernarg_size 8
+// ASM-NEXT: .amdhsa_user_sgpr_count 15
 // ASM-NEXT: .amdhsa_user_sgpr_private_segment_buffer 1
 // ASM-NEXT: .amdhsa_user_sgpr_dispatch_ptr 1
 // ASM-NEXT: .amdhsa_user_sgpr_queue_ptr 1
@@ -139,7 +144,7 @@ special_sgpr:
 // ASM-NEXT: .amdhsa_next_free_sgpr 27
 // ASM-NEXT: .amdhsa_reserve_vcc 0
 // ASM-NEXT: .amdhsa_reserve_flat_scratch 0
-// ASM-NEXT: .amdhsa_reserve_xnack_mask 0
+// ASM-NEXT: .amdhsa_reserve_xnack_mask 1
 // ASM-NEXT: .amdhsa_float_round_mode_32 1
 // ASM-NEXT: .amdhsa_float_round_mode_16_64 1
 // ASM-NEXT: .amdhsa_float_denorm_mode_32 1
@@ -150,6 +155,7 @@ special_sgpr:
 // ASM-NEXT: .amdhsa_workgroup_processor_mode 1
 // ASM-NEXT: .amdhsa_memory_ordered 1
 // ASM-NEXT: .amdhsa_forward_progress 1
+// ASM-NEXT: .amdhsa_shared_vgpr_count 0
 // ASM-NEXT: .amdhsa_exception_fp_ieee_invalid_op 1
 // ASM-NEXT: .amdhsa_exception_fp_denorm_src 1
 // ASM-NEXT: .amdhsa_exception_fp_ieee_div_zero 1
@@ -169,7 +175,7 @@ special_sgpr:
   .amdhsa_reserve_flat_scratch 1
 
   .amdhsa_reserve_vcc 0
-  .amdhsa_reserve_xnack_mask 0
+  .amdhsa_reserve_xnack_mask 1
 
   .amdhsa_float_denorm_mode_16_64 0
   .amdhsa_dx10_clamp 0
@@ -181,7 +187,7 @@ special_sgpr:
 // ASM: .amdhsa_next_free_vgpr 0
 // ASM-NEXT: .amdhsa_next_free_sgpr 27
 // ASM-NEXT: .amdhsa_reserve_vcc 0
-// ASM-NEXT: .amdhsa_reserve_xnack_mask 0
+// ASM-NEXT: .amdhsa_reserve_xnack_mask 1
 // ASM: .amdhsa_float_denorm_mode_16_64 0
 // ASM-NEXT: .amdhsa_dx10_clamp 0
 // ASM-NEXT: .amdhsa_ieee_mode 0

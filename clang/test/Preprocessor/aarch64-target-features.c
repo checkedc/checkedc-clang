@@ -15,6 +15,7 @@
 // CHECK-NOT: __ARM_FEATURE_SAT
 // CHECK-NOT: __ARM_FEATURE_SIMD32
 // CHECK: __ARM_ARCH_PROFILE 'A'
+// CHECK-NOT: __ARM_FEATURE_AES
 // CHECK-NOT: __ARM_FEATURE_BIG_ENDIAN
 // CHECK: __ARM_FEATURE_CLZ 1
 // CHECK-NOT: __ARM_FEATURE_CRC32 1
@@ -25,6 +26,12 @@
 // CHECK: __ARM_FEATURE_IDIV 1
 // CHECK: __ARM_FEATURE_LDREX 0xF
 // CHECK: __ARM_FEATURE_NUMERIC_MAXMIN 1
+// CHECK-NOT: __ARM_FEATURE_RCPC 1
+// CHECK-NOT: __ARM_FEATURE_SHA2 1
+// CHECK-NOT: __ARM_FEATURE_SHA3 1
+// CHECK-NOT: __ARM_FEATURE_SHA512 1
+// CHECK-NOT: __ARM_FEATURE_SM3 1
+// CHECK-NOT: __ARM_FEATURE_SM4 1
 // CHECK: __ARM_FEATURE_UNALIGNED 1
 // CHECK: __ARM_FP 0xE
 // CHECK: __ARM_FP16_ARGS 1
@@ -51,12 +58,54 @@
 // CHECK-NOT: __ARM_FEATURE_SVE_BITS 1024
 // CHECK-NOT: __ARM_FEATURE_SVE_BITS 2048
 
+// RUN: %clang -target aarch64-arm-eabi -march=armv8-r -x c -E -dM %s -o - | FileCheck %s -check-prefix CHECK-R-PROFILE
+// RUN: %clang -target arm64-none-linux-gnu -march=armv8-r -x c -E -dM %s -o - | FileCheck %s -check-prefix CHECK-R-PROFILE
+// CHECK-R-PROFILE: __ARM_ARCH_PROFILE 'R'
+
+// RUN: %clang -target aarch64-arm-eabi -x c -E -dM %s -o - | FileCheck %s -check-prefix CHECK-A-PROFILE
+// RUN: %clang -target aarch64-arm-eabi -march=armv8-a -x c -E -dM %s -o - | FileCheck %s -check-prefix CHECK-A-PROFILE
+// RUN: %clang -target arm64-none-linux-gnu -march=armv8-a -x c -E -dM %s -o - | FileCheck %s -check-prefix CHECK-A-PROFILE
+// CHECK-A-PROFILE: __ARM_ARCH_PROFILE 'A'
+
 // RUN: %clang -target aarch64_be-eabi -x c -E -dM %s -o - | FileCheck %s -check-prefix CHECK-BIGENDIAN
 // CHECK-BIGENDIAN: __ARM_BIG_ENDIAN 1
 
-// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+crypto -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-CRYPTO %s
-// RUN: %clang -target arm64-none-linux-gnu -march=armv8-a+crypto -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-CRYPTO %s
-// CHECK-CRYPTO: __ARM_FEATURE_CRYPTO 1
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+crypto -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FEAT-CRYPTO %s
+// RUN: %clang -target arm64-none-linux-gnu -march=armv8-a+crypto -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FEAT-CRYPTO %s
+// CHECK-FEAT-CRYPTO: __ARM_FEATURE_AES 1
+// CHECK-FEAT-CRYPTO: __ARM_FEATURE_CRYPTO 1
+// CHECK-FEAT-CRYPTO: __ARM_FEATURE_SHA2 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8.4-a+crypto -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FEAT-CRYPTO-8_4 %s
+// RUN: %clang -target arm64-none-linux-gnu -march=armv8.4-a+crypto -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FEAT-CRYPTO-8_4 %s
+// CHECK-FEAT-CRYPTO-8_4: __ARM_FEATURE_AES 1
+// CHECK-FEAT-CRYPTO-8_4: __ARM_FEATURE_CRYPTO 1
+// CHECK-FEAT-CRYPTO-8_4: __ARM_FEATURE_SHA2 1
+// CHECK-FEAT-CRYPTO-8_4: __ARM_FEATURE_SHA3 1
+// CHECK-FEAT-CRYPTO-8_4: __ARM_FEATURE_SHA512 1
+// CHECK-FEAT-CRYPTO-8_4: __ARM_FEATURE_SM3 1
+// CHECK-FEAT-CRYPTO-8_4: __ARM_FEATURE_SM4 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+aes -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FEAT-AES %s
+// CHECK-FEAT-AES: __ARM_FEATURE_AES 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sha2 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FEAT-SHA2 %s
+// CHECK-FEAT-SHA2: __ARM_FEATURE_SHA2 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sha3 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FEAT-SHA3 %s
+// CHECK-FEAT-SHA3: __ARM_FEATURE_SHA2 1
+// CHECK-FEAT-SHA3: __ARM_FEATURE_SHA3 1
+// CHECK-FEAT-SHA3: __ARM_FEATURE_SHA512 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sm4 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FEAT-SM4 %s
+// CHECK-FEAT-SM4: __ARM_FEATURE_SM3 1
+// CHECK-FEAT-SM4: __ARM_FEATURE_SM4 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8.5-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-8_5 %s
+// CHECK-8_5: __ARM_FEATURE_FRINT 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8.4-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-8_4 %s
+// CHECK-8_4-NOT: __ARM_FEATURE_FRINT 1
 
 // RUN: %clang -target aarch64-none-linux-gnu -mcrc -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-CRC32 %s
 // RUN: %clang -target arm64-none-linux-gnu -mcrc -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-CRC32 %s
@@ -67,7 +116,7 @@
 // CHECK-CRC32: __ARM_FEATURE_CRC32 1
 
 // RUN: %clang -target aarch64-none-linux-gnu -fno-math-errno -fno-signed-zeros\
-// RUN:        -fno-trapping-math -fassociative-math -freciprocal-math\
+// RUN:        -fno-trapping-math -fassociative-math -freciprocal-math -fapprox-func\
 // RUN:        -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FASTMATH %s
 // RUN: %clang -target aarch64-none-linux-gnu -ffast-math -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FASTMATH %s
 // RUN: %clang -target arm64-none-linux-gnu -ffast-math -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-FASTMATH %s
@@ -92,7 +141,7 @@
 
 // RUN: %clang -target aarch64 -march=arm64 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-ARCH-NOT-ACCEPT %s
 // RUN: %clang -target aarch64 -march=aarch64 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-ARCH-NOT-ACCEPT %s
-// CHECK-ARCH-NOT-ACCEPT: error: the clang compiler does not support
+// CHECK-ARCH-NOT-ACCEPT: error: unsupported argument {{.*}} to option '-march='
 
 // RUN: %clang -target aarch64 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-GENERIC %s
 // RUN: %clang -target aarch64 -march=armv8-a -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-GENERIC %s
@@ -101,7 +150,13 @@
 // RUN: %clang -target aarch64 -mtune=cyclone -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MTUNE-CYCLONE %s
 
 // RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sve -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE %s
+// CHECK-SVE: __ARM_FEATURE_FP16_SCALAR_ARITHMETIC 1
+// CHECK-SVE: __ARM_FEATURE_FP16_VECTOR_ARITHMETIC 1
 // CHECK-SVE: __ARM_FEATURE_SVE 1
+// CHECK-SVE: __ARM_FEATURE_SVE_VECTOR_OPERATORS 2
+// CHECK-SVE: __ARM_NEON 1
+// CHECK-SVE: __ARM_NEON_FP 0xE
+// CHECK-SVE: __ARM_NEON_SVE_BRIDGE 1
 
 // RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sve+bf16 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE-BF16 %s
 // CHECK-SVE-BF16: __ARM_FEATURE_BF16_SCALAR_ARITHMETIC 1
@@ -126,6 +181,14 @@
 // CHECK-SVE-8_5-NOT: __ARM_FEATURE_SVE_MATMUL_INT8 1
 // CHECK-SVE-8_5: __ARM_FEATURE_SVE 1
 
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8.6-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-8_6 %s
+// CHECK-8_6-NOT: __ARM_FEATURE_AES 1
+// CHECK-8_6: __ARM_FEATURE_BF16 1
+// CHECK-8_6: __ARM_FEATURE_MATMUL_INT8 1
+// CHECK-8_6-NOT: __ARM_FEATURE_SHA2 1
+// CHECK-8_6-NOT: __ARM_FEATURE_SHA3 1
+// CHECK-8_6-NOT: __ARM_FEATURE_SM4 1
+
 // RUN: %clang -target aarch64-none-linux-gnu -march=armv8.6-a+sve -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE-8_6 %s
 // CHECK-SVE-8_6: __ARM_FEATURE_SVE 1
 // CHECK-SVE-8_6: __ARM_FEATURE_SVE_BF16 1
@@ -138,23 +201,38 @@
 // CHECK-SVE-8_6-NOFEATURES-NOT: __ARM_FEATURE_SVE_MATMUL_INT8 1
 // CHECK-SVE-8_6-NOFEATURES:     __ARM_FEATURE_SVE 1
 
-// The following tests may need to be revised in the future since
-// SVE2 is currently still part of Future Architecture Technologies
-// (https://developer.arm.com/docs/ddi0602/latest)
-//
-// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sve2 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2 %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2 %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9.1-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2 %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9.2-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2 %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9.3-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2 %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9.4-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2 %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9-a+sve2 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2 %s
+// CHECK-SVE2: __ARM_FEATURE_FP16_SCALAR_ARITHMETIC 1
+// CHECK-SVE2: __ARM_FEATURE_FP16_VECTOR_ARITHMETIC 1
+// CHECK-SVE2: __ARM_FEATURE_SVE 1
 // CHECK-SVE2: __ARM_FEATURE_SVE2 1
-// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sve2-aes -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2AES %s
+// CHECK-SVE2: __ARM_NEON 1
+// CHECK-SVE2: __ARM_NEON_FP 0xE
+// CHECK-SVE2: __ARM_NEON_SVE_BRIDGE 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9-a+nosimd -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-NONEON %s
+// CHECK-NONEON-NOT: __ARM_FEATURE_SVE 1
+// CHECK-NONEON-NOT: __ARM_NEON 1
+
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9-a+sve2-aes -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2AES %s
 // CHECK-SVE2AES: __ARM_FEATURE_SVE2_AES 1
-// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sve2-sha3 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2SHA3 %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9-a+sve2-sha3 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2SHA3 %s
 // CHECK-SVE2SHA3: __ARM_FEATURE_SVE2_SHA3 1
-// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sve2-sm4 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2SM4 %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9-a+sve2-sm4 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2SM4 %s
 // CHECK-SVE2SM4: __ARM_FEATURE_SVE2_SM4 1
-// RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+sve2-bitperm -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2BITPERM %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv9-a+sve2-bitperm -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SVE2BITPERM %s
 // CHECK-SVE2BITPERM: __ARM_FEATURE_SVE2_BITPERM 1
 
 // RUN: %clang -target aarch64-none-linux-gnu -march=armv8.2a+dotprod -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-DOTPROD %s
+// RUN: %clang -target aarch64-none-linux-gnu -march=armv8.4a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-DOTPROD %s
 // CHECK-DOTPROD: __ARM_FEATURE_DOTPROD 1
+// CHECK-DOTPROD: __ARM_NEON 1
+// CHECK-DOTPROD: __ARM_NEON_FP 0xE
 
 // On ARMv8.2-A and above, +fp16fml implies +fp16.
 // On ARMv8.4-A and above, +fp16 implies +fp16fml.
@@ -168,8 +246,8 @@
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8.4-a+fp16+nofp16fml -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-NOFML --check-prefix=CHECK-FULLFP16-VECTOR-SCALAR %s
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8.4-a+fp16fml -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-FML --check-prefix=CHECK-FULLFP16-VECTOR-SCALAR %s
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8.4-a+fp16 -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-FML --check-prefix=CHECK-FULLFP16-VECTOR-SCALAR %s
-// CHECK-FULLFP16-FML:           #define __ARM_FEATURE_FP16FML 1
-// CHECK-FULLFP16-NOFML-NOT:     #define __ARM_FEATURE_FP16FML 1
+// CHECK-FULLFP16-FML:           #define __ARM_FEATURE_FP16_FML 1
+// CHECK-FULLFP16-NOFML-NOT:     #define __ARM_FEATURE_FP16_FML 1
 // CHECK-FULLFP16-VECTOR-SCALAR: #define __ARM_FEATURE_FP16_SCALAR_ARITHMETIC 1
 // CHECK-FULLFP16-VECTOR-SCALAR: #define __ARM_FEATURE_FP16_VECTOR_ARITHMETIC 1
 // CHECK-FULLFP16-VECTOR-SCALAR: #define __ARM_FP 0xE
@@ -181,7 +259,7 @@
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8-a+fp16+nosimd -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-SCALAR %s
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8.4-a+fp16fml+nosimd -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-SCALAR %s
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8.4-a+fp16+nosimd -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-SCALAR %s
-// CHECK-FULLFP16-SCALAR-NOT:   #define __ARM_FEATURE_FP16FML 1
+// CHECK-FULLFP16-SCALAR-NOT:   #define __ARM_FEATURE_FP16_FML 1
 // CHECK-FULLFP16-SCALAR:       #define __ARM_FEATURE_FP16_SCALAR_ARITHMETIC 1
 // CHECK-FULLFP16-SCALAR-NOT:   #define __ARM_FEATURE_FP16_VECTOR_ARITHMETIC 1
 // CHECK-FULLFP16-SCALAR:       #define __ARM_FP 0xE
@@ -195,7 +273,7 @@
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8.4-a+nofp16 -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-NOFML-VECTOR-SCALAR %s
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8.4-a+nofp16fml -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-NOFML-VECTOR-SCALAR %s
 // RUN: %clang -target aarch64-none-linux-gnueabi -march=armv8.4-a+fp16fml+nofp16 -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-FULLFP16-NOFML-VECTOR-SCALAR %s
-// CHECK-FULLFP16-NOFML-VECTOR-SCALAR-NOT: #define __ARM_FEATURE_FP16FML 1
+// CHECK-FULLFP16-NOFML-VECTOR-SCALAR-NOT: #define __ARM_FEATURE_FP16_FML 1
 // CHECK-FULLFP16-NOFML-VECTOR-SCALAR-NOT: #define __ARM_FEATURE_FP16_SCALAR_ARITHMETIC 1
 // CHECK-FULLFP16-NOFML-VECTOR-SCALAR-NOT: #define __ARM_FEATURE_FP16_VECTOR_ARITHMETIC 1
 // CHECK-FULLFP16-NOFML-VECTOR-SCALAR:     #define __ARM_FP 0xE
@@ -203,7 +281,7 @@
 
 // ================== Check whether -mtune accepts mixed-case features.
 // RUN: %clang -target aarch64 -mtune=CYCLONE -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MTUNE-CYCLONE %s
-// CHECK-MTUNE-CYCLONE: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz"
+// CHECK-MTUNE-CYCLONE: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+v8a" "-target-feature" "+zcm" "-target-feature" "+zcz"
 
 // RUN: %clang -target aarch64 -mcpu=apple-a7 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-APPLE-A7 %s
 // RUN: %clang -target aarch64 -mcpu=apple-a8 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-APPLE-A7 %s
@@ -222,37 +300,37 @@
 // RUN: %clang -target aarch64 -mcpu=cortex-a72 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-A72 %s
 // RUN: %clang -target aarch64 -mcpu=cortex-a73 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-CORTEX-A73 %s
 // RUN: %clang -target aarch64 -mcpu=cortex-r82 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-CORTEX-R82 %s
-// RUN: %clang -target aarch64 -mcpu=exynos-m3 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-M1 %s
+// RUN: %clang -target aarch64 -mcpu=exynos-m3 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-M3 %s
 // RUN: %clang -target aarch64 -mcpu=exynos-m4 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-M4 %s
 // RUN: %clang -target aarch64 -mcpu=exynos-m5 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-M4 %s
 // RUN: %clang -target aarch64 -mcpu=kryo -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-KRYO %s
 // RUN: %clang -target aarch64 -mcpu=thunderx2t99 -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-THUNDERX2T99 %s
 // RUN: %clang -target aarch64 -mcpu=a64fx -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-A64FX %s
 // RUN: %clang -target aarch64 -mcpu=carmel -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-CARMEL %s
-// CHECK-MCPU-APPLE-A7: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crypto" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
-// CHECK-MCPU-APPLE-A10: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+rdm" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
-// CHECK-MCPU-APPLE-A11: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.2a" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+ras" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
-// CHECK-MCPU-APPLE-A12: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.3a" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fullfp16" "-target-feature" "+ras" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+rcpc" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
-// CHECK-MCPU-A34: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc"
-// CHECK-MCPU-APPLE-A13: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.4a" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+dotprod" "-target-feature" "+fullfp16" "-target-feature" "+ras" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+rcpc" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+fp16fml" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
-// CHECK-MCPU-A35: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
-// CHECK-MCPU-A53: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
-// CHECK-MCPU-A57: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
-// CHECK-MCPU-A72: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
-// CHECK-MCPU-CORTEX-A73: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
-// CHECK-MCPU-CORTEX-R82: "-cc1"{{.*}} "-triple" "aarch64{{.*}}"  "-target-feature" "+v8r" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+dotprod" "-target-feature" "+fp16fml" "-target-feature" "+ras" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+rcpc" "-target-feature" "+fullfp16"
-// CHECK-MCPU-M1: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
-// CHECK-MCPU-M4: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+dotprod" "-target-feature" "+fullfp16"
-// CHECK-MCPU-KRYO: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
-// CHECK-MCPU-THUNDERX2T99: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto"
-// CHECK-MCPU-A64FX: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.2a" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fullfp16" "-target-feature" "+ras" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+sve" "-target-feature" "+sha2"
-// CHECK-MCPU-CARMEL: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.2a" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fullfp16" "-target-feature" "+ras" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-APPLE-A7: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-APPLE-A10: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-APPLE-A11: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.2a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+fullfp16" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-APPLE-A12: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.3a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+fullfp16" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rcpc" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-A34: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon"
+// CHECK-MCPU-APPLE-A13: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.4a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+dotprod" "-target-feature" "+fp-armv8" "-target-feature" "+fp16fml" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rcpc" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+fullfp16" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-A35: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon"
+// CHECK-MCPU-A53: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon"
+// CHECK-MCPU-A57: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon"
+// CHECK-MCPU-A72: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon"
+// CHECK-MCPU-CORTEX-A73: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon"
+// CHECK-MCPU-CORTEX-R82: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8r" "-target-feature" "+crc" "-target-feature" "+dotprod" "-target-feature" "+fp-armv8" "-target-feature" "+fp16fml" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rcpc" "-target-feature" "+rdm" "-target-feature" "+sb" "-target-feature" "+neon" "-target-feature" "+ssbs" "-target-feature" "+fullfp16"
+// CHECK-MCPU-M3: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon"
+// CHECK-MCPU-M4: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.2a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+dotprod" "-target-feature" "+fp-armv8" "-target-feature" "+fullfp16" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-KRYO: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon"
+// CHECK-MCPU-THUNDERX2T99: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.1a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-A64FX: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.2a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+fullfp16" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+sve" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-MCPU-CARMEL: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.2a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+fullfp16" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+sha2" "-target-feature" "+aes"
 
 // RUN: %clang -target x86_64-apple-macosx -arch arm64 -### -c %s 2>&1 | FileCheck --check-prefix=CHECK-ARCH-ARM64 %s
-// CHECK-ARCH-ARM64: "-target-cpu" "apple-a12" "-target-feature" "+v8.3a" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fullfp16" "-target-feature" "+ras" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+rcpc" "-target-feature" "+zcm" "-target-feature" "+zcz"
+// CHECK-ARCH-ARM64: "-target-cpu" "apple-m1" "-target-feature" "+v8.5a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+dotprod" "-target-feature" "+fp-armv8" "-target-feature" "+fp16fml" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rcpc" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+fullfp16" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
 
 // RUN: %clang -target x86_64-apple-macosx -arch arm64_32 -### -c %s 2>&1 | FileCheck --check-prefix=CHECK-ARCH-ARM64_32 %s
-// CHECK-ARCH-ARM64_32: "-target-cpu" "apple-s4" "-target-feature" "+v8.3a" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fullfp16" "-target-feature" "+ras" "-target-feature" "+lse" "-target-feature" "+rdm" "-target-feature" "+rcpc" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-ARCH-ARM64_32: "-target-cpu" "apple-s4" "-target-feature" "+v8.3a" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+fullfp16" "-target-feature" "+lse" "-target-feature" "+ras" "-target-feature" "+rcpc" "-target-feature" "+rdm" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz" "-target-feature" "+sha2" "-target-feature" "+aes"
 
 // RUN: %clang -target aarch64 -march=armv8-a+fp+simd+crc+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MARCH-1 %s
 // RUN: %clang -target aarch64 -march=armv8-a+nofp+nosimd+nocrc+nocrypto+fp+simd+crc+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MARCH-1 %s
@@ -324,7 +402,7 @@
 // RUN: %clang -target aarch64 -march=armv8.3a+nocrypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRYPTO82 %s
 // RUN: %clang -target aarch64 -march=armv8.3a+nocrypto+crypto+nocrypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-NOCRYPTO82 %s
 
-// CHECK-NOCRYPTO8A: "-target-feature" "+neon" "-target-feature" "-crypto" "-target-feature" "-sha2" "-target-feature" "-aes" "-target-abi" "aapcs"
+// CHECK-NOCRYPTO8A: "-target-feature" "+neon" "-target-feature" "+v8a" "-target-feature" "-crypto" "-target-feature" "-sha2" "-target-feature" "-aes" "-target-abi" "aapcs"
 // CHECK-NOCRYPTO81: "-target-feature" "+neon" "-target-feature" "+v8.1a" "-target-feature" "-crypto" "-target-feature" "-sha2" "-target-feature" "-aes" "-target-abi" "aapcs"
 // CHECK-NOCRYPTO82: "-target-feature" "+neon" "-target-feature" "+v8.{{.}}a" "-target-feature" "-crypto" "-target-feature" "-sha2" "-target-feature" "-aes" "-target-feature" "-sm4" "-target-feature" "-sha3" "-target-abi" "aapcs"
 //
@@ -345,7 +423,13 @@
 // Check +crypto:
 //
 // RUN: %clang -target aarch64 -march=armv8.4a+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRYPTO84 %s
-// CHECK-CRYPTO84: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.4a" "-target-feature" "+crypto" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
+// RUN: %clang -target aarch64 -march=armv8.5a+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRYPTO85 %s
+// RUN: %clang -target aarch64 -march=armv8.6a+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRYPTO86 %s
+// RUN: %clang -target aarch64 -march=armv8.7a+crypto -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-CRYPTO87 %s
+// CHECK-CRYPTO84: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.4a"{{.*}} "-target-feature" "+crypto" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-CRYPTO85: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.5a"{{.*}} "-target-feature" "+crypto" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-CRYPTO86: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.6a"{{.*}} "-target-feature" "+crypto" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
+// CHECK-CRYPTO87: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+v8.7a"{{.*}} "-target-feature" "+crypto" "-target-feature" "+sm4" "-target-feature" "+sha3" "-target-feature" "+sha2" "-target-feature" "+aes"
 //
 // Check -crypto:
 //
@@ -375,14 +459,14 @@
 
 // RUN: %clang -target aarch64 -mcpu=cyclone+nocrc+nocrypto -march=armv8-a -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-MARCH %s
 // RUN: %clang -target aarch64 -march=armv8-a -mcpu=cyclone+nocrc+nocrypto  -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-MARCH %s
-// CHECK-MCPU-MARCH: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz"
+// CHECK-MCPU-MARCH: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+v8a" "-target-feature" "+zcm" "-target-feature" "+zcz"
 
 // RUN: %clang -target aarch64 -mcpu=cortex-a53 -mtune=cyclone -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-MTUNE %s
 // RUN: %clang -target aarch64 -mtune=cyclone -mcpu=cortex-a53  -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-MTUNE %s
 // ================== Check whether -mtune accepts mixed-case features.
 // RUN: %clang -target aarch64 -mcpu=cortex-a53 -mtune=CYCLONE -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-MTUNE %s
 // RUN: %clang -target aarch64 -mtune=CyclonE -mcpu=cortex-a53  -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-MCPU-MTUNE %s
-// CHECK-MCPU-MTUNE: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+neon" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+zcm" "-target-feature" "+zcz"
+// CHECK-MCPU-MTUNE: "-cc1"{{.*}} "-triple" "aarch64{{.*}}" "-target-feature" "+crc" "-target-feature" "+crypto" "-target-feature" "+fp-armv8" "-target-feature" "+neon" "-target-feature" "+zcm" "-target-feature" "+zcz"
 
 // RUN: %clang -target aarch64 -mcpu=generic+neon -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-ERROR-NEON %s
 // RUN: %clang -target aarch64 -mcpu=generic+noneon -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-ERROR-NEON %s
@@ -408,6 +492,7 @@
 // ================== Check Pointer Authentication Extension (PAuth).
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8-a -x c -E -dM %s -o - | FileCheck -check-prefix=CHECK-PAUTH-OFF %s
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8.5-a -x c -E -dM %s -o - | FileCheck -check-prefix=CHECK-PAUTH-OFF %s
+// RUN: %clang -target arm64-none-linux-gnu -march=armv8-a+pauth -mbranch-protection=none -x c -E -dM %s -o - | FileCheck -check-prefix=CHECK-PAUTH-ON %s
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8-a -mbranch-protection=none -x c -E -dM %s -o - | FileCheck -check-prefix=CHECK-PAUTH-OFF %s
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8-a -mbranch-protection=bti -x c -E -dM %s -o - | FileCheck -check-prefix=CHECK-PAUTH-OFF %s
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8-a -mbranch-protection=standard -x c -E -dM %s -o - | FileCheck -check-prefix=CHECK-PAUTH %s
@@ -420,6 +505,7 @@
 // CHECK-PAUTH-BKEY:     #define __ARM_FEATURE_PAC_DEFAULT 2
 // CHECK-PAUTH-ALL:      #define __ARM_FEATURE_PAC_DEFAULT 5
 // CHECK-PAUTH-BKEY-ALL: #define __ARM_FEATURE_PAC_DEFAULT 6
+// CHECK-PAUTH-ON:       #define __ARM_FEATURE_PAUTH 1
 
 // ================== Check Branch Target Identification (BTI).
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8-a -x c -E -dM %s -o - | FileCheck -check-prefix=CHECK-BTI-OFF %s
@@ -434,6 +520,12 @@
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8-a -mbranch-protection=pac-ret+bti -x c -E -dM %s -o - | FileCheck -check-prefix=CHECK-BTI %s
 // CHECK-BTI-OFF-NOT: __ARM_FEATURE_BTI_DEFAULT
 // CHECK-BTI:         #define __ARM_FEATURE_BTI_DEFAULT 1
+
+// ================== Check Armv8.5-A random number generation extension.
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.5-a+rng -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-RNG %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.5-a -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-NO-RNG %s
+// CHECK-RNG: __ARM_FEATURE_RNG 1
+// CHECK-NO-RNG-NOT: __ARM_FEATURE_RNG 1
 
 // ================== Check BFloat16 Extensions.
 // RUN: %clang -target aarch64-arm-none-eabi -march=armv8.6-a+bf16 -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-BFLOAT %s
@@ -453,12 +545,64 @@
 // RUN: %clang -target aarch64-arm-none-eabi -march=armv8-a+sve -msve-vector-bits=512  -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-SVE-VECTOR-BITS -D#VBITS=512  %s
 // RUN: %clang -target aarch64-arm-none-eabi -march=armv8-a+sve -msve-vector-bits=1024 -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-SVE-VECTOR-BITS -D#VBITS=1024 %s
 // RUN: %clang -target aarch64-arm-none-eabi -march=armv8-a+sve -msve-vector-bits=2048 -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-SVE-VECTOR-BITS -D#VBITS=2048 %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8-a+sve -msve-vector-bits=512+ -x c -E -dM %s -o - 2>&1 | FileCheck -check-prefix=CHECK-NO-SVE-VECTOR-BITS %s
 // CHECK-SVE-VECTOR-BITS: __ARM_FEATURE_SVE_BITS [[#VBITS:]]
-// CHECK-SVE-VECTOR-BITS: __ARM_FEATURE_SVE_VECTOR_OPERATORS 1
+// CHECK-NO-SVE-VECTOR-BITS-NOT: __ARM_FEATURE_SVE_BITS
 
-// ================== Check Largse System Extensions (LSE)
+// ================== Check Large System Extensions (LSE)
 // RUN: %clang -target aarch64-none-linux-gnu -march=armv8-a+lse -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-LSE %s
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8-a+lse -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-LSE %s
 // RUN: %clang -target aarch64-none-linux-gnu -march=armv8.1-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-LSE %s
 // RUN: %clang -target arm64-none-linux-gnu -march=armv8.1-a -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-LSE %s
 // CHECK-LSE: __ARM_FEATURE_ATOMICS 1
+
+// ================== Check Armv8.8-A/Armv9.3-A memcpy and memset acceleration instructions (MOPS)
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.7-a             -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-NOMOPS %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.7-a+mops        -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-MOPS   %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.8-a             -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-MOPS   %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.8-a+nomops      -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-NOMOPS %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.8-a+nomops+mops -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-MOPS   %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.8-a+mops        -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-MOPS   %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.8-a+mops+nomops -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-NOMOPS %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.2-a             -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-NOMOPS %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.2-a+mops        -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-MOPS   %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.3-a             -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-MOPS   %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.3-a+nomops      -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-NOMOPS %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.3-a+mops        -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-MOPS   %s
+// CHECK-MOPS: __ARM_FEATURE_MOPS 1
+// CHECK-NOMOPS-NOT: __ARM_FEATURE_MOPS 1
+
+// ================== Check Armv8.9-A/Armv9.4-A 128-bit System Registers (FEAT_SYSREG128)
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.9-a      -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-NOSYS128 %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.4-a      -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-NOSYS128 %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.4-a+d128 -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-SYS128   %s
+// CHECK-SYS128: __ARM_FEATURE_SYSREG128 1
+// CHECK-NOSYS128-NOT: __ARM_FEATURE_SYSREG128 1
+
+// ================== Check default macros for Armv8.1-A and later
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.1-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-BEFORE-V83,CHECK-BEFORE-V85     %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.2-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-BEFORE-V83,CHECK-BEFORE-V85     %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.3-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-BEFORE-V85   %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.4-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-BEFORE-V85   %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.5-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-V85-OR-LATER %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.6-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-V85-OR-LATER %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.7-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-V85-OR-LATER %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv8.8-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-V85-OR-LATER %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9-a   -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-V85-OR-LATER %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.1-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-V85-OR-LATER %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.2-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-V85-OR-LATER %s
+// RUN: %clang -target aarch64-arm-none-eabi -march=armv9.3-a -x c -E -dM %s -o - | FileCheck --check-prefixes=CHECK-V81-OR-LATER,CHECK-V83-OR-LATER,CHECK-V85-OR-LATER %s
+// CHECK-V81-OR-LATER: __ARM_FEATURE_ATOMICS 1
+// CHECK-V85-OR-LATER: __ARM_FEATURE_BTI 1
+// CHECK-V83-OR-LATER: __ARM_FEATURE_COMPLEX 1
+// CHECK-V81-OR-LATER: __ARM_FEATURE_CRC32 1
+// CHECK-V85-OR-LATER: __ARM_FEATURE_FRINT 1
+// CHECK-V83-OR-LATER: __ARM_FEATURE_JCVT 1
+// CHECK-V83-OR-LATER: __ARM_FEATURE_PAUTH 1
+// CHECK-V81-OR-LATER: __ARM_FEATURE_QRDMX 1
+// CHECK-BEFORE-V83-NOT: __ARM_FEATURE_COMPLEX 1
+// CHECK-BEFORE-V83-NOT: __ARM_FEATURE_JCVT 1
+// CHECK-BEFORE-V85-NOT: __ARM_FEATURE_FRINT 1
+
+// RUN: %clang --target=aarch64 -march=armv8.2-a+rcpc -x c -E -dM %s -o - | FileCheck --check-prefix=CHECK-RCPC %s
+// CHECK-RCPC: __ARM_FEATURE_RCPC 1

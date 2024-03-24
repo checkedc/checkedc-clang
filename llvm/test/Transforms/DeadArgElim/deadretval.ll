@@ -1,4 +1,8 @@
-; RUN: opt < %s -deadargelim -S | not grep DEAD
+; RUN: opt < %s -passes=deadargelim -S | FileCheck %s
+
+@g0 = global i8 0, align 8
+
+; CHECK-NOT: DEAD
 
 ; Dead arg only used by dead retval
 define internal i32 @test(i32 %DEADARG) {
@@ -16,3 +20,24 @@ define i32 @test3() {
         ret i32 %Y
 }
 
+; The callee function's return type shouldn't be changed if the call result is
+; used.
+
+; CHECK-LABEL: define internal ptr @callee4()
+
+define internal ptr @callee4(ptr %a0) {
+  ret ptr @g0;
+}
+
+declare void @llvm.objc.clang.arc.noop.use(...)
+
+; CHECK-LABEL: define ptr @test4(
+; CHECK: tail call ptr @callee4() [ "clang.arc.attachedcall"(ptr @llvm.objc.retainAutoreleasedReturnValue) ]
+
+define ptr @test4() {
+  %call = tail call ptr @callee4(ptr @g0) [ "clang.arc.attachedcall"(ptr @llvm.objc.retainAutoreleasedReturnValue) ]
+  call void (...) @llvm.objc.clang.arc.noop.use(ptr %call)
+  ret ptr @g0
+}
+
+declare ptr @llvm.objc.retainAutoreleasedReturnValue(ptr)

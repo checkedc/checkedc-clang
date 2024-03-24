@@ -2,9 +2,6 @@
 Test lldb data formatter subsystem.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -12,8 +9,6 @@ from lldbsuite.test import lldbutil
 
 
 class LibCxxAtomicTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def get_variable(self, name):
         var = self.frame().FindVariable(name)
@@ -56,13 +51,13 @@ class LibCxxAtomicTestCase(TestBase):
         self.assertEqual(i_atomic.GetNumChildren(), 1)
         i = i_atomic.GetChildAtIndex(0)
 
-        self.assertTrue(i.GetValueAsUnsigned(0) == 5, "i == 5")
-        self.assertTrue(s.GetNumChildren() == 2, "s has two children")
-        self.assertTrue(
-            s.GetChildAtIndex(0).GetValueAsUnsigned(0) == 1,
+        self.assertEqual(i.GetValueAsUnsigned(0), 5, "i == 5")
+        self.assertEqual(s.GetNumChildren(), 2, "s has two children")
+        self.assertEqual(
+            s.GetChildAtIndex(0).GetValueAsUnsigned(0), 1,
             "s.x == 1")
-        self.assertTrue(
-            s.GetChildAtIndex(1).GetValueAsUnsigned(0) == 2,
+        self.assertEqual(
+            s.GetChildAtIndex(1).GetValueAsUnsigned(0), 2,
             "s.y == 2")
 
         # Try printing the child that points to its own parent object.

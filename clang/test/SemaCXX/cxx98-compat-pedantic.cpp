@@ -4,7 +4,7 @@
 // RUN: %clang_cc1 -fsyntax-only -std=c++11 -Wc++98-compat -Werror %s
 // RUN: %clang_cc1 -fsyntax-only -std=c++98 -Werror %s -DCXX98
 
-// RUN: %clang_cc1 -fsyntax-only -std=c++1y -Wc++98-compat-pedantic -verify %s -Wno-c++98-c++11-compat-pedantic -DCXX1Y2
+// RUN: %clang_cc1 -fsyntax-only -std=c++1y -Wc++98-compat-pedantic -verify %s -Wno-pre-c++14-compat-pedantic -DCXX1Y2
 
 // -Wc++98-compat-pedantic warns on C++11 features which we accept without a
 // warning in C++98 mode.
@@ -67,10 +67,10 @@ namespace CopyCtorIssues {
     Private p; // expected-note {{implicitly deleted}}
   };
 
-  const Private &a = Private(); // expected-warning {{copying variable of type 'CopyCtorIssues::Private' when binding a reference to a temporary would invoke an inaccessible constructor in C++98}}
-  const NoViable &b = NoViable(); // expected-warning {{copying variable of type 'CopyCtorIssues::NoViable' when binding a reference to a temporary would find no viable constructor in C++98}}
+  const Private &a = Private(); // expected-warning {{copying variable of type 'Private' when binding a reference to a temporary would invoke an inaccessible constructor in C++98}}
+  const NoViable &b = NoViable(); // expected-warning {{copying variable of type 'NoViable' when binding a reference to a temporary would find no viable constructor in C++98}}
 #if !CXX98
-  const Ambiguous &c = Ambiguous(); // expected-warning {{copying variable of type 'CopyCtorIssues::Ambiguous' when binding a reference to a temporary would find ambiguous constructors in C++98}}
+  const Ambiguous &c = Ambiguous(); // expected-warning {{copying variable of type 'Ambiguous' when binding a reference to a temporary would find ambiguous constructors in C++98}}
 #endif
-  const Deleted &d = Deleted(); // expected-warning {{copying variable of type 'CopyCtorIssues::Deleted' when binding a reference to a temporary would invoke a deleted constructor in C++98}}
+  const Deleted &d = Deleted(); // expected-warning {{copying variable of type 'Deleted' when binding a reference to a temporary would invoke a deleted constructor in C++98}}
 }

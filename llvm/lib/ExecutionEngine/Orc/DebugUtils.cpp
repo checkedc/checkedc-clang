@@ -261,8 +261,7 @@ raw_ostream &operator<<(raw_ostream &OS,
            "JITDylibList entries must not be null");
     OS << " (\"" << SearchOrder.front().first->getName() << "\", "
        << SearchOrder.begin()->second << ")";
-    for (auto &KV :
-         make_range(std::next(SearchOrder.begin(), 1), SearchOrder.end())) {
+    for (auto &KV : llvm::drop_begin(SearchOrder)) {
       assert(KV.first && "JITDylibList entries must not be null");
       OS << ", (\"" << KV.first->getName() << "\", " << KV.second << ")";
     }
@@ -296,6 +295,13 @@ raw_ostream &operator<<(raw_ostream &OS, const SymbolState &S) {
     return OS << "Ready";
   }
   llvm_unreachable("Invalid state");
+}
+
+raw_ostream &operator<<(raw_ostream &OS, const SymbolStringPool &SSP) {
+  std::lock_guard<std::mutex> Lock(SSP.PoolMutex);
+  for (auto &KV : SSP.Pool)
+    OS << KV.first() << ": " << KV.second << "\n";
+  return OS;
 }
 
 DumpObjects::DumpObjects(std::string DumpDir, std::string IdentifierOverride)

@@ -15,6 +15,7 @@
 #include <condition_variable>
 #include <future>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 using namespace llvm;
@@ -33,6 +34,17 @@ static bool operator==(const DirectoryWatcher::Event &lhs,
 namespace {
 
 typedef DirectoryWatcher::Event::EventKind EventKind;
+
+// We've observed this test being significantly flaky when running on a heavily
+// loaded machine (e.g. when it's being run as part of the full check-clang
+// suite). Set a high timeout value to avoid this flakiness. The 60s timeout
+// value was determined empirically. It's a timeout value, not a sleep value,
+// and the test should require much less time in practice the vast majority of
+// instances. The cases where we do come close to (or still end up hitting) the
+// longer timeout are most likely to occur when other tests are also running at
+// the same time (e.g. as part of the full check-clang suite), in which case the
+// latency of the timeout will be masked by the latency of the other tests.
+constexpr std::chrono::seconds EventualResultTimeout(60);
 
 struct DirectoryWatcherTestFixture {
   std::string TestRootDir;
@@ -166,13 +178,13 @@ struct VerifyingConsumer {
   }
 
   // Not locking - caller has to lock Mtx.
-  llvm::Optional<bool> result() const {
+  std::optional<bool> result() const {
     if (ExpectedInitial.empty() && ExpectedNonInitial.empty() &&
         UnexpectedInitial.empty() && UnexpectedNonInitial.empty())
       return true;
     if (!UnexpectedInitial.empty() || !UnexpectedNonInitial.empty())
       return false;
-    return llvm::None;
+    return std::nullopt;
   }
 
   // This method is used by tests.
@@ -183,7 +195,7 @@ struct VerifyingConsumer {
       if (result())
         return *result();
 
-      ResultIsReady.wait(L, [this]() { return result().hasValue(); });
+      ResultIsReady.wait(L, [this]() { return result().has_value(); });
     }
     return false; // Just to make compiler happy.
   }
@@ -243,16 +255,16 @@ void checkEventualResultWithTimeout(VerifyingConsumer &TestConsumer) {
   std::thread worker(std::move(task));
   worker.detach();
 
-  EXPECT_TRUE(WaitForExpectedStateResult.wait_for(std::chrono::seconds(3)) ==
+  EXPECT_TRUE(WaitForExpectedStateResult.wait_for(EventualResultTimeout) ==
               std::future_status::ready)
       << "The expected result state wasn't reached before the time-out.";
   std::unique_lock<std::mutex> L(TestConsumer.Mtx);
-  EXPECT_TRUE(TestConsumer.result().hasValue());
-  if (TestConsumer.result().hasValue()) {
+  EXPECT_TRUE(TestConsumer.result().has_value());
+  if (TestConsumer.result()) {
     EXPECT_TRUE(*TestConsumer.result());
   }
-  if ((TestConsumer.result().hasValue() && !TestConsumer.result().getValue()) ||
-      !TestConsumer.result().hasValue())
+  if ((TestConsumer.result() && !*TestConsumer.result()) ||
+      !TestConsumer.result())
     TestConsumer.printUnmetExpectations(llvm::outs());
 }
 } // namespace

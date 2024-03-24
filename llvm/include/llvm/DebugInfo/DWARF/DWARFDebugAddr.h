@@ -6,22 +6,19 @@
 //
 //===------------------------------------------------------------------===//
 
-#ifndef LLVM_DEBUGINFO_DWARFDEBUGADDR_H
-#define LLVM_DEBUGINFO_DWARFDEBUGADDR_H
+#ifndef LLVM_DEBUGINFO_DWARF_DWARFDEBUGADDR_H
+#define LLVM_DEBUGINFO_DWARF_DWARFDEBUGADDR_H
 
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DIContext.h"
-#include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
-#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include <cstdint>
-#include <map>
 #include <vector>
 
 namespace llvm {
 
-class Error;
 class raw_ostream;
+class DWARFDataExtractor;
 
 /// A class representing an address table as specified in DWARF v5.
 /// The table consists of a header followed by an array of address values from
@@ -72,8 +69,8 @@ public:
   Expected<uint64_t> getAddrEntry(uint32_t Index) const;
 
   /// Return the full length of this table, including the length field.
-  /// Return None if the length cannot be identified reliably.
-  Optional<uint64_t> getFullLength() const;
+  /// Return std::nullopt if the length cannot be identified reliably.
+  std::optional<uint64_t> getFullLength() const;
 
   /// Return the DWARF format of this table.
   dwarf::DwarfFormat getFormat() const { return Format; }
@@ -96,4 +93,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_DEBUGINFO_DWARFDEBUGADDR_H
+#endif // LLVM_DEBUGINFO_DWARF_DWARFDEBUGADDR_H

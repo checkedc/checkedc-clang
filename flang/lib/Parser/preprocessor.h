@@ -69,6 +69,7 @@ public:
   const AllSources &allSources() const { return allSources_; }
   AllSources &allSources() { return allSources_; }
 
+  void DefineStandardMacros();
   void Define(std::string macro, std::string value);
   void Undefine(std::string macro);
   bool IsNameDefined(const CharBlock &);
@@ -77,7 +78,7 @@ public:
       const TokenSequence &, Prescanner &);
 
   // Implements a preprocessor directive.
-  void Directive(const TokenSequence &, Prescanner *);
+  void Directive(const TokenSequence &, Prescanner &);
 
 private:
   enum class IsElseActive { No, Yes };
@@ -86,9 +87,9 @@ private:
   CharBlock SaveTokenAsName(const CharBlock &);
   TokenSequence ReplaceMacros(const TokenSequence &, Prescanner &);
   void SkipDisabledConditionalCode(
-      const std::string &, IsElseActive, Prescanner *, ProvenanceRange);
+      const std::string &, IsElseActive, Prescanner &, ProvenanceRange);
   bool IsIfPredicateTrue(const TokenSequence &expr, std::size_t first,
-      std::size_t exprTokens, Prescanner *);
+      std::size_t exprTokens, Prescanner &);
 
   AllSources &allSources_;
   std::list<std::string> names_;

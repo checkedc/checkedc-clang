@@ -50,7 +50,7 @@ def fix_filename(file_name):
 def is_valid_arch(s):
   return s in ["i386", "x86_64", "x86_64h", "arm", "armv6", "armv7", "armv7s",
                "armv7k", "arm64", "powerpc64", "powerpc64le", "s390x", "s390",
-               "riscv64"]
+               "riscv64", "loongarch64"]
 
 def guess_arch(addr):
   # Guess which arch we're running. 10 = len('0x') + 8 hex digits.
@@ -208,7 +208,7 @@ class Addr2LineSymbolizer(Symbolizer):
       # EPIPE happens if addr2line exits early (which some implementations do
       # if an invalid file is passed).
       if e.errno == errno.EPIPE:
-        logging.debug("addr2line exited early (broken pipe), returncode=%d" % self.pipe.poll())
+        logging.debug(f"addr2line exited early (broken pipe) returncode={self.pipe.poll()}")
       else:
         logging.debug("unexpected I/O exception communicating with addr2line", exc_info=e)
       lines.append(('??', '??:0'))

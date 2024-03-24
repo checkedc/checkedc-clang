@@ -14,13 +14,13 @@
 
 namespace lldb_private {
 
-class OptionValueUUID : public OptionValue {
+class OptionValueUUID : public Cloneable<OptionValueUUID, OptionValue> {
 public:
-  OptionValueUUID() : OptionValue(), m_uuid() {}
+  OptionValueUUID() = default;
 
-  OptionValueUUID(const UUID &uuid) : OptionValue(), m_uuid(uuid) {}
+  OptionValueUUID(const UUID &uuid) : m_uuid(uuid) {}
 
-  ~OptionValueUUID() override {}
+  ~OptionValueUUID() override = default;
 
   // Virtual subclass pure virtual overrides
 
@@ -29,19 +29,18 @@ public:
   void DumpValue(const ExecutionContext *exe_ctx, Stream &strm,
                  uint32_t dump_mask) override;
 
+  llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) override {
+    return m_uuid.GetAsString();
+  }
+
   Status
   SetValueFromString(llvm::StringRef value,
                      VarSetOperationType op = eVarSetOperationAssign) override;
-  Status
-  SetValueFromString(const char *,
-                     VarSetOperationType = eVarSetOperationAssign) = delete;
 
   void Clear() override {
     m_uuid.Clear();
     m_value_was_set = false;
   }
-
-  lldb::OptionValueSP DeepCopy() const override;
 
   // Subclass specific functions
 

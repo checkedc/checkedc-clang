@@ -12,9 +12,7 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Lex/Lexer.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 using namespace ast_matchers;
 
 const FunctionDecl *getSurroundingFunction(ASTContext &Context,
@@ -24,15 +22,13 @@ const FunctionDecl *getSurroundingFunction(ASTContext &Context,
                         Statement, Context));
 }
 
-bool IsBinaryOrTernary(const Expr *E) {
-  const Expr *E_base = E->IgnoreImpCasts();
-  if (clang::isa<clang::BinaryOperator>(E_base) ||
-      clang::isa<clang::ConditionalOperator>(E_base)) {
+bool isBinaryOrTernary(const Expr *E) {
+  const Expr *EBase = E->IgnoreImpCasts();
+  if (isa<BinaryOperator>(EBase) || isa<ConditionalOperator>(EBase)) {
     return true;
   }
 
-  if (const auto *Operator =
-          clang::dyn_cast<clang::CXXOperatorCallExpr>(E_base)) {
+  if (const auto *Operator = dyn_cast<CXXOperatorCallExpr>(EBase)) {
     return Operator->isInfixBinaryOp();
   }
 
@@ -56,7 +52,7 @@ bool exprHasBitFlagWithSpelling(const Expr *Flags, const SourceManager &SM,
   }
   // If it's a binary OR operation.
   if (const auto *BO = dyn_cast<BinaryOperator>(Flags))
-    if (BO->getOpcode() == clang::BinaryOperatorKind::BO_Or)
+    if (BO->getOpcode() == BinaryOperatorKind::BO_Or)
       return exprHasBitFlagWithSpelling(BO->getLHS()->IgnoreParenCasts(), SM,
                                         LangOpts, FlagName) ||
              exprHasBitFlagWithSpelling(BO->getRHS()->IgnoreParenCasts(), SM,
@@ -92,6 +88,4 @@ bool rangeCanBeFixed(SourceRange Range, const SourceManager *SM) {
          !utils::rangeContainsMacroExpansion(Range, SM);
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils

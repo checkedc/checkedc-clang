@@ -12,8 +12,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestBreakpointLanguage(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def check_location_file(self, bp, loc, test_name):
         bp_loc = bp.GetLocationAtIndex(loc)
         addr = bp_loc.GetAddress()
@@ -38,8 +36,8 @@ class TestBreakpointLanguage(TestBase):
             lldb.eLanguageTypeC_plus_plus,
             lldb.SBFileSpecList(),
             lldb.SBFileSpecList())
-        self.assertTrue(
-            cpp_bp.GetNumLocations() == 1,
+        self.assertEqual(
+            cpp_bp.GetNumLocations(), 1,
             "Only one C++ symbol matches")
         self.assertTrue(self.check_location_file(cpp_bp, 0, "b.cpp"))
 
@@ -48,8 +46,8 @@ class TestBreakpointLanguage(TestBase):
             lldb.eLanguageTypeC,
             lldb.SBFileSpecList(),
             lldb.SBFileSpecList())
-        self.assertTrue(
-            c_bp.GetNumLocations() == 1,
+        self.assertEqual(
+            c_bp.GetNumLocations(), 1,
             "Only one C symbol matches")
         self.assertTrue(self.check_location_file(c_bp, 0, "a.c"))
 
@@ -58,8 +56,8 @@ class TestBreakpointLanguage(TestBase):
             lldb.eLanguageTypeObjC,
             lldb.SBFileSpecList(),
             lldb.SBFileSpecList())
-        self.assertTrue(
-            objc_bp.GetNumLocations() == 0,
+        self.assertEqual(
+            objc_bp.GetNumLocations(), 0,
             "No ObjC symbol matches")
 
     def test_by_name_breakpoint_language(self):
@@ -80,8 +78,8 @@ class TestBreakpointLanguage(TestBase):
             lldb.eLanguageTypeC_plus_plus,
             lldb.SBFileSpecList(),
             lldb.SBFileSpecList())
-        self.assertTrue(
-            cpp_bp.GetNumLocations() == 1,
+        self.assertEqual(
+            cpp_bp.GetNumLocations(), 1,
             "Only one C++ symbol matches")
         self.assertTrue(self.check_location_file(cpp_bp, 0, "b.cpp"))
 
@@ -91,8 +89,8 @@ class TestBreakpointLanguage(TestBase):
             lldb.eLanguageTypeC_plus_plus,
             lldb.SBFileSpecList(),
             lldb.SBFileSpecList())
-        self.assertTrue(
-            no_cpp_bp.GetNumLocations() == 0,
+        self.assertEqual(
+            no_cpp_bp.GetNumLocations(), 0,
             "And the C one doesn't match")
 
         c_bp = self.target.BreakpointCreateByName(
@@ -101,8 +99,8 @@ class TestBreakpointLanguage(TestBase):
             lldb.eLanguageTypeC,
             lldb.SBFileSpecList(),
             lldb.SBFileSpecList())
-        self.assertTrue(
-            c_bp.GetNumLocations() == 1,
+        self.assertEqual(
+            c_bp.GetNumLocations(), 1,
             "Only one C symbol matches")
         self.assertTrue(self.check_location_file(c_bp, 0, "a.c"))
 
@@ -112,8 +110,8 @@ class TestBreakpointLanguage(TestBase):
             lldb.eLanguageTypeC,
             lldb.SBFileSpecList(),
             lldb.SBFileSpecList())
-        self.assertTrue(
-            no_c_bp.GetNumLocations() == 0,
+        self.assertEqual(
+            no_c_bp.GetNumLocations(), 0,
             "And the C++ one doesn't match")
 
         objc_bp = self.target.BreakpointCreateByName(
@@ -122,6 +120,6 @@ class TestBreakpointLanguage(TestBase):
             lldb.eLanguageTypeObjC,
             lldb.SBFileSpecList(),
             lldb.SBFileSpecList())
-        self.assertTrue(
-            objc_bp.GetNumLocations() == 0,
+        self.assertEqual(
+            objc_bp.GetNumLocations(), 0,
             "No ObjC symbol matches")

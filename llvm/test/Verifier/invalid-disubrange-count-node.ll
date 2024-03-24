@@ -4,7 +4,7 @@ define void @foo(i32 %n) {
 entry:
   %0 = zext i32 %n to i64
   %vla = alloca i32, i64 %0, align 16
-  call void @llvm.dbg.declare(metadata i32* %vla, metadata !19, metadata !12), !dbg !18
+  call void @llvm.dbg.declare(metadata ptr %vla, metadata !19, metadata !12), !dbg !18
   ret void
 }
 
@@ -33,5 +33,5 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 !19 = !DILocalVariable(name: "vla", scope: !7, file: !1, line: 21, type: !20)
 !20 = !DICompositeType(tag: DW_TAG_array_type, baseType: !10, align: 32, elements: !21)
 !21 = !{!22}
-; CHECK: Count must either be a signed constant or a DIVariable
+; CHECK: Count must be signed constant or DIVariable or DIExpression
 !22 = !DISubrange(count: !17)

@@ -1,11 +1,11 @@
-; RUN: %lli -force-interpreter %s
+; RUN: %lli -jit-kind=mcjit -force-interpreter %s
 
 define i32 @func() {
 entry:
   ret i32 0
 }
 
-@alias = alias i32 (), i32 ()* @func
+@alias = alias i32 (), ptr @func
 
 define i32 @main() {
 entry:

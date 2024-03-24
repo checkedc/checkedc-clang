@@ -15,8 +15,9 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Host/MainLoop.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/Iterable.h"
 #include "lldb/Utility/Status.h"
-#include "lldb/Utility/TraceOptions.h"
+#include "lldb/Utility/TraceGDBRemotePackets.h"
 #include "lldb/Utility/UnimplementedError.h"
 #include "lldb/lldb-private-forward.h"
 #include "lldb/lldb-types.h"
@@ -26,10 +27,13 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
 namespace lldb_private {
+LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
+
 class MemoryRegionInfo;
 class ResumeActionList;
 
@@ -44,7 +48,17 @@ struct SVR4LibraryInfo {
 // NativeProcessProtocol
 class NativeProcessProtocol {
 public:
-  virtual ~NativeProcessProtocol() {}
+  virtual ~NativeProcessProtocol() = default;
+
+  typedef std::vector<std::unique_ptr<NativeThreadProtocol>> thread_collection;
+  template <typename I>
+  static NativeThreadProtocol &thread_list_adapter(I &iter) {
+    assert(*iter);
+    return **iter;
+  }
+  typedef LockingAdaptedIterable<thread_collection, NativeThreadProtocol &,
+                                 thread_list_adapter, std::recursive_mutex>
+      ThreadIterable;
 
   virtual Status Resume(const ResumeActionList &resume_actions) = 0;
 
@@ -84,6 +98,12 @@ public:
 
   Status ReadMemoryWithoutTrap(lldb::addr_t addr, void *buf, size_t size,
                                size_t &bytes_read);
+
+  virtual Status ReadMemoryTags(int32_t type, lldb::addr_t addr, size_t len,
+                                std::vector<uint8_t> &tags);
+
+  virtual Status WriteMemoryTags(int32_t type, lldb::addr_t addr, size_t len,
+                                 const std::vector<uint8_t> &tags);
 
   /// Reads a null terminated string from memory.
   ///
@@ -152,7 +172,7 @@ public:
   // Watchpoint functions
   virtual const NativeWatchpointList::WatchpointMap &GetWatchpointMap() const;
 
-  virtual llvm::Optional<std::pair<uint32_t, uint32_t>>
+  virtual std::optional<std::pair<uint32_t, uint32_t>>
   GetHardwareDebugSupportInfo() const;
 
   virtual Status SetWatchpoint(lldb::addr_t addr, size_t size,
@@ -185,7 +205,7 @@ public:
   GetAuxvData() const = 0;
 
   // Exit Status
-  virtual llvm::Optional<WaitStatus> GetExitStatus();
+  virtual std::optional<WaitStatus> GetExitStatus();
 
   virtual bool SetExitStatus(WaitStatus status, bool bNotifyStateChange);
 
@@ -196,10 +216,14 @@ public:
 
   void SetCurrentThreadID(lldb::tid_t tid) { m_current_thread_id = tid; }
 
-  lldb::tid_t GetCurrentThreadID() { return m_current_thread_id; }
+  lldb::tid_t GetCurrentThreadID() const { return m_current_thread_id; }
 
   NativeThreadProtocol *GetCurrentThread() {
     return GetThreadByID(m_current_thread_id);
+  }
+
+  ThreadIterable Threads() const {
+    return ThreadIterable(m_threads, m_threads_mutex);
   }
 
   // Access to inferior stdio
@@ -212,7 +236,7 @@ public:
   // Callbacks for low-level process state changes
   class NativeDelegate {
   public:
-    virtual ~NativeDelegate() {}
+    virtual ~NativeDelegate() = default;
 
     virtual void InitializeDelegate(NativeProcessProtocol *process) = 0;
 
@@ -220,43 +244,33 @@ public:
                                      lldb::StateType state) = 0;
 
     virtual void DidExec(NativeProcessProtocol *process) = 0;
+
+    virtual void
+    NewSubprocess(NativeProcessProtocol *parent_process,
+                  std::unique_ptr<NativeProcessProtocol> child_process) = 0;
   };
-
-  /// Register a native delegate.
-  ///
-  /// Clients can register nofication callbacks by passing in a
-  /// NativeDelegate impl and passing it into this function.
-  ///
-  /// Note: it is required that the lifetime of the
-  /// native_delegate outlive the NativeProcessProtocol.
-  ///
-  /// \param[in] native_delegate
-  ///     A NativeDelegate impl to be called when certain events
-  ///     happen within the NativeProcessProtocol or related threads.
-  ///
-  /// \return
-  ///     true if the delegate was registered successfully;
-  ///     false if the delegate was already registered.
-  ///
-  /// \see NativeProcessProtocol::NativeDelegate.
-  bool RegisterNativeDelegate(NativeDelegate &native_delegate);
-
-  /// Unregister a native delegate previously registered.
-  ///
-  /// \param[in] native_delegate
-  ///     A NativeDelegate impl previously registered with this process.
-  ///
-  /// \return Returns \b true if the NativeDelegate was
-  /// successfully removed from the process, \b false otherwise.
-  ///
-  /// \see NativeProcessProtocol::NativeDelegate
-  bool UnregisterNativeDelegate(NativeDelegate &native_delegate);
 
   virtual Status GetLoadedModuleFileSpec(const char *module_path,
                                          FileSpec &file_spec) = 0;
 
   virtual Status GetFileLoadAddress(const llvm::StringRef &file_name,
                                     lldb::addr_t &load_addr) = 0;
+
+  /// Extension flag constants, returned by Factory::GetSupportedExtensions()
+  /// and passed to SetEnabledExtension()
+  enum class Extension {
+    multiprocess = (1u << 0),
+    fork = (1u << 1),
+    vfork = (1u << 2),
+    pass_signals = (1u << 3),
+    auxv = (1u << 4),
+    libraries_svr4 = (1u << 5),
+    memory_tagging = (1u << 6),
+    savecore = (1u << 7),
+    siginfo_read = (1u << 8),
+
+    LLVM_MARK_AS_BITMASK_ENUM(siginfo_read)
+  };
 
   class Factory {
   public:
@@ -304,97 +318,92 @@ public:
     virtual llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
     Attach(lldb::pid_t pid, NativeDelegate &native_delegate,
            MainLoop &mainloop) const = 0;
+
+    /// Get the bitmask of extensions supported by this process plugin.
+    ///
+    /// \return
+    ///     A NativeProcessProtocol::Extension bitmask.
+    virtual Extension GetSupportedExtensions() const { return {}; }
   };
 
-  /// StartTracing API for starting a tracing instance with the
-  /// TraceOptions on a specific thread or process.
+  /// Notify tracers that the target process will resume
+  virtual void NotifyTracersProcessWillResume() {}
+
+  /// Notify tracers that the target process just stopped
+  virtual void NotifyTracersProcessDidStop() {}
+
+  /// Start tracing a process or its threads.
   ///
-  /// \param[in] config
-  ///     The configuration to use when starting tracing.
+  /// \param[in] json_params
+  ///     JSON object with the information of what and how to trace.
+  ///     In the case of gdb-remote, this object should conform to the
+  ///     jLLDBTraceStart packet.
   ///
-  /// \param[out] error
-  ///     Status indicates what went wrong.
+  ///     This object should have a string entry called "type", which is the
+  ///     tracing technology name.
+  ///
+  /// \param[in] type
+  ///     Tracing technology type, as described in the \a json_params.
   ///
   /// \return
-  ///     The API returns a user_id which can be used to get trace
-  ///     data, trace configuration or stopping the trace instance.
-  ///     The user_id is a key to identify and operate with a tracing
-  ///     instance. It may refer to the complete process or a single
-  ///     thread.
-  virtual lldb::user_id_t StartTrace(const TraceOptions &config,
-                                     Status &error) {
-    error.SetErrorString("Not implemented");
-    return LLDB_INVALID_UID;
+  ///     \a llvm::Error::success if the operation was successful, or an
+  ///     \a llvm::Error otherwise.
+  virtual llvm::Error TraceStart(llvm::StringRef json_params,
+                                 llvm::StringRef type) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Unsupported tracing type '%s'",
+                                   type.data());
   }
 
-  /// StopTracing API as the name suggests stops a tracing instance.
-  ///
-  /// \param[in] traceid
-  ///     The user id of the trace intended to be stopped. Now a
-  ///     user_id may map to multiple threads in which case this API
-  ///     could be used to stop the tracing for a specific thread by
-  ///     supplying its thread id.
-  ///
-  /// \param[in] thread
-  ///     Thread is needed when the complete process is being traced
-  ///     and the user wishes to stop tracing on a particular thread.
-  ///
-  /// \return
-  ///     Status indicating what went wrong.
-  virtual Status StopTrace(lldb::user_id_t traceid,
-                           lldb::tid_t thread = LLDB_INVALID_THREAD_ID) {
-    return Status("Not implemented");
+  /// \copydoc Process::TraceStop(const TraceStopRequest &)
+  virtual llvm::Error TraceStop(const TraceStopRequest &request) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Unsupported tracing type '%s'",
+                                   request.type.data());
   }
 
-  /// This API provides the trace data collected in the form of raw
-  /// data.
-  ///
-  /// \param[in] traceid thread
-  ///     The traceid and thread provide the context for the trace
-  ///     instance.
-  ///
-  /// \param[in] buffer
-  ///     The buffer provides the destination buffer where the trace
-  ///     data would be read to. The buffer should be truncated to the
-  ///     filled length by this function.
-  ///
-  /// \param[in] offset
-  ///     There is possibility to read partially the trace data from
-  ///     a specified offset where in such cases the buffer provided
-  ///     may be smaller than the internal trace collection container.
-  ///
-  /// \return
-  ///     The size of the data actually read.
-  virtual Status GetData(lldb::user_id_t traceid, lldb::tid_t thread,
-                         llvm::MutableArrayRef<uint8_t> &buffer,
-                         size_t offset = 0) {
-    return Status("Not implemented");
+  /// \copydoc Process::TraceGetState(llvm::StringRef type)
+  virtual llvm::Expected<llvm::json::Value>
+  TraceGetState(llvm::StringRef type) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Unsupported tracing type '%s'",
+                                   type.data());
   }
 
-  /// Similar API as above except it aims to provide any extra data
-  /// useful for decoding the actual trace data.
-  virtual Status GetMetaData(lldb::user_id_t traceid, lldb::tid_t thread,
-                             llvm::MutableArrayRef<uint8_t> &buffer,
-                             size_t offset = 0) {
-    return Status("Not implemented");
+  /// \copydoc Process::TraceGetBinaryData(const TraceGetBinaryDataRequest &)
+  virtual llvm::Expected<std::vector<uint8_t>>
+  TraceGetBinaryData(const TraceGetBinaryDataRequest &request) {
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "Unsupported data kind '%s' for the '%s' tracing technology",
+        request.kind.c_str(), request.type.c_str());
   }
 
-  /// API to query the TraceOptions for a given user id
-  ///
-  /// \param[in] traceid
-  ///     The user id of the tracing instance.
-  ///
-  /// \param[out] config
-  ///     The configuration being used for tracing.
-  ///
-  /// \return A status indicating what went wrong.
-  virtual Status GetTraceConfig(lldb::user_id_t traceid, TraceOptions &config) {
-    return Status("Not implemented");
-  }
-
-  /// \copydoc Process::GetSupportedTraceType()
-  virtual llvm::Expected<TraceTypeInfo> GetSupportedTraceType() {
+  /// \copydoc Process::TraceSupported()
+  virtual llvm::Expected<TraceSupportedResponse> TraceSupported() {
     return llvm::make_error<UnimplementedError>();
+  }
+
+  /// Method called in order to propagate the bitmap of protocol
+  /// extensions supported by the client.
+  ///
+  /// \param[in] flags
+  ///     The bitmap of enabled extensions.
+  virtual void SetEnabledExtensions(Extension flags) {
+    m_enabled_extensions = flags;
+  }
+
+  /// Write a core dump (without crashing the program).
+  ///
+  /// \param[in] path_hint
+  ///     Suggested core dump path (optional, can be empty).
+  ///
+  /// \return
+  ///     Path to the core dump if successfully written, an error
+  ///     otherwise.
+  virtual llvm::Expected<std::string> SaveCore(llvm::StringRef path_hint) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Not implemented");
   }
 
 protected:
@@ -414,10 +423,9 @@ protected:
   lldb::StateType m_state = lldb::eStateInvalid;
   mutable std::recursive_mutex m_state_mutex;
 
-  llvm::Optional<WaitStatus> m_exit_status;
+  std::optional<WaitStatus> m_exit_status;
 
-  std::recursive_mutex m_delegates_mutex;
-  std::vector<NativeDelegate *> m_delegates;
+  NativeDelegate &m_delegate;
   NativeWatchpointList m_watchpoint_list;
   HardwareBreakpointMap m_hw_breakpoints_map;
   int m_terminal_fd;
@@ -426,6 +434,9 @@ protected:
   // Set of signal numbers that LLDB directly injects back to inferior without
   // stopping it.
   llvm::DenseSet<int> m_signals_to_ignore;
+
+  // Extensions enabled per the last SetEnabledExtensions() call.
+  Extension m_enabled_extensions;
 
   // lldb_private::Host calls should be used to launch a process for debugging,
   // and then the process should be attached to. When attaching to a process
@@ -468,7 +479,7 @@ protected:
   ///
   /// Provide a mechanism for a delegate to clear out any exec-
   /// sensitive data.
-  void NotifyDidExec();
+  virtual void NotifyDidExec();
 
   NativeThreadProtocol *GetThreadByIDUnlocked(lldb::tid_t tid);
 

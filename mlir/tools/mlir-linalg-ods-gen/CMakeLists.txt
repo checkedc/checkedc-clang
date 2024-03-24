@@ -2,26 +2,28 @@ set(LLVM_LINK_COMPONENTS
   Core
   Support
   )
-add_llvm_tool(mlir-linalg-ods-gen
-  mlir-linalg-ods-gen.cpp
+
+# New mlir-linalg-ods-yaml-gen.
+add_mlir_tool(mlir-linalg-ods-yaml-gen
+  mlir-linalg-ods-yaml-gen.cpp
 )
-llvm_update_compile_flags(mlir-linalg-ods-gen)
-target_link_libraries(mlir-linalg-ods-gen PRIVATE
-  MLIRSupport
+llvm_update_compile_flags(mlir-linalg-ods-yaml-gen)
+target_link_libraries(mlir-linalg-ods-yaml-gen PRIVATE
   MLIRIR
+  MLIRSupport
+  MLIRParser
   )
 
-set(MLIR_LINALG_ODS_GEN_EXE mlir-linalg-ods-gen PARENT_SCOPE)
-set(MLIR_LINALG_ODS_GEN_TARGET mlir-linalg-ods-gen PARENT_SCOPE)
+setup_host_tool(mlir-linalg-ods-yaml-gen MLIR_LINALG_ODS_YAML_GEN MLIR_LINALG_ODS_YAML_GEN_EXE MLIR_LINALG_ODS_YAML_GEN_TARGET)
 
-if(LLVM_USE_HOST_TOOLS)
-  build_native_tool(mlir-linalg-ods-gen MLIR_LINALG_ODS_GEN_EXE DEPENDS mlir-linalg-ods-gen)
-  set(MLIR_LINALG_ODS_GEN_EXE ${MLIR_LINALG_ODS_GEN_EXE} PARENT_SCOPE)
-
-  add_custom_target(mlir-linalg-ods-gen-host DEPENDS ${MLIR_LINALG_ODS_GEN_EXE})
-  set(MLIR_LINALG_ODS_GEN_TARGET mlir-linalg-ods-gen-host DEPENDS PARENT_SCOPE)
+if(NOT ${MLIR_LINALG_ODS_YAML_GEN_EXE} STREQUAL "mlir-linalg-ods-yaml-gen")
+  add_custom_target(mlir-linalg-ods-yaml-gen-host DEPENDS ${MLIR_LINALG_ODS_YAML_GEN_EXE})
 
   if(NOT LLVM_BUILD_UTILS)
-    set_target_properties(mlir-linalg-ods-gen PROPERTIES EXCLUDE_FROM_ALL ON)
+    set_target_properties(mlir-linalg-ods-yaml-gen PROPERTIES EXCLUDE_FROM_ALL ON)
   endif()
 endif()
+
+configure_file(
+  update_core_linalg_named_ops.sh.in
+  ${MLIR_TOOLS_DIR}/update_core_linalg_named_ops.sh)

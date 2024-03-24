@@ -28,15 +28,18 @@
 #include <functional>
 #include <list>
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
 namespace llvm {
 namespace orc {
 
-class RTDyldObjectLinkingLayer : public ObjectLayer, private ResourceManager {
+class RTDyldObjectLinkingLayer
+    : public RTTIExtends<RTDyldObjectLinkingLayer, ObjectLayer>,
+      private ResourceManager {
 public:
+  static char ID;
+
   /// Functor for receiving object-loaded notifications.
   using NotifyLoadedFunction = std::function<void(
       MaterializationResponsibility &R, const object::ObjectFile &Obj,
@@ -47,7 +50,7 @@ public:
       MaterializationResponsibility &R, std::unique_ptr<MemoryBuffer>)>;
 
   using GetMemoryManagerFunction =
-      std::function<std::unique_ptr<RuntimeDyld::MemoryManager>()>;
+      unique_function<std::unique_ptr<RuntimeDyld::MemoryManager>()>;
 
   /// Construct an ObjectLinkingLayer with the given NotifyLoaded,
   ///        and NotifyEmitted functors.
@@ -137,8 +140,9 @@ private:
                  std::unique_ptr<RuntimeDyld::LoadedObjectInfo> LoadedObjInfo,
                  Error Err);
 
-  Error handleRemoveResources(ResourceKey K) override;
-  void handleTransferResources(ResourceKey DstKey, ResourceKey SrcKey) override;
+  Error handleRemoveResources(JITDylib &JD, ResourceKey K) override;
+  void handleTransferResources(JITDylib &JD, ResourceKey DstKey,
+                               ResourceKey SrcKey) override;
 
   mutable std::mutex RTDyldLayerMutex;
   GetMemoryManagerFunction GetMemoryManager;

@@ -1,4 +1,4 @@
-//===-- llvm/BinaryFormat/MachO.h - The MachO file format -------*- C++/-*-===//
+//===-- llvm/BinaryFormat/MachO.h - The MachO file format -------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -50,7 +50,8 @@ enum HeaderFileType {
   MH_BUNDLE = 0x8u,
   MH_DYLIB_STUB = 0x9u,
   MH_DSYM = 0xAu,
-  MH_KEXT_BUNDLE = 0xBu
+  MH_KEXT_BUNDLE = 0xBu,
+  MH_FILESET = 0xCu,
 };
 
 enum {
@@ -106,6 +107,7 @@ enum : uint32_t {
   SG_FVMLIB = 0x2u,
   SG_NORELOC = 0x4u,
   SG_PROTECTED_VERSION_1 = 0x8u,
+  SG_READ_ONLY = 0x10u,
 
   // Constant masks for the "flags" field in llvm::MachO::section and
   // llvm::MachO::section_64
@@ -174,8 +176,11 @@ enum SectionType : uint32_t {
   /// S_THREAD_LOCAL_INIT_FUNCTION_POINTERS - Section with thread local
   /// variable initialization pointers to functions.
   S_THREAD_LOCAL_INIT_FUNCTION_POINTERS = 0x15u,
+  /// S_INIT_FUNC_OFFSETS - Section with 32-bit offsets to initializer
+  /// functions.
+  S_INIT_FUNC_OFFSETS = 0x16u,
 
-  LAST_KNOWN_SECTION_TYPE = S_THREAD_LOCAL_INIT_FUNCTION_POINTERS
+  LAST_KNOWN_SECTION_TYPE = S_INIT_FUNC_OFFSETS
 };
 
 enum : uint32_t {
@@ -255,7 +260,8 @@ enum BindType {
 enum BindSpecialDylib {
   BIND_SPECIAL_DYLIB_SELF = 0,
   BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE = -1,
-  BIND_SPECIAL_DYLIB_FLAT_LOOKUP = -2
+  BIND_SPECIAL_DYLIB_FLAT_LOOKUP = -2,
+  BIND_SPECIAL_DYLIB_WEAK_LOOKUP = -3
 };
 
 enum {
@@ -399,6 +405,7 @@ enum RelocationInfoType {
   // Constant values for the r_type field in an
   // llvm::MachO::relocation_info or llvm::MachO::scattered_relocation_info
   // structure.
+  GENERIC_RELOC_INVALID = 0xff,
   GENERIC_RELOC_VANILLA = 0,
   GENERIC_RELOC_PAIR = 1,
   GENERIC_RELOC_SECTDIFF = 2,
@@ -488,6 +495,7 @@ enum { VM_PROT_READ = 0x1, VM_PROT_WRITE = 0x2, VM_PROT_EXECUTE = 0x4 };
 
 // Values for platform field in build_version_command.
 enum PlatformType {
+  PLATFORM_UNKNOWN = 0,
   PLATFORM_MACOS = 1,
   PLATFORM_IOS = 2,
   PLATFORM_TVOS = 3,
@@ -861,6 +869,12 @@ struct build_version_command {
   uint32_t ntools;   // number of tool entries following this
 };
 
+struct dyld_env_command {
+  uint32_t cmd;
+  uint32_t cmdsize;
+  uint32_t name;
+};
+
 struct dyld_info_command {
   uint32_t cmd;
   uint32_t cmdsize;
@@ -880,6 +894,14 @@ struct linker_option_command {
   uint32_t cmd;
   uint32_t cmdsize;
   uint32_t count;
+};
+
+struct fileset_entry_command {
+  uint32_t cmd;
+  uint32_t cmdsize;
+  uint64_t vmaddr;
+  uint64_t fileoff;
+  uint32_t entry_id;
 };
 
 // The symseg_command is obsolete and no longer supported.
@@ -997,6 +1019,119 @@ struct nlist_64 {
   uint8_t n_sect;
   uint16_t n_desc;
   uint64_t n_value;
+};
+
+// Values for dyld_chained_fixups_header::imports_format.
+enum ChainedImportFormat {
+  DYLD_CHAINED_IMPORT = 1,
+  DYLD_CHAINED_IMPORT_ADDEND = 2,
+  DYLD_CHAINED_IMPORT_ADDEND64 = 3,
+};
+
+// Values for dyld_chained_fixups_header::symbols_format.
+enum {
+  DYLD_CHAINED_SYMBOL_UNCOMPRESSED = 0,
+  DYLD_CHAINED_SYMBOL_ZLIB = 1,
+};
+
+// Values for dyld_chained_starts_in_segment::page_start.
+enum {
+  DYLD_CHAINED_PTR_START_NONE = 0xFFFF,
+  DYLD_CHAINED_PTR_START_MULTI = 0x8000,
+  DYLD_CHAINED_PTR_START_LAST = 0x8000,
+};
+
+// Values for dyld_chained_starts_in_segment::pointer_format.
+enum {
+  DYLD_CHAINED_PTR_ARM64E = 1,
+  DYLD_CHAINED_PTR_64 = 2,
+  DYLD_CHAINED_PTR_32 = 3,
+  DYLD_CHAINED_PTR_32_CACHE = 4,
+  DYLD_CHAINED_PTR_32_FIRMWARE = 5,
+  DYLD_CHAINED_PTR_64_OFFSET = 6,
+  DYLD_CHAINED_PTR_ARM64E_KERNEL = 7,
+  DYLD_CHAINED_PTR_64_KERNEL_CACHE = 8,
+  DYLD_CHAINED_PTR_ARM64E_USERLAND = 9,
+  DYLD_CHAINED_PTR_ARM64E_FIRMWARE = 10,
+  DYLD_CHAINED_PTR_X86_64_KERNEL_CACHE = 11,
+  DYLD_CHAINED_PTR_ARM64E_USERLAND24 = 12,
+};
+
+/// Structs for dyld chained fixups.
+/// dyld_chained_fixups_header is the data pointed to by LC_DYLD_CHAINED_FIXUPS
+/// load command.
+struct dyld_chained_fixups_header {
+  uint32_t fixups_version; ///< 0
+  uint32_t starts_offset;  ///< Offset of dyld_chained_starts_in_image.
+  uint32_t imports_offset; ///< Offset of imports table in chain_data.
+  uint32_t symbols_offset; ///< Offset of symbol strings in chain_data.
+  uint32_t imports_count;  ///< Number of imported symbol names.
+  uint32_t imports_format; ///< DYLD_CHAINED_IMPORT*
+  uint32_t symbols_format; ///< 0 => uncompressed, 1 => zlib compressed
+};
+
+/// dyld_chained_starts_in_image is embedded in LC_DYLD_CHAINED_FIXUPS payload.
+/// Each each seg_info_offset entry is the offset into this struct for that
+/// segment followed by pool of dyld_chain_starts_in_segment data.
+struct dyld_chained_starts_in_image {
+  uint32_t seg_count;
+  uint32_t seg_info_offset[1];
+};
+
+struct dyld_chained_starts_in_segment {
+  uint32_t size;              ///< Size of this, including chain_starts entries
+  uint16_t page_size;         ///< Page size in bytes (0x1000 or 0x4000)
+  uint16_t pointer_format;    ///< DYLD_CHAINED_PTR*
+  uint64_t segment_offset;    ///< VM offset from the __TEXT segment
+  uint32_t max_valid_pointer; ///< Values beyond this are not pointers on 32-bit
+  uint16_t page_count;        ///< Length of the page_start array
+  uint16_t page_start[1];     ///< Page offset of first fixup on each page, or
+                              ///< DYLD_CHAINED_PTR_START_NONE if no fixups
+};
+
+// DYLD_CHAINED_IMPORT
+struct dyld_chained_import {
+  uint32_t lib_ordinal : 8;
+  uint32_t weak_import : 1;
+  uint32_t name_offset : 23;
+};
+
+// DYLD_CHAINED_IMPORT_ADDEND
+struct dyld_chained_import_addend {
+  uint32_t lib_ordinal : 8;
+  uint32_t weak_import : 1;
+  uint32_t name_offset : 23;
+  int32_t addend;
+};
+
+// DYLD_CHAINED_IMPORT_ADDEND64
+struct dyld_chained_import_addend64 {
+  uint64_t lib_ordinal : 16;
+  uint64_t weak_import : 1;
+  uint64_t reserved : 15;
+  uint64_t name_offset : 32;
+  uint64_t addend;
+};
+
+// The `bind` field (most significant bit) of the encoded fixup determines
+// whether it is dyld_chained_ptr_64_bind or dyld_chained_ptr_64_rebase.
+
+// DYLD_CHAINED_PTR_64/DYLD_CHAINED_PTR_64_OFFSET
+struct dyld_chained_ptr_64_bind {
+  uint64_t ordinal : 24;
+  uint64_t addend : 8;
+  uint64_t reserved : 19;
+  uint64_t next : 12;
+  uint64_t bind : 1; // set to 1
+};
+
+// DYLD_CHAINED_PTR_64/DYLD_CHAINED_PTR_64_OFFSET
+struct dyld_chained_ptr_64_rebase {
+  uint64_t target : 36;
+  uint64_t high8 : 8;
+  uint64_t reserved : 7;
+  uint64_t next : 12;
+  uint64_t bind : 1; // set to 0
 };
 
 // Byte order swapping functions for MachO structs
@@ -1290,6 +1425,14 @@ inline void swapStruct(linker_option_command &C) {
   sys::swapByteOrder(C.cmd);
   sys::swapByteOrder(C.cmdsize);
   sys::swapByteOrder(C.count);
+}
+
+inline void swapStruct(fileset_entry_command &C) {
+  sys::swapByteOrder(C.cmd);
+  sys::swapByteOrder(C.cmdsize);
+  sys::swapByteOrder(C.vmaddr);
+  sys::swapByteOrder(C.fileoff);
+  sys::swapByteOrder(C.entry_id);
 }
 
 inline void swapStruct(version_min_command &C) {
@@ -2005,6 +2148,240 @@ union alignas(4) macho_load_command {
 #include "llvm/BinaryFormat/MachO.def"
 };
 LLVM_PACKED_END
+
+inline void swapStruct(dyld_chained_fixups_header &C) {
+  sys::swapByteOrder(C.fixups_version);
+  sys::swapByteOrder(C.starts_offset);
+  sys::swapByteOrder(C.imports_offset);
+  sys::swapByteOrder(C.symbols_offset);
+  sys::swapByteOrder(C.imports_count);
+  sys::swapByteOrder(C.imports_format);
+  sys::swapByteOrder(C.symbols_format);
+}
+
+inline void swapStruct(dyld_chained_starts_in_image &C) {
+  sys::swapByteOrder(C.seg_count);
+  // getStructOrErr() cannot copy the variable-length seg_info_offset array.
+  // Its elements must be byte swapped manually.
+}
+
+inline void swapStruct(dyld_chained_starts_in_segment &C) {
+  sys::swapByteOrder(C.size);
+  sys::swapByteOrder(C.page_size);
+  sys::swapByteOrder(C.pointer_format);
+  sys::swapByteOrder(C.segment_offset);
+  sys::swapByteOrder(C.max_valid_pointer);
+  sys::swapByteOrder(C.page_count);
+  // seg_info_offset entries must be byte swapped manually.
+}
+
+/* code signing attributes of a process */
+
+enum CodeSignAttrs {
+  CS_VALID = 0x00000001,          /* dynamically valid */
+  CS_ADHOC = 0x00000002,          /* ad hoc signed */
+  CS_GET_TASK_ALLOW = 0x00000004, /* has get-task-allow entitlement */
+  CS_INSTALLER = 0x00000008,      /* has installer entitlement */
+
+  CS_FORCED_LV =
+      0x00000010, /* Library Validation required by Hardened System Policy */
+  CS_INVALID_ALLOWED = 0x00000020, /* (macOS Only) Page invalidation allowed by
+                                      task port policy */
+
+  CS_HARD = 0x00000100,             /* don't load invalid pages */
+  CS_KILL = 0x00000200,             /* kill process if it becomes invalid */
+  CS_CHECK_EXPIRATION = 0x00000400, /* force expiration checking */
+  CS_RESTRICT = 0x00000800,         /* tell dyld to treat restricted */
+
+  CS_ENFORCEMENT = 0x00001000, /* require enforcement */
+  CS_REQUIRE_LV = 0x00002000,  /* require library validation */
+  CS_ENTITLEMENTS_VALIDATED =
+      0x00004000, /* code signature permits restricted entitlements */
+  CS_NVRAM_UNRESTRICTED =
+      0x00008000, /* has com.apple.rootless.restricted-nvram-variables.heritable
+                     entitlement */
+
+  CS_RUNTIME = 0x00010000,       /* Apply hardened runtime policies */
+  CS_LINKER_SIGNED = 0x00020000, /* Automatically signed by the linker */
+
+  CS_ALLOWED_MACHO =
+      (CS_ADHOC | CS_HARD | CS_KILL | CS_CHECK_EXPIRATION | CS_RESTRICT |
+       CS_ENFORCEMENT | CS_REQUIRE_LV | CS_RUNTIME | CS_LINKER_SIGNED),
+
+  CS_EXEC_SET_HARD = 0x00100000, /* set CS_HARD on any exec'ed process */
+  CS_EXEC_SET_KILL = 0x00200000, /* set CS_KILL on any exec'ed process */
+  CS_EXEC_SET_ENFORCEMENT =
+      0x00400000, /* set CS_ENFORCEMENT on any exec'ed process */
+  CS_EXEC_INHERIT_SIP =
+      0x00800000, /* set CS_INSTALLER on any exec'ed process */
+
+  CS_KILLED = 0x01000000, /* was killed by kernel for invalidity */
+  CS_DYLD_PLATFORM =
+      0x02000000, /* dyld used to load this is a platform binary */
+  CS_PLATFORM_BINARY = 0x04000000, /* this is a platform binary */
+  CS_PLATFORM_PATH =
+      0x08000000, /* platform binary by the fact of path (osx only) */
+
+  CS_DEBUGGED = 0x10000000, /* process is currently or has previously been
+                debugged and allowed to run with invalid pages */
+  CS_SIGNED = 0x20000000, /* process has a signature (may have gone invalid) */
+  CS_DEV_CODE =
+      0x40000000, /* code is dev signed, cannot be loaded into prod signed code
+                     (will go away with rdar://problem/28322552) */
+  CS_DATAVAULT_CONTROLLER =
+      0x80000000, /* has Data Vault controller entitlement */
+
+  CS_ENTITLEMENT_FLAGS = (CS_GET_TASK_ALLOW | CS_INSTALLER |
+                          CS_DATAVAULT_CONTROLLER | CS_NVRAM_UNRESTRICTED),
+};
+
+/* executable segment flags */
+
+enum CodeSignExecSegFlags {
+
+  CS_EXECSEG_MAIN_BINARY = 0x1,     /* executable segment denotes main binary */
+  CS_EXECSEG_ALLOW_UNSIGNED = 0x10, /* allow unsigned pages (for debugging) */
+  CS_EXECSEG_DEBUGGER = 0x20,       /* main binary is debugger */
+  CS_EXECSEG_JIT = 0x40,            /* JIT enabled */
+  CS_EXECSEG_SKIP_LV = 0x80,        /* OBSOLETE: skip library validation */
+  CS_EXECSEG_CAN_LOAD_CDHASH = 0x100, /* can bless cdhash for execution */
+  CS_EXECSEG_CAN_EXEC_CDHASH = 0x200, /* can execute blessed cdhash */
+
+};
+
+/* Magic numbers used by Code Signing */
+
+enum CodeSignMagic {
+  CSMAGIC_REQUIREMENT = 0xfade0c00, /* single Requirement blob */
+  CSMAGIC_REQUIREMENTS =
+      0xfade0c01, /* Requirements vector (internal requirements) */
+  CSMAGIC_CODEDIRECTORY = 0xfade0c02,      /* CodeDirectory blob */
+  CSMAGIC_EMBEDDED_SIGNATURE = 0xfade0cc0, /* embedded form of signature data */
+  CSMAGIC_EMBEDDED_SIGNATURE_OLD = 0xfade0b02, /* XXX */
+  CSMAGIC_EMBEDDED_ENTITLEMENTS = 0xfade7171,  /* embedded entitlements */
+  CSMAGIC_DETACHED_SIGNATURE =
+      0xfade0cc1, /* multi-arch collection of embedded signatures */
+  CSMAGIC_BLOBWRAPPER = 0xfade0b01, /* CMS Signature, among other things */
+
+  CS_SUPPORTSSCATTER = 0x20100,
+  CS_SUPPORTSTEAMID = 0x20200,
+  CS_SUPPORTSCODELIMIT64 = 0x20300,
+  CS_SUPPORTSEXECSEG = 0x20400,
+  CS_SUPPORTSRUNTIME = 0x20500,
+  CS_SUPPORTSLINKAGE = 0x20600,
+
+  CSSLOT_CODEDIRECTORY = 0, /* slot index for CodeDirectory */
+  CSSLOT_INFOSLOT = 1,
+  CSSLOT_REQUIREMENTS = 2,
+  CSSLOT_RESOURCEDIR = 3,
+  CSSLOT_APPLICATION = 4,
+  CSSLOT_ENTITLEMENTS = 5,
+
+  CSSLOT_ALTERNATE_CODEDIRECTORIES =
+      0x1000, /* first alternate CodeDirectory, if any */
+  CSSLOT_ALTERNATE_CODEDIRECTORY_MAX = 5, /* max number of alternate CD slots */
+  CSSLOT_ALTERNATE_CODEDIRECTORY_LIMIT =
+      CSSLOT_ALTERNATE_CODEDIRECTORIES +
+      CSSLOT_ALTERNATE_CODEDIRECTORY_MAX, /* one past the last */
+
+  CSSLOT_SIGNATURESLOT = 0x10000, /* CMS Signature */
+  CSSLOT_IDENTIFICATIONSLOT = 0x10001,
+  CSSLOT_TICKETSLOT = 0x10002,
+
+  CSTYPE_INDEX_REQUIREMENTS = 0x00000002, /* compat with amfi */
+  CSTYPE_INDEX_ENTITLEMENTS = 0x00000005, /* compat with amfi */
+
+  CS_HASHTYPE_SHA1 = 1,
+  CS_HASHTYPE_SHA256 = 2,
+  CS_HASHTYPE_SHA256_TRUNCATED = 3,
+  CS_HASHTYPE_SHA384 = 4,
+
+  CS_SHA1_LEN = 20,
+  CS_SHA256_LEN = 32,
+  CS_SHA256_TRUNCATED_LEN = 20,
+
+  CS_CDHASH_LEN = 20,    /* always - larger hashes are truncated */
+  CS_HASH_MAX_SIZE = 48, /* max size of the hash we'll support */
+
+  /*
+   * Currently only to support Legacy VPN plugins, and Mac App Store
+   * but intended to replace all the various platform code, dev code etc. bits.
+   */
+  CS_SIGNER_TYPE_UNKNOWN = 0,
+  CS_SIGNER_TYPE_LEGACYVPN = 5,
+  CS_SIGNER_TYPE_MAC_APP_STORE = 6,
+
+  CS_SUPPL_SIGNER_TYPE_UNKNOWN = 0,
+  CS_SUPPL_SIGNER_TYPE_TRUSTCACHE = 7,
+  CS_SUPPL_SIGNER_TYPE_LOCAL = 8,
+};
+
+struct CS_CodeDirectory {
+  uint32_t magic;         /* magic number (CSMAGIC_CODEDIRECTORY) */
+  uint32_t length;        /* total length of CodeDirectory blob */
+  uint32_t version;       /* compatibility version */
+  uint32_t flags;         /* setup and mode flags */
+  uint32_t hashOffset;    /* offset of hash slot element at index zero */
+  uint32_t identOffset;   /* offset of identifier string */
+  uint32_t nSpecialSlots; /* number of special hash slots */
+  uint32_t nCodeSlots;    /* number of ordinary (code) hash slots */
+  uint32_t codeLimit;     /* limit to main image signature range */
+  uint8_t hashSize;       /* size of each hash in bytes */
+  uint8_t hashType;       /* type of hash (cdHashType* constants) */
+  uint8_t platform;       /* platform identifier; zero if not platform binary */
+  uint8_t pageSize;       /* log2(page size in bytes); 0 => infinite */
+  uint32_t spare2;        /* unused (must be zero) */
+
+  /* Version 0x20100 */
+  uint32_t scatterOffset; /* offset of optional scatter vector */
+
+  /* Version 0x20200 */
+  uint32_t teamOffset; /* offset of optional team identifier */
+
+  /* Version 0x20300 */
+  uint32_t spare3;      /* unused (must be zero) */
+  uint64_t codeLimit64; /* limit to main image signature range, 64 bits */
+
+  /* Version 0x20400 */
+  uint64_t execSegBase;  /* offset of executable segment */
+  uint64_t execSegLimit; /* limit of executable segment */
+  uint64_t execSegFlags; /* executable segment flags */
+};
+
+static_assert(sizeof(CS_CodeDirectory) == 88);
+
+struct CS_BlobIndex {
+  uint32_t type;   /* type of entry */
+  uint32_t offset; /* offset of entry */
+};
+
+struct CS_SuperBlob {
+  uint32_t magic;  /* magic number */
+  uint32_t length; /* total length of SuperBlob */
+  uint32_t count;  /* number of index entries following */
+  /* followed by Blobs in no particular order as indicated by index offsets */
+};
+
+enum SecCSDigestAlgorithm {
+  kSecCodeSignatureNoHash = 0,     /* null value */
+  kSecCodeSignatureHashSHA1 = 1,   /* SHA-1 */
+  kSecCodeSignatureHashSHA256 = 2, /* SHA-256 */
+  kSecCodeSignatureHashSHA256Truncated =
+      3,                           /* SHA-256 truncated to first 20 bytes */
+  kSecCodeSignatureHashSHA384 = 4, /* SHA-384 */
+  kSecCodeSignatureHashSHA512 = 5, /* SHA-512 */
+};
+
+enum LinkerOptimizationHintKind {
+  LOH_ARM64_ADRP_ADRP = 1,
+  LOH_ARM64_ADRP_LDR = 2,
+  LOH_ARM64_ADRP_ADD_LDR = 3,
+  LOH_ARM64_ADRP_LDR_GOT_LDR = 4,
+  LOH_ARM64_ADRP_ADD_STR = 5,
+  LOH_ARM64_ADRP_LDR_GOT_STR = 6,
+  LOH_ARM64_ADRP_ADD = 7,
+  LOH_ARM64_ADRP_LDR_GOT = 8,
+};
 
 } // end namespace MachO
 } // end namespace llvm

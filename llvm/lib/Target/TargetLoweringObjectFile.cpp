@@ -24,10 +24,8 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 using namespace llvm;
@@ -44,7 +42,7 @@ void TargetLoweringObjectFile::Initialize(MCContext &ctx,
   // `Initialize` can be called more than once.
   delete Mang;
   Mang = new Mangler();
-  InitMCObjectFileInfo(TM.getTargetTriple(), TM.isPositionIndependent(), ctx,
+  initMCObjectFileInfo(ctx, TM.isPositionIndependent(),
                        TM.getCodeModel() == CodeModel::Large);
 
   // Reset various EH DWARF encodings.
@@ -73,7 +71,7 @@ static bool isNullOrUndef(const Constant *C) {
     return true;
   if (!isa<ConstantAggregate>(C))
     return false;
-  for (auto Operand : C->operand_values()) {
+  for (const auto *Operand : C->operand_values()) {
     if (!isNullOrUndef(cast<Constant>(Operand)))
       return false;
   }
@@ -217,8 +215,14 @@ SectionKind TargetLoweringObjectFile::getKindForGlobal(const GlobalObject *GO,
 
   // Handle thread-local data first.
   if (GVar->isThreadLocal()) {
-    if (isSuitableForBSS(GVar) && !TM.Options.NoZerosInBSS)
+    if (isSuitableForBSS(GVar) && !TM.Options.NoZerosInBSS) {
+      // Zero-initialized TLS variables with local linkage always get classified
+      // as ThreadBSSLocal.
+      if (GVar->hasLocalLinkage()) {
+        return SectionKind::getThreadBSSLocal();
+      }
       return SectionKind::getThreadBSS();
+    }
     return SectionKind::getThreadData();
   }
 
@@ -235,6 +239,13 @@ SectionKind TargetLoweringObjectFile::getKindForGlobal(const GlobalObject *GO,
       return SectionKind::getBSSExtern();
     return SectionKind::getBSS();
   }
+
+  // Global variables with '!exclude' should get the exclude section kind if
+  // they have an explicit section and no other metadata.
+  if (GVar->hasSection())
+    if (MDNode *MD = GVar->getMetadata(LLVMContext::MD_exclude))
+      if (!MD->getNumOperands())
+        return SectionKind::getExclude();
 
   // If the global is marked constant, we can put it into a mergable section,
   // a mergable string section, or general .data if it contains relocations.
@@ -290,7 +301,8 @@ SectionKind TargetLoweringObjectFile::getKindForGlobal(const GlobalObject *GO,
       // consideration when it tries to merge entries in the section.
       Reloc::Model ReloModel = TM.getRelocationModel();
       if (ReloModel == Reloc::Static || ReloModel == Reloc::ROPI ||
-          ReloModel == Reloc::RWPI || ReloModel == Reloc::ROPI_RWPI)
+          ReloModel == Reloc::RWPI || ReloModel == Reloc::ROPI_RWPI ||
+          !C->needsDynamicRelocation())
         return SectionKind::getReadOnly();
 
       // Otherwise, the dynamic linker needs to fix it up, put it in the
@@ -377,6 +389,11 @@ MCSection *TargetLoweringObjectFile::getSectionForConstant(
 MCSection *TargetLoweringObjectFile::getSectionForMachineBasicBlock(
     const Function &F, const MachineBasicBlock &MBB,
     const TargetMachine &TM) const {
+  return nullptr;
+}
+
+MCSection *TargetLoweringObjectFile::getUniqueSectionForFunction(
+    const Function &F, const TargetMachine &TM) const {
   return nullptr;
 }
 

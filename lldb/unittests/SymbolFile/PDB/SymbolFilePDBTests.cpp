@@ -171,8 +171,9 @@ TEST_F(SymbolFilePDBTests, TestResolveSymbolContextBasename) {
 
   FileSpec header_spec("test-pdb.cpp");
   SymbolContextList sc_list;
+  SourceLocationSpec location_spec(header_spec, /*line=*/0);
   uint32_t result_count = symfile->ResolveSymbolContext(
-      header_spec, 0, false, lldb::eSymbolContextCompUnit, sc_list);
+      location_spec, lldb::eSymbolContextCompUnit, sc_list);
   EXPECT_EQ(1u, result_count);
   EXPECT_TRUE(ContainsCompileUnit(sc_list, header_spec));
 }
@@ -190,8 +191,9 @@ TEST_F(SymbolFilePDBTests, TestResolveSymbolContextFullPath) {
   FileSpec header_spec(
       R"spec(D:\src\llvm\tools\lldb\unittests\SymbolFile\PDB\Inputs\test-pdb.cpp)spec");
   SymbolContextList sc_list;
+  SourceLocationSpec location_spec(header_spec, /*line=*/0);
   uint32_t result_count = symfile->ResolveSymbolContext(
-      header_spec, 0, false, lldb::eSymbolContextCompUnit, sc_list);
+      location_spec, lldb::eSymbolContextCompUnit, sc_list);
   EXPECT_GE(1u, result_count);
   EXPECT_TRUE(ContainsCompileUnit(sc_list, header_spec));
 }
@@ -214,8 +216,10 @@ TEST_F(SymbolFilePDBTests, TestLookupOfHeaderFileWithInlines) {
   FileSpec alt_cpp_spec("test-pdb-alt.cpp");
   for (const auto &hspec : header_specs) {
     SymbolContextList sc_list;
+    SourceLocationSpec location_spec(hspec, /*line=*/0, /*column=*/std::nullopt,
+                                     /*check_inlines=*/true);
     uint32_t result_count = symfile->ResolveSymbolContext(
-        hspec, 0, true, lldb::eSymbolContextCompUnit, sc_list);
+        location_spec, lldb::eSymbolContextCompUnit, sc_list);
     EXPECT_EQ(2u, result_count);
     EXPECT_TRUE(ContainsCompileUnit(sc_list, main_cpp_spec));
     EXPECT_TRUE(ContainsCompileUnit(sc_list, alt_cpp_spec));
@@ -238,8 +242,9 @@ TEST_F(SymbolFilePDBTests, TestLookupOfHeaderFileWithNoInlines) {
                              FileSpec("test-pdb-nested.h")};
   for (const auto &hspec : header_specs) {
     SymbolContextList sc_list;
+    SourceLocationSpec location_spec(hspec, /*line=*/0);
     uint32_t result_count = symfile->ResolveSymbolContext(
-        hspec, 0, false, lldb::eSymbolContextCompUnit, sc_list);
+        location_spec, lldb::eSymbolContextCompUnit, sc_list);
     EXPECT_EQ(0u, result_count);
   }
 }
@@ -264,8 +269,9 @@ TEST_F(SymbolFilePDBTests, TestLineTablesMatchAll) {
   lldb::SymbolContextItem scope =
       lldb::eSymbolContextCompUnit | lldb::eSymbolContextLineEntry;
 
-  uint32_t count =
-      symfile->ResolveSymbolContext(source_file, 0, true, scope, sc_list);
+  SourceLocationSpec location_spec(
+      source_file, /*line=*/0, /*column=*/std::nullopt, /*check_inlines=*/true);
+  uint32_t count = symfile->ResolveSymbolContext(location_spec, scope, sc_list);
   EXPECT_EQ(1u, count);
   SymbolContext sc;
   EXPECT_TRUE(sc_list.GetContextAtIndex(0, sc));
@@ -314,8 +320,9 @@ TEST_F(SymbolFilePDBTests, TestLineTablesMatchSpecific) {
       lldb::eSymbolContextCompUnit | lldb::eSymbolContextLineEntry;
 
   // First test with line 7, and verify that only line 7 entries are added.
-  uint32_t count =
-      symfile->ResolveSymbolContext(source_file, 7, true, scope, sc_list);
+  SourceLocationSpec location_spec(
+      source_file, /*line=*/7, /*column=*/std::nullopt, /*check_inlines=*/true);
+  uint32_t count = symfile->ResolveSymbolContext(location_spec, scope, sc_list);
   EXPECT_EQ(1u, count);
   SymbolContext sc;
   EXPECT_TRUE(sc_list.GetContextAtIndex(0, sc));
@@ -331,7 +338,9 @@ TEST_F(SymbolFilePDBTests, TestLineTablesMatchSpecific) {
 
   sc_list.Clear();
   // Then test with line 9, and verify that only line 9 entries are added.
-  count = symfile->ResolveSymbolContext(source_file, 9, true, scope, sc_list);
+  location_spec = SourceLocationSpec(
+      source_file, /*line=*/9, /*column=*/std::nullopt, /*check_inlines=*/true);
+  count = symfile->ResolveSymbolContext(location_spec, scope, sc_list);
   EXPECT_EQ(1u, count);
   EXPECT_TRUE(sc_list.GetContextAtIndex(0, sc));
 
@@ -382,7 +391,7 @@ TEST_F(SymbolFilePDBTests, TestNestedClassTypes) {
   ASSERT_THAT_EXPECTED(clang_ast_ctx_or_err, llvm::Succeeded());
 
   auto clang_ast_ctx =
-      llvm::dyn_cast_or_null<TypeSystemClang>(&clang_ast_ctx_or_err.get());
+      llvm::dyn_cast_or_null<TypeSystemClang>(clang_ast_ctx_or_err->get());
   EXPECT_NE(nullptr, clang_ast_ctx);
 
   symfile->FindTypes(ConstString("Class"), CompilerDeclContext(), 0,
@@ -436,7 +445,7 @@ TEST_F(SymbolFilePDBTests, TestClassInNamespace) {
   ASSERT_THAT_EXPECTED(clang_ast_ctx_or_err, llvm::Succeeded());
 
   auto clang_ast_ctx =
-      llvm::dyn_cast_or_null<TypeSystemClang>(&clang_ast_ctx_or_err.get());
+      llvm::dyn_cast_or_null<TypeSystemClang>(clang_ast_ctx_or_err->get());
   EXPECT_NE(nullptr, clang_ast_ctx);
 
   clang::ASTContext &ast_ctx = clang_ast_ctx->getASTContext();
@@ -531,8 +540,8 @@ TEST_F(SymbolFilePDBTests, TestTypedefs) {
     lldb::TypeSP typedef_type = results.GetTypeAtIndex(0);
     EXPECT_EQ(ConstString(Typedef), typedef_type->GetName());
     CompilerType compiler_type = typedef_type->GetFullCompilerType();
-    TypeSystemClang *clang_type_system =
-        llvm::dyn_cast_or_null<TypeSystemClang>(compiler_type.GetTypeSystem());
+    auto clang_type_system =
+        compiler_type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>();
     EXPECT_TRUE(
         clang_type_system->IsTypedefType(compiler_type.GetOpaqueQualType()));
 

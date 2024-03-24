@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cert {
+namespace clang::tidy::cert {
 
 void LimitedRandomnessCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(callExpr(callee(functionDecl(namedDecl(hasName("::rand")),
@@ -24,14 +22,12 @@ void LimitedRandomnessCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void LimitedRandomnessCheck::check(const MatchFinder::MatchResult &Result) {
-  std::string msg = "";
+  std::string Msg;
   if (getLangOpts().CPlusPlus)
-    msg = "; use C++11 random library instead";
+    Msg = "; use C++11 random library instead";
 
   const auto *MatchedDecl = Result.Nodes.getNodeAs<CallExpr>("randomGenerator");
-  diag(MatchedDecl->getBeginLoc(), "rand() has limited randomness" + msg);
+  diag(MatchedDecl->getBeginLoc(), "rand() has limited randomness" + Msg);
 }
 
-} // namespace cert
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cert

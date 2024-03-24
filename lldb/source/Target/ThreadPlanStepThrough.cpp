@@ -13,6 +13,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/Target.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Stream.h"
 
@@ -22,7 +23,6 @@ using namespace lldb_private;
 // ThreadPlanStepThrough: If the current instruction is a trampoline, step
 // through it If it is the beginning of the prologue of a function, step
 // through that as well.
-// FIXME: At present only handles DYLD trampolines.
 
 ThreadPlanStepThrough::ThreadPlanStepThrough(Thread &thread,
                                              StackID &m_stack_id,
@@ -61,7 +61,7 @@ ThreadPlanStepThrough::ThreadPlanStepThrough(Thread &thread,
         m_backstop_bkpt_id = return_bp->GetID();
         return_bp->SetBreakpointKind("step-through-backstop");
       }
-      Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+      Log *log = GetLog(LLDBLog::Step);
       if (log) {
         LLDB_LOGF(log, "Setting backstop breakpoint %d at address: 0x%" PRIx64,
                   m_backstop_bkpt_id, m_backstop_addr);
@@ -95,7 +95,7 @@ void ThreadPlanStepThrough::LookForPlanToStepThroughFromCurrentPC() {
     }
   }
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
   if (log) {
     lldb::addr_t current_address = GetThread().GetRegisterContext()->GetPC(0);
     if (m_sub_plan_sp) {
@@ -228,7 +228,7 @@ void ThreadPlanStepThrough::ClearBackstopBreakpoint() {
 }
 
 bool ThreadPlanStepThrough::MischiefManaged() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
 
   if (!IsPlanComplete()) {
     return false;
@@ -253,7 +253,7 @@ bool ThreadPlanStepThrough::HitOurBackstopBreakpoint() {
       StackID cur_frame_zero_id = thread.GetStackFrameAtIndex(0)->GetStackID();
 
       if (cur_frame_zero_id == m_return_stack_id) {
-        Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+        Log *log = GetLog(LLDBLog::Step);
         if (log)
           log->PutCString("ThreadPlanStepThrough hit backstop breakpoint.");
         return true;

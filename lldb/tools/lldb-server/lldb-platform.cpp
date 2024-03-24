@@ -6,22 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <errno.h>
+#include <cerrno>
 #if defined(__APPLE__)
 #include <netinet/in.h>
 #endif
-#include <signal.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <csignal>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #if !defined(_WIN32)
 #include <sys/wait.h>
 #endif
 #include <fstream>
+#include <optional>
 
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "Acceptor.h"
@@ -76,10 +78,9 @@ static void signal_handler(int signo) {
   case SIGHUP:
     // Use SIGINT first, if that does not work, use SIGHUP as a last resort.
     // And we should not call exit() here because it results in the global
-    // destructors
-    // to be invoked and wreaking havoc on the threads still running.
-    Host::SystemLog(Host::eSystemLogWarning,
-                    "SIGHUP received, exiting lldb-server...\n");
+    // destructors to be invoked and wreaking havoc on the threads still
+    // running.
+    llvm::errs() << "SIGHUP received, exiting lldb-server...\n";
     abort();
     break;
   }
@@ -100,7 +101,7 @@ static Status save_socket_id_to_file(const std::string &socket_id,
   Status error(llvm::sys::fs::create_directory(temp_file_spec.GetPath()));
   if (error.Fail())
     return Status("Failed to create directory %s: %s",
-                  temp_file_spec.GetCString(), error.AsCString());
+                  temp_file_spec.GetPath().c_str(), error.AsCString());
 
   llvm::SmallString<64> temp_file_path;
   temp_file_spec.AppendPathComponent("port-file.%%%%%%");
@@ -202,14 +203,15 @@ int main_platform(int argc, char *argv[]) {
 
     case 'p': {
       if (!llvm::to_integer(optarg, port_offset)) {
-        llvm::errs() << "error: invalid port offset string " << optarg << "\n";
+        WithColor::error() << "invalid port offset string " << optarg << "\n";
         option_error = 4;
         break;
       }
       if (port_offset < LOW_PORT || port_offset > HIGH_PORT) {
-        llvm::errs() << llvm::formatv("error: port offset {0} is not in the "
-                                      "valid user port range of {1} - {2}\n",
-                                      port_offset, LOW_PORT, HIGH_PORT);
+        WithColor::error() << llvm::formatv(
+            "port offset {0} is not in the "
+            "valid user port range of {1} - {2}\n",
+            port_offset, LOW_PORT, HIGH_PORT);
         option_error = 5;
       }
     } break;
@@ -219,14 +221,15 @@ int main_platform(int argc, char *argv[]) {
     case 'M': {
       uint16_t portnum;
       if (!llvm::to_integer(optarg, portnum)) {
-        llvm::errs() << "error: invalid port number string " << optarg << "\n";
+        WithColor::error() << "invalid port number string " << optarg << "\n";
         option_error = 2;
         break;
       }
       if (portnum < LOW_PORT || portnum > HIGH_PORT) {
-        llvm::errs() << llvm::formatv("error: port number {0} is not in the "
-                                      "valid user port range of {1} - {2}\n",
-                                      portnum, LOW_PORT, HIGH_PORT);
+        WithColor::error() << llvm::formatv(
+            "port number {0} is not in the "
+            "valid user port range of {1} - {2}\n",
+            portnum, LOW_PORT, HIGH_PORT);
         option_error = 1;
         break;
       }
@@ -253,9 +256,10 @@ int main_platform(int argc, char *argv[]) {
     gdbserver_portmap = GDBRemoteCommunicationServerPlatform::PortMap(
         min_gdbserver_port, max_gdbserver_port);
   } else if (min_gdbserver_port || max_gdbserver_port) {
-    fprintf(stderr, "error: --min-gdbserver-port (%u) is not lower than "
-                    "--max-gdbserver-port (%u)\n",
-            min_gdbserver_port, max_gdbserver_port);
+    WithColor::error() << llvm::formatv(
+        "--min-gdbserver-port ({0}) is not lower than "
+        "--max-gdbserver-port ({1})\n",
+        min_gdbserver_port, max_gdbserver_port);
     option_error = 3;
   }
 
@@ -317,7 +321,7 @@ int main_platform(int argc, char *argv[]) {
     Connection *conn = nullptr;
     error = acceptor_up->Accept(children_inherit_accept_socket, conn);
     if (error.Fail()) {
-      printf("error: %s\n", error.AsCString());
+      WithColor::error() << error.AsCString() << '\n';
       exit(socket_error);
     }
     printf("Connection established.\n");
@@ -349,7 +353,7 @@ int main_platform(int argc, char *argv[]) {
     if (platform.IsConnected()) {
       if (inferior_arguments.GetArgumentCount() > 0) {
         lldb::pid_t pid = LLDB_INVALID_PROCESS_ID;
-        llvm::Optional<uint16_t> port = 0;
+        std::optional<uint16_t> port = 0;
         std::string socket_name;
         Status error = platform.LaunchGDBServer(inferior_arguments,
                                                 "", // hostname
@@ -360,23 +364,17 @@ int main_platform(int argc, char *argv[]) {
           fprintf(stderr, "failed to start gdbserver: %s\n", error.AsCString());
       }
 
-      // After we connected, we need to get an initial ack from...
-      if (platform.HandshakeWithClient()) {
-        bool interrupt = false;
-        bool done = false;
-        while (!interrupt && !done) {
-          if (platform.GetPacketAndSendResponse(llvm::None, error, interrupt,
-                                                done) !=
-              GDBRemoteCommunication::PacketResult::Success)
-            break;
-        }
-
-        if (error.Fail()) {
-          fprintf(stderr, "error: %s\n", error.AsCString());
-        }
-      } else {
-        fprintf(stderr, "error: handshake with client failed\n");
+      bool interrupt = false;
+      bool done = false;
+      while (!interrupt && !done) {
+        if (platform.GetPacketAndSendResponse(std::nullopt, error, interrupt,
+                                              done) !=
+            GDBRemoteCommunication::PacketResult::Success)
+          break;
       }
+
+      if (error.Fail())
+        WithColor::error() << error.AsCString() << '\n';
     }
   } while (g_server);
 

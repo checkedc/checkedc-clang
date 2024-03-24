@@ -22,24 +22,23 @@
 
 // CHECK-LABEL: define{{.*}} void @foo(
 void foo(id a) {
-  // CHECK: [[A:%.*]] = alloca i8*
-  // CHECK: [[SYNC:%.*]] = alloca i8*
+  // CHECK: [[A:%.*]] = alloca ptr
+  // CHECK: [[SYNC:%.*]] = alloca ptr
 
-  // CHECK:      store i8* [[AVAL:%.*]], i8** [[A]]
-  // CHECK-NEXT: call i32 @objc_sync_enter(i8* [[AVAL]])
-  // CHECK-NEXT: store i8* [[AVAL]], i8** [[SYNC]]
+  // CHECK:      store ptr [[AVAL:%.*]], ptr [[A]]
+  // CHECK-NEXT: call i32 @objc_sync_enter(ptr [[AVAL]])
+  // CHECK-NEXT: store ptr [[AVAL]], ptr [[SYNC]]
   // CHECK-NEXT: call void @objc_exception_try_enter
   // CHECK:      call i32 @_setjmp
   @synchronized(a) {
     // This is unreachable, but the optimizers can't know that.
-    // CHECK: call void asm sideeffect "", "=*m,=*m,=*m"(i8** nonnull [[A]], i8** nonnull [[SYNC]]
+    // CHECK: call void asm sideeffect "", "=*m,=*m,=*m"(ptr nonnull elementtype(ptr) [[A]], ptr nonnull elementtype(ptr) [[SYNC]]
     // CHECK: call i32 @objc_sync_exit
-    // CHECK: call i8* @objc_exception_extract
+    // CHECK: call ptr @objc_exception_extract
     // CHECK: call void @objc_exception_throw
     // CHECK: unreachable
 
     // CHECK:      call void @objc_exception_try_exit
-    // CHECK:      [[T:%.*]] = load i8*, i8** [[SYNC]]
     // CHECK-NEXT: call i32 @objc_sync_exit
     // CHECK: ret void
     return;
@@ -49,18 +48,16 @@ void foo(id a) {
 
 // CHECK-LABEL: define{{.*}} i32 @f0(
 int f0(id a) {
-  // TODO: we can optimize the ret to a constant if we can figure out
-  // either that x isn't stored to within the synchronized block or
-  // that the synchronized block can't longjmp.
+  // We can optimize the ret to a constant as we can figure out
+  // that x isn't stored to within the synchronized block.
 
   // CHECK: [[X:%.*]] = alloca i32
-  // CHECK: store i32 1, i32* [[X]]
+  // CHECK: store i32 1, ptr [[X]]
   int x = 0;
   @synchronized((x++, a)) {    
   }
 
-  // CHECK: [[T:%.*]] = load i32, i32* [[X]]
-  // CHECK: ret i32 [[T]]
+  // CHECK: ret i32 1
   return x;
 }
 

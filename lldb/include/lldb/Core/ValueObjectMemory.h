@@ -18,14 +18,15 @@
 #include "lldb/lldb-forward.h"
 #include "llvm/ADT/StringRef.h"
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
 
 namespace lldb_private {
 class ExecutionContextScope;
 
-// A ValueObject that represents memory at a given address, viewed as some
-// set lldb type.
+/// A ValueObject that represents memory at a given address, viewed as some
+/// set lldb type.
 class ValueObjectMemory : public ValueObject {
 public:
   ~ValueObjectMemory() override;
@@ -40,7 +41,7 @@ public:
                                     const Address &address,
                                     const CompilerType &ast_type);
 
-  llvm::Optional<uint64_t> GetByteSize() override;
+  std::optional<uint64_t> GetByteSize() override;
 
   ConstString GetTypeName() override;
 

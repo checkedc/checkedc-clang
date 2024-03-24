@@ -19,6 +19,7 @@
 #include "llvm/ProfileData/InstrProfReader.h"
 #include <array>
 #include <memory>
+#include <optional>
 
 namespace clang {
 namespace CodeGen {
@@ -59,12 +60,12 @@ public:
 
   /// Check if an execution count is known for a given statement. If so, return
   /// true and put the value in Count; else return false.
-  Optional<uint64_t> getStmtCount(const Stmt *S) const {
+  std::optional<uint64_t> getStmtCount(const Stmt *S) const {
     if (!StmtCountMap)
-      return None;
+      return std::nullopt;
     auto I = StmtCountMap->find(S);
     if (I == StmtCountMap->end())
-      return None;
+      return std::nullopt;
     return I->second;
   }
 
@@ -87,6 +88,10 @@ public:
   // Insert instrumentation or attach profile metadata at value sites
   void valueProfile(CGBuilderTy &Builder, uint32_t ValueKind,
                     llvm::Instruction *ValueSite, llvm::Value *ValuePtr);
+
+  // Set a module flag indicating if value profiling is enabled.
+  void setValueProfilingFlag(llvm::Module &M);
+
 private:
   void setFuncName(llvm::Function *Fn);
   void setFuncName(StringRef Name, llvm::GlobalValue::LinkageTypes Linkage);

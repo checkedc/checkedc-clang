@@ -3,6 +3,7 @@ import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
+from lldbgdbserverutils import get_debugserver_exe
 
 import os
 import platform
@@ -12,8 +13,6 @@ import socket
 
 
 class PlatformSDKTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     # The port used by debugserver.
@@ -28,7 +27,7 @@ class PlatformSDKTestCase(TestBase):
     TIMEOUT = 2
 
     def no_debugserver(self):
-        if os.getenv('LLDB_DEBUGSERVER_PATH') is None:
+        if get_debugserver_exe() is None:
             return 'no debugserver'
         return None
 
@@ -42,6 +41,7 @@ class PlatformSDKTestCase(TestBase):
     @skipUnlessDarwin
     @expectedFailureIfFn(no_debugserver)
     @expectedFailureIfFn(port_not_available)
+    @skipIfRemote
     def test_macos_sdk(self):
         self.build()
 
@@ -56,6 +56,7 @@ class PlatformSDKTestCase(TestBase):
 
         # Create a fake 'SDK' directory.
         test_home = os.path.join(self.getBuildDir(), 'fake_home.noindex')
+        test_home = os.path.realpath(test_home)
         macos_version = platform.mac_ver()[0]
         sdk_dir = os.path.join(test_home, 'Library', 'Developer', 'Xcode',
                                'macOS DeviceSupport', macos_version)
@@ -82,13 +83,13 @@ class PlatformSDKTestCase(TestBase):
         lldbutil.wait_for_file_on_target(self, token)
 
         # Move the binary into the 'SDK'.
-        rel_exe_path = os.path.relpath(exe, '/')
+        rel_exe_path = os.path.relpath(os.path.realpath(exe), '/')
         exe_sdk_path = os.path.join(symbols_dir, rel_exe_path)
         lldbutil.mkdir_p(os.path.dirname(exe_sdk_path))
         shutil.move(exe, exe_sdk_path)
 
         # Attach to it with debugserver.
-        debugserver = os.getenv('LLDB_DEBUGSERVER_PATH')
+        debugserver = get_debugserver_exe()
         debugserver_args = [
             'localhost:{}'.format(self.PORT), '--attach={}'.format(pid)
         ]

@@ -2,9 +2,6 @@
 Test the iteration protocol for frame registers.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class RegistersIteratorTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -22,7 +17,6 @@ class RegistersIteratorTestCase(TestBase):
         self.line1 = line_number(
             'main.cpp', '// Set break point at this line.')
 
-    @add_test_categories(['pyapi'])
     def test_iter_registers(self):
         """Test iterator works correctly for lldbutil.iter_registers()."""
         self.build()

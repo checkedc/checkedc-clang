@@ -64,6 +64,14 @@ OPTIONS
   :option:`-L` and before the default search path. The default search path
   includes directories `/lib`, `/usr/lib` and `/usr/local/lib`.
 
+.. option:: -no_warning_for_no_symbols
+
+   Do not warn about files that have no symbols.
+
+.. option:: -warnings_as_errors
+
+  Produce a non-zero exit status if any warnings are emitted.
+
 .. option:: -o <filename>
 
   Specify the output file name. Must be specified exactly once.
@@ -93,7 +101,7 @@ Otherwise, it exits with code 0.
 BUGS
 ----
 
-To report bugs, please visit <https://bugs.llvm.org/>.
+To report bugs, please visit <https://github.com/llvm/llvm-project/issues/>.
 
 SEE ALSO
 --------

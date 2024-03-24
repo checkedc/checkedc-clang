@@ -19,11 +19,14 @@
 #include "../ClangTidyForceLinker.h"
 #include "../GlobList.h"
 #include "clang/Tooling/CommonOptionsParser.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
+#include <optional>
 
 using namespace clang::tooling;
 using namespace llvm;
@@ -50,8 +53,7 @@ Configuration files:
     InheritParentConfig: true
     User:                user
     CheckOptions:
-      - key:             some-check.SomeOption
-        value:           'some value'
+      some-check.SomeOption: 'some value'
     ...
 
 )");
@@ -127,6 +129,15 @@ well.
 )"),
                                cl::init(false), cl::cat(ClangTidyCategory));
 
+static cl::opt<bool> FixNotes("fix-notes", cl::desc(R"(
+If a warning has no fix, but a single fix can 
+be found through an associated diagnostic note, 
+apply the fix. 
+Specifying this flag will implicitly enable the 
+'--fix' flag.
+)"),
+                              cl::init(false), cl::cat(ClangTidyCategory));
+
 static cl::opt<std::string> FormatStyle("format-style", cl::desc(R"(
 Style for formatting code around applied fixes:
   - 'none' (default) turns off formatting
@@ -160,8 +171,7 @@ line or a specific configuration file.
 static cl::opt<std::string> Config("config", cl::desc(R"(
 Specifies a configuration in YAML/JSON format:
   -config="{Checks: '*',
-            CheckOptions: [{key: x,
-                            value: y}]}"
+            CheckOptions: {x: y}}"
 When the value is empty, clang-tidy will
 attempt to find a file named .clang-tidy for
 each source file in its parent directories.
@@ -247,8 +257,13 @@ This option overrides the 'UseColor' option in
 )"),
                               cl::init(false), cl::cat(ClangTidyCategory));
 
-namespace clang {
-namespace tidy {
+static cl::opt<bool> VerifyConfig("verify-config", cl::desc(R"(
+Check the config files to ensure each check and
+option is recognized.
+)"),
+                                  cl::init(false), cl::cat(ClangTidyCategory));
+
+namespace clang::tidy {
 
 static void printStats(const ClangTidyStats &Stats) {
   if (Stats.errorsIgnored()) {
@@ -375,8 +390,81 @@ getVfsFromFile(const std::string &OverlayFile,
   return FS;
 }
 
+static StringRef closest(StringRef Value, const StringSet<> &Allowed) {
+  unsigned MaxEdit = 5U;
+  StringRef Closest;
+  for (auto Item : Allowed.keys()) {
+    unsigned Cur = Value.edit_distance_insensitive(Item, true, MaxEdit);
+    if (Cur < MaxEdit) {
+      Closest = Item;
+      MaxEdit = Cur;
+    }
+  }
+  return Closest;
+}
+
+static constexpr StringLiteral VerifyConfigWarningEnd = " [-verify-config]\n";
+
+static bool verifyChecks(const StringSet<> &AllChecks, StringRef CheckGlob,
+                         StringRef Source) {
+  llvm::StringRef Cur, Rest;
+  bool AnyInvalid = false;
+  for (std::tie(Cur, Rest) = CheckGlob.split(',');
+       !(Cur.empty() && Rest.empty()); std::tie(Cur, Rest) = Rest.split(',')) {
+    Cur = Cur.trim();
+    if (Cur.empty())
+      continue;
+    Cur.consume_front("-");
+    if (Cur.startswith("clang-diagnostic"))
+      continue;
+    if (Cur.contains('*')) {
+      SmallString<128> RegexText("^");
+      StringRef MetaChars("()^$|*+?.[]\\{}");
+      for (char C : Cur) {
+        if (C == '*')
+          RegexText.push_back('.');
+        else if (MetaChars.contains(C))
+          RegexText.push_back('\\');
+        RegexText.push_back(C);
+      }
+      RegexText.push_back('$');
+      llvm::Regex Glob(RegexText);
+      std::string Error;
+      if (!Glob.isValid(Error)) {
+        AnyInvalid = true;
+        llvm::WithColor::error(llvm::errs(), Source)
+            << "building check glob '" << Cur << "' " << Error << "'\n";
+        continue;
+      }
+      if (llvm::none_of(AllChecks.keys(),
+                        [&Glob](StringRef S) { return Glob.match(S); })) {
+        AnyInvalid = true;
+        llvm::WithColor::warning(llvm::errs(), Source)
+            << "check glob '" << Cur << "' doesn't match any known check"
+            << VerifyConfigWarningEnd;
+      }
+    } else {
+      if (AllChecks.contains(Cur))
+        continue;
+      AnyInvalid = true;
+      llvm::raw_ostream &Output = llvm::WithColor::warning(llvm::errs(), Source)
+                                  << "unknown check '" << Cur << '\'';
+      llvm::StringRef Closest = closest(Cur, AllChecks);
+      if (!Closest.empty())
+        Output << "; did you mean '" << Closest << '\'';
+      Output << VerifyConfigWarningEnd;
+    }
+  }
+  return AnyInvalid;
+}
+
 int clangTidyMain(int argc, const char **argv) {
   llvm::InitLLVM X(argc, argv);
+
+  // Enable help for -load option, if plugins are enabled.
+  if (cl::Option *LoadOpt = cl::getRegisteredOptions().lookup("load"))
+    LoadOpt->addCategory(ClangTidyCategory);
+
   llvm::Expected<CommonOptionsParser> OptionsParser =
       CommonOptionsParser::create(argc, argv, ClangTidyCategory,
                                   cl::ZeroOrMore);
@@ -431,9 +519,9 @@ int clangTidyMain(int argc, const char **argv) {
     std::vector<clang::tidy::ClangTidyOptionsProvider::OptionsSource>
         RawOptions = OptionsProvider->getRawOptions(FilePath);
     for (const std::string &Check : EnabledChecks) {
-      for (auto It = RawOptions.rbegin(); It != RawOptions.rend(); ++It) {
-        if (It->first.Checks && GlobList(*It->first.Checks).contains(Check)) {
-          llvm::outs() << "'" << Check << "' is enabled in the " << It->second
+      for (const auto &[Opts, Source] : llvm::reverse(RawOptions)) {
+        if (Opts.Checks && GlobList(*Opts.Checks).contains(Check)) {
+          llvm::outs() << "'" << Check << "' is enabled in the " << Source
                        << ".\n";
           break;
         }
@@ -463,6 +551,34 @@ int clangTidyMain(int argc, const char **argv) {
     return 0;
   }
 
+  if (VerifyConfig) {
+    std::vector<ClangTidyOptionsProvider::OptionsSource> RawOptions =
+        OptionsProvider->getRawOptions(FileName);
+    NamesAndOptions Valid =
+        getAllChecksAndOptions(AllowEnablingAnalyzerAlphaCheckers);
+    bool AnyInvalid = false;
+    for (const auto &[Opts, Source] : RawOptions) {
+      if (Opts.Checks)
+        AnyInvalid |= verifyChecks(Valid.Names, *Opts.Checks, Source);
+
+      for (auto Key : Opts.CheckOptions.keys()) {
+        if (Valid.Options.contains(Key))
+          continue;
+        AnyInvalid = true;
+        auto &Output = llvm::WithColor::warning(llvm::errs(), Source)
+                       << "unknown check option '" << Key << '\'';
+        llvm::StringRef Closest = closest(Key, Valid.Options);
+        if (!Closest.empty())
+          Output << "; did you mean '" << Closest << '\'';
+        Output << VerifyConfigWarningEnd;
+      }
+    }
+    if (AnyInvalid)
+      return 1;
+    llvm::outs() << "No config errors detected.\n";
+    return 0;
+  }
+
   if (EnabledChecks.empty()) {
     llvm::errs() << "Error: no checks enabled.\n";
     llvm::cl::PrintHelpMessage(/*Hidden=*/false, /*Categorized=*/true);
@@ -483,18 +599,22 @@ int clangTidyMain(int argc, const char **argv) {
                            AllowEnablingAnalyzerAlphaCheckers);
   std::vector<ClangTidyError> Errors =
       runClangTidy(Context, OptionsParser->getCompilations(), PathList, BaseFS,
-                   EnableCheckProfile, ProfilePrefix);
-  bool FoundErrors = llvm::find_if(Errors, [](const ClangTidyError &E) {
-                       return E.DiagLevel == ClangTidyError::Error;
-                     }) != Errors.end();
+                   FixNotes, EnableCheckProfile, ProfilePrefix);
+  bool FoundErrors = llvm::any_of(Errors, [](const ClangTidyError &E) {
+    return E.DiagLevel == ClangTidyError::Error;
+  });
 
-  const bool DisableFixes = Fix && FoundErrors && !FixErrors;
+  // --fix-errors and --fix-notes imply --fix.
+  FixBehaviour Behaviour = FixNotes             ? FB_FixNotes
+                           : (Fix || FixErrors) ? FB_Fix
+                                                : FB_NoFix;
+
+  const bool DisableFixes = FoundErrors && !FixErrors;
 
   unsigned WErrorCount = 0;
 
-  // -fix-errors implies -fix.
-  handleErrors(Errors, Context, (FixErrors || Fix) && !DisableFixes, WErrorCount,
-               BaseFS);
+  handleErrors(Errors, Context, DisableFixes ? FB_NoFix : Behaviour,
+               WErrorCount, BaseFS);
 
   if (!ExportFixes.empty() && !Errors.empty()) {
     std::error_code EC;
@@ -508,7 +628,7 @@ int clangTidyMain(int argc, const char **argv) {
 
   if (!Quiet) {
     printStats(Context.getStats());
-    if (DisableFixes)
+    if (DisableFixes && Behaviour != FB_NoFix)
       llvm::errs()
           << "Found compiler errors, but -fix-errors was not specified.\n"
              "Fixes have NOT been applied.\n\n";
@@ -539,5 +659,4 @@ int clangTidyMain(int argc, const char **argv) {
   return 0;
 }
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

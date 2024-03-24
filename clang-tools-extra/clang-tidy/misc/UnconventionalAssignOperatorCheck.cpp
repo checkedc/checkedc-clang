@@ -12,19 +12,18 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 void UnconventionalAssignOperatorCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
-  const auto HasGoodReturnType = cxxMethodDecl(returns(lValueReferenceType(
-      pointee(unless(isConstQualified()),
-              anyOf(autoType(), hasDeclaration(equalsBoundNode("class")))))));
+  const auto HasGoodReturnType =
+      cxxMethodDecl(returns(hasCanonicalType(lValueReferenceType(pointee(
+          unless(isConstQualified()),
+          anyOf(autoType(), hasDeclaration(equalsBoundNode("class"))))))));
 
-  const auto IsSelf = qualType(
+  const auto IsSelf = qualType(hasCanonicalType(
       anyOf(hasDeclaration(equalsBoundNode("class")),
-            referenceType(pointee(hasDeclaration(equalsBoundNode("class"))))));
+            referenceType(pointee(hasDeclaration(equalsBoundNode("class")))))));
   const auto IsAssign =
       cxxMethodDecl(unless(anyOf(isDeleted(), isPrivate(), isImplicit())),
                     hasName("operator="), ofClass(recordDecl().bind("class")))
@@ -37,9 +36,9 @@ void UnconventionalAssignOperatorCheck::registerMatchers(
       cxxMethodDecl(IsAssign, unless(HasGoodReturnType)).bind("ReturnType"),
       this);
 
-  const auto BadSelf = referenceType(
+  const auto BadSelf = qualType(hasCanonicalType(referenceType(
       anyOf(lValueReferenceType(pointee(unless(isConstQualified()))),
-            rValueReferenceType(pointee(isConstQualified()))));
+            rValueReferenceType(pointee(isConstQualified()))))));
 
   Finder->addMatcher(
       cxxMethodDecl(IsSelfAssign,
@@ -73,24 +72,19 @@ void UnconventionalAssignOperatorCheck::check(
   if (const auto *RetStmt = Result.Nodes.getNodeAs<ReturnStmt>("returnStmt")) {
     diag(RetStmt->getBeginLoc(), "operator=() should always return '*this'");
   } else {
-    static const char *const Messages[][2] = {
-        {"ReturnType", "operator=() should return '%0&'"},
-        {"ArgumentType",
-         getLangOpts().CPlusPlus11
-             ? "operator=() should take '%0 const&', '%0&&' or '%0'"
-             : "operator=() should take '%0 const&' or '%0'"},
-        {"cv", "operator=() should not be marked '%1'"}};
-
     const auto *Method = Result.Nodes.getNodeAs<CXXMethodDecl>("method");
-    for (const auto &Message : Messages) {
-      if (Result.Nodes.getNodeAs<Decl>(Message[0]))
-        diag(Method->getBeginLoc(), Message[1])
-            << Method->getParent()->getName()
-            << (Method->isConst() ? "const" : "virtual");
-    }
+    if (Result.Nodes.getNodeAs<CXXMethodDecl>("ReturnType"))
+      diag(Method->getBeginLoc(), "operator=() should return '%0&'")
+          << Method->getParent()->getName();
+    if (Result.Nodes.getNodeAs<CXXMethodDecl>("ArgumentType"))
+      diag(Method->getBeginLoc(),
+           "operator=() should take '%0 const&'%select{|, '%0&&'}1 or '%0'")
+          << Method->getParent()->getName() << getLangOpts().CPlusPlus11;
+    if (Result.Nodes.getNodeAs<CXXMethodDecl>("cv"))
+      diag(Method->getBeginLoc(),
+           "operator=() should not be marked '%select{const|virtual}0'")
+          << !Method->isConst();
   }
 }
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc

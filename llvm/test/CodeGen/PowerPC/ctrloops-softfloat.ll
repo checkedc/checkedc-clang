@@ -34,13 +34,13 @@ target triple = "powerpc-buildroot-linux-gnu"
 @x = common global double 0.000000e+00, align 8
 
 define void @foo1() #0 {
-  store double 1.100000e+00, double* @y, align 8
-  store double 1.100000e+00, double* @x, align 8
+  store double 1.100000e+00, ptr @y, align 8
+  store double 1.100000e+00, ptr @x, align 8
   br label %2
 
 ; <label>:1                                       ; preds = %2
   %.lcssa = phi double [ %4, %2 ]
-  store double %.lcssa, double* @y, align 8
+  store double %.lcssa, ptr @y, align 8
   ret void
 
 ; <label>:2                                       ; preds = %2, %0
@@ -52,18 +52,18 @@ define void @foo1() #0 {
   br i1 %exitcond, label %1, label %2
   ; CHECK: bl __adddf3
   ; CHECK: cmplwi
-  ; CHECK-NOT: li [[REG1:[0-9]+]], 175
-  ; CHECK-NOT: mtctr [[REG1]]
+  ; CHECK-NOT: li {{[0-9]+}}, 175
+  ; CHECK-NOT: mtctr {{[0-9]+}}
 }
 
 define void @foo2() #0 {
-  store double 1.100000e+00, double* @y, align 8
-  store double 1.100000e+00, double* @x, align 8
+  store double 1.100000e+00, ptr @y, align 8
+  store double 1.100000e+00, ptr @x, align 8
   br label %2
 
 ; <label>:1                                       ; preds = %2
   %.lcssa = phi double [ %4, %2 ]
-  store double %.lcssa, double* @y, align 8
+  store double %.lcssa, ptr @y, align 8
   ret void
 
 ; <label>:2                                       ; preds = %2, %0
@@ -75,18 +75,18 @@ define void @foo2() #0 {
   br i1 %exitcond, label %1, label %2
   ; CHECK: bl __subdf3
   ; CHECK: cmplwi
-  ; CHECK-NOT: li [[REG1:[0-9]+]], 175
-  ; CHECK-NOT: mtctr [[REG1]]
+  ; CHECK-NOT: li {{[0-9]+}}, 175
+  ; CHECK-NOT: mtctr {{[0-9]+}}
 }
 
 define void @foo3() #0 {
-  store double 1.100000e+00, double* @y, align 8
-  store double 1.100000e+00, double* @x, align 8
+  store double 1.100000e+00, ptr @y, align 8
+  store double 1.100000e+00, ptr @x, align 8
   br label %2
 
 ; <label>:1                                       ; preds = %2
   %.lcssa = phi double [ %4, %2 ]
-  store double %.lcssa, double* @y, align 8
+  store double %.lcssa, ptr @y, align 8
   ret void
 
 ; <label>:2                                       ; preds = %2, %0
@@ -98,18 +98,18 @@ define void @foo3() #0 {
   br i1 %exitcond, label %1, label %2
   ; CHECK: bl __muldf3
   ; CHECK: cmplwi
-  ; CHECK-NOT: li [[REG1:[0-9]+]], 175
-  ; CHECK-NOT: mtctr [[REG1]]
+  ; CHECK-NOT: li {{[0-9]+}}, 175
+  ; CHECK-NOT: mtctr {{[0-9]+}}
 }
 
 define void @foo4() #0 {
-  store double 1.100000e+00, double* @y, align 8
-  store double 1.100000e+00, double* @x, align 8
+  store double 1.100000e+00, ptr @y, align 8
+  store double 1.100000e+00, ptr @x, align 8
   br label %2
 
 ; <label>:1                                       ; preds = %2
   %.lcssa = phi double [ %4, %2 ]
-  store double %.lcssa, double* @y, align 8
+  store double %.lcssa, ptr @y, align 8
   ret void
 
 ; <label>:2                                       ; preds = %2, %0
@@ -121,8 +121,8 @@ define void @foo4() #0 {
   br i1 %exitcond, label %1, label %2
   ; CHECK: bl __divdf3
   ; CHECK: cmplwi
-  ; CHECK-NOT: li [[REG1:[0-9]+]], 175
-  ; CHECK-NOT: mtctr [[REG1]]
+  ; CHECK-NOT: li {{[0-9]+}}, 175
+  ; CHECK-NOT: mtctr {{[0-9]+}}
 }
 
 attributes #0 = { "use-soft-float"="true" }

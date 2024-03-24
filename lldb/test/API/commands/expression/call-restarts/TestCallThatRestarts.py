@@ -11,8 +11,6 @@ from lldbsuite.test import lldbutil
 
 
 class ExprCommandThatRestartsTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
@@ -33,17 +31,16 @@ class ExprCommandThatRestartsTestCase(TestBase):
 
     def check_after_call(self, num_sigchld):
         after_call = self.sigchld_no.GetValueAsSigned(-1)
-        self.assertTrue(
-            after_call -
-            self.start_sigchld_no == num_sigchld,
+        self.assertEqual(
+            after_call - self.start_sigchld_no, num_sigchld,
             "Really got %d SIGCHLD signals through the call." %
             (num_sigchld))
         self.start_sigchld_no = after_call
 
         # Check that we are back where we were before:
         frame = self.thread.GetFrameAtIndex(0)
-        self.assertTrue(
-            self.orig_frame_pc == frame.GetPC(),
+        self.assertEqual(
+            self.orig_frame_pc, frame.GetPC(),
             "Restored the zeroth frame correctly")
 
     def call_function(self):
@@ -60,8 +57,8 @@ class ExprCommandThatRestartsTestCase(TestBase):
             "Got a value for sigchld_no")
 
         self.start_sigchld_no = self.sigchld_no.GetValueAsSigned(-1)
-        self.assertTrue(
-            self.start_sigchld_no != -1,
+        self.assertNotEqual(
+            self.start_sigchld_no, -1,
             "Got an actual value for sigchld_no")
 
         options = lldb.SBExpressionOptions()
@@ -147,6 +144,6 @@ class ExprCommandThatRestartsTestCase(TestBase):
             "Continuing after stopping for signal succeeds.")
 
         frame = self.thread.GetFrameAtIndex(0)
-        self.assertTrue(
-            frame.GetPC() == self.orig_frame_pc,
+        self.assertEqual(
+            frame.GetPC(), self.orig_frame_pc,
             "Continuing returned to the place we started.")

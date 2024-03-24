@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "PropertyDeclarationCheck.h"
-#include <algorithm>
 #include "../utils/OptionsUtils.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -15,12 +14,11 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Regex.h"
+#include <algorithm>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace objc {
+namespace clang::tidy::objc {
 
 namespace {
 
@@ -133,6 +131,4 @@ void PropertyDeclarationCheck::check(const MatchFinder::MatchResult &Result) {
       << generateFixItHint(MatchedDecl, StandardProperty);
 }
 
-}  // namespace objc
-}  // namespace tidy
-}  // namespace clang
+} // namespace clang::tidy::objc

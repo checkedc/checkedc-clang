@@ -33,6 +33,9 @@
 //   subtrees of interior nodes, and the visitor's Combine() to merge their
 //   results together.
 // - Overloads of operator() in each visitor handle the cases of interest.
+//
+// The default handler for semantics::Symbol will descend into the associated
+// expression of an ASSOCIATE (or related) construct entity.
 
 #include "expression.h"
 #include "flang/Semantics/symbol.h"
@@ -50,7 +53,7 @@ public:
   Result operator()(const common::Indirection<A, C> &x) const {
     return visitor_(x.value());
   }
-  template <typename A> Result operator()(const SymbolRef x) const {
+  template <typename _> Result operator()(const SymbolRef x) const {
     return visitor_(*x);
   }
   template <typename A> Result operator()(const std::unique_ptr<A> &x) const {
@@ -75,7 +78,7 @@ public:
   }
   template <typename... A>
   Result operator()(const std::variant<A...> &u) const {
-    return std::visit(visitor_, u);
+    return common::visit(visitor_, u);
   }
   template <typename A> Result operator()(const std::vector<A> &x) const {
     return CombineContents(x);
@@ -102,7 +105,15 @@ public:
       return visitor_.Default();
     }
   }
-  Result operator()(const Symbol &) const { return visitor_.Default(); }
+  Result operator()(const Symbol &symbol) const {
+    const Symbol &ultimate{symbol.GetUltimate()};
+    if (const auto *assoc{
+            ultimate.detailsIf<semantics::AssocEntityDetails>()}) {
+      return visitor_(assoc->expr());
+    } else {
+      return visitor_.Default();
+    }
+  }
   Result operator()(const StaticDataObject &) const {
     return visitor_.Default();
   }
@@ -111,13 +122,13 @@ public:
   // Variables
   Result operator()(const BaseObject &x) const { return visitor_(x.u); }
   Result operator()(const Component &x) const {
-    return Combine(x.base(), x.GetLastSymbol());
+    return Combine(x.base(), x.symbol());
   }
   Result operator()(const NamedEntity &x) const {
     if (const Component * component{x.UnwrapComponent()}) {
       return visitor_(*component);
     } else {
-      return visitor_(x.GetFirstSymbol());
+      return visitor_(DEREF(x.UnwrapSymbolRef()));
     }
   }
   Result operator()(const TypeParamInquiry &x) const {

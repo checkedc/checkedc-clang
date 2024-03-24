@@ -1,8 +1,8 @@
 // RUN: %clang_cc1 %s -std=c++11 -triple=x86_64-apple-darwin10 -emit-llvm -o - | FileCheck %s
-// RUN: %clang_cc1 %s -std=c++11 -triple=x86_64-apple-darwin10 -fvisibility hidden -emit-llvm -o - | FileCheck %s -check-prefix=CHECK-HIDDEN
+// RUN: %clang_cc1 %s -std=c++11 -triple=x86_64-apple-darwin10 -fvisibility=hidden -emit-llvm -o - | FileCheck %s -check-prefix=CHECK-HIDDEN
 // For clang, "internal" is just an alias for "hidden". We could use it for some
 // optimization purposes on 32-bit x86, but it's not worth it.
-// RUN: %clang_cc1 %s -std=c++11 -triple=x86_64-apple-darwin10 -fvisibility internal -emit-llvm -o - | FileCheck %s -check-prefix=CHECK-HIDDEN
+// RUN: %clang_cc1 %s -std=c++11 -triple=x86_64-apple-darwin10 -fvisibility=internal -emit-llvm -o - | FileCheck %s -check-prefix=CHECK-HIDDEN
 
 #define HIDDEN __attribute__((visibility("hidden")))
 #define PROTECTED __attribute__((visibility("protected")))
@@ -18,7 +18,7 @@ namespace test30 {
   };
   H DEFAULT a;
   X<&a> b;
-  // CHECK: _ZN6test301bE = dso_local global
+  // CHECK: _ZN6test301bE = global
   // CHECK-HIDDEN: _ZN6test301bE = hidden global
 }
 
@@ -33,7 +33,7 @@ namespace test25 {
   class DEFAULT A { };
 
   X<int>::definition<A> a;
-  // CHECK: @_ZN6test251aE = dso_local global
+  // CHECK: @_ZN6test251aE = global
   // CHECK-HIDDEN: @_ZN6test251aE = hidden global
 }
 
@@ -41,7 +41,7 @@ namespace test28 {
   class DEFAULT foo {
   };
   foo myvec;
-  // CHECK: @_ZN6test285myvecE = dso_local global
+  // CHECK: @_ZN6test285myvecE = global
   // CHECK-HIDDEN: @_ZN6test285myvecE = hidden global
 }
 
@@ -53,8 +53,8 @@ namespace test29 {
   DEFAULT extern RECT data_rect;
   RECT data_rect = { -1};
 #pragma GCC visibility pop
-  // CHECK: @_ZN6test299data_rectE = dso_local global
-  // CHECK-HIDDEN: @_ZN6test299data_rectE = dso_local global
+  // CHECK: @_ZN6test299data_rectE = global
+  // CHECK-HIDDEN: @_ZN6test299data_rectE = global
 }
 
 namespace test40 {
@@ -103,21 +103,23 @@ namespace test48 {
 
 // CHECK: @_ZN5Test425VariableInHiddenNamespaceE = hidden global i32 10
 // CHECK: @_ZN5Test71aE = hidden global
-// CHECK: @_ZN5Test71bE = dso_local global
-// CHECK: @test9_var = dso_local global
-// CHECK-HIDDEN: @test9_var = dso_local global
+// CHECK: @_ZN5Test71bE = global
+// CHECK: @test9_var = global
+// CHECK-HIDDEN: @test9_var = global
 // CHECK: @_ZN6Test121A6hiddenE = external hidden global
 // CHECK: @_ZN6Test121A7visibleE = external global
 // CHECK-HIDDEN: @_ZN6Test121A6hiddenE = external hidden global
 // CHECK-HIDDEN: @_ZN6Test121A7visibleE = external global
 // CHECK: @_ZN6Test131B1aE = hidden global
-// CHECK: @_ZN6Test131C1aE = dso_local global
+// CHECK: @_ZN6Test131C1aE = global
 // CHECK-HIDDEN: @_ZN6Test131B1aE = hidden global
-// CHECK-HIDDEN: @_ZN6Test131C1aE = dso_local global
+// CHECK-HIDDEN: @_ZN6Test131C1aE = global
 // CHECK: @_ZN6Test143varE = external global
 // CHECK-HIDDEN: @_ZN6Test143varE = external global
 // CHECK: @_ZN6Test154TempINS_1AEE5Inner6bufferE = external global [0 x i8]
 // CHECK-HIDDEN: @_ZN6Test154TempINS_1AEE5Inner6bufferE = external global [0 x i8]
+// CHECK: @_ZTVN6test701BE = external hidden unnamed_addr constant { [5 x ptr] }, align 8
+// CHECK: @_ZTTN6test701BE = external hidden unnamed_addr constant [2 x ptr], align 8
 
 namespace test27 {
   template<typename T>
@@ -134,8 +136,8 @@ namespace test27 {
 
   void C<int>::D::g() {
   }
-  // CHECK: _ZTVN6test271CIiE1DE = dso_local unnamed_addr constant
-  // CHECK-HIDDEN: _ZTVN6test271CIiE1DE = dso_local unnamed_addr constant
+  // CHECK: _ZTVN6test271CIiE1DE = unnamed_addr constant
+  // CHECK-HIDDEN: _ZTVN6test271CIiE1DE = unnamed_addr constant
 }
 
 // CHECK: @_ZTVN5Test63fooE = linkonce_odr hidden unnamed_addr constant
@@ -195,7 +197,7 @@ namespace Test4 HIDDEN {
   };
   
   // A has default visibility.
-  // CHECK-LABEL: define dso_local void @_ZN5Test41A1fEv
+  // CHECK-LABEL: define void @_ZN5Test41A1fEv
   void A::f() { } 
 }
 
@@ -209,7 +211,7 @@ namespace Test5 {
   
   namespace NS {
     // g is in NS, but this NS decl is not hidden.
-    // CHECK-LABEL: define dso_local void @_ZN5Test52NS1gEv
+    // CHECK-LABEL: define void @_ZN5Test52NS1gEv
     void g() { }
   }
 }
@@ -268,8 +270,8 @@ namespace Test9 {
     void DEFAULT test9_fun(struct A *a) { }
     struct A DEFAULT test9_var; // above
   }
-  // CHECK-LABEL: define dso_local void @test9_fun(
-  // CHECK-HIDDEN-LABEL: define dso_local void @test9_fun(
+  // CHECK-LABEL: define void @test9_fun(
+  // CHECK-HIDDEN-LABEL: define void @test9_fun(
 
   void test() {
     A a = test9_var;
@@ -285,8 +287,8 @@ namespace Test10 {
     void foo(A*);
   };
 
-  // CHECK-LABEL: define dso_local void @_ZN6Test101B3fooEPNS_1AE(
-  // CHECK-HIDDEN-LABEL: define dso_local void @_ZN6Test101B3fooEPNS_1AE(
+  // CHECK-LABEL: define void @_ZN6Test101B3fooEPNS_1AE(
+  // CHECK-HIDDEN-LABEL: define void @_ZN6Test101B3fooEPNS_1AE(
   void B::foo(A*) {}
 }
 
@@ -507,7 +509,7 @@ namespace Test20 {
     static void test3();
   };
 
-  // CHECK-LABEL: define dso_local void @_ZN6Test201AILj1EE5test2Ev()
+  // CHECK-LABEL: define void @_ZN6Test201AILj1EE5test2Ev()
   void A<1>::test2() {}
 
   // CHECK: declare void @_ZN6Test201AILj1EE5test3Ev()
@@ -684,8 +686,8 @@ namespace test26 {
   template<>
   void C<int>::f() { }
 
-  // CHECK-LABEL: define dso_local void @_ZN6test261CIiE1fEv
-  // CHECK-HIDDEN-LABEL: define dso_local void @_ZN6test261CIiE1fEv
+  // CHECK-LABEL: define void @_ZN6test261CIiE1fEv
+  // CHECK-HIDDEN-LABEL: define void @_ZN6test261CIiE1fEv
 }
 
 namespace test31 {
@@ -709,8 +711,8 @@ namespace test32 {
   };
   void A::B::baz() {
   }
-  // CHECK-LABEL: define dso_local void @_ZN6test321A1B3bazEv
-  // CHECK-HIDDEN-LABEL: define dso_local void @_ZN6test321A1B3bazEv
+  // CHECK-LABEL: define void @_ZN6test321A1B3bazEv
+  // CHECK-HIDDEN-LABEL: define void @_ZN6test321A1B3bazEv
 }
 
 namespace test33 {
@@ -829,8 +831,8 @@ namespace test42 {
   };
   void bar<foo>::zed() {
   }
-  // CHECK-LABEL: define dso_local void @_ZN6test423barINS_3fooEE3zedEv
-  // CHECK-HIDDEN-LABEL: define dso_local void @_ZN6test423barINS_3fooEE3zedEv
+  // CHECK-LABEL: define void @_ZN6test423barINS_3fooEE3zedEv
+  // CHECK-HIDDEN-LABEL: define void @_ZN6test423barINS_3fooEE3zedEv
 }
 
 namespace test43 {
@@ -842,8 +844,8 @@ namespace test43 {
   template <>
   DEFAULT void bar<foo>() {
   }
-  // CHECK-LABEL: define dso_local void @_ZN6test433barINS_3fooEEEvv
-  // CHECK-HIDDEN-LABEL: define dso_local void @_ZN6test433barINS_3fooEEEvv
+  // CHECK-LABEL: define void @_ZN6test433barINS_3fooEEEvv
+  // CHECK-HIDDEN-LABEL: define void @_ZN6test433barINS_3fooEEEvv
 }
 
 namespace test44 {
@@ -1208,10 +1210,10 @@ namespace test65 {
     static void foo() {}
   };
 
-  // CHECK-LABEL: define dso_local void @_ZN6test651BINS_1AEE4funcEv()
+  // CHECK-LABEL: define void @_ZN6test651BINS_1AEE4funcEv()
   template <> DEFAULT void B<A>::func() {}
 
-  // CHECK-LABEL: define dso_local void @_ZN6test651BINS_1AEE6funcT2IS1_EEvv()
+  // CHECK-LABEL: define void @_ZN6test651BINS_1AEE6funcT2IS1_EEvv()
   template <> template <> DEFAULT void B<A>::funcT2<A>() {}
 
   // CHECK-LABEL: define linkonce_odr void @_ZN6test651BINS_1AEE6funcT1IiEEvv()
@@ -1314,6 +1316,19 @@ namespace test69 {
   }
   namespace foo __attribute__((visibility("hidden"))) {
   }
-  // CHECK-LABEL: define dso_local void @_ZN6test693foo1fEv
+  // CHECK-LABEL: define void @_ZN6test693foo1fEv
   // CHECK-HIDDEN-LABEL: define hidden void @_ZN6test693foo1fEv
+}
+
+namespace test70 {
+  // Make sure both the vtable and VTT declarations are marked "hidden"
+  class HIDDEN A {
+    virtual void a();
+  };
+  class HIDDEN B : virtual A {
+    void a() override;
+    ~B();
+  };
+  B::~B() {}
+  // Check lines at top of file.
 }

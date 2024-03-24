@@ -6,9 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TestTU.h"
 #include "TweakTesting.h"
-#include "gmock/gmock-matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -26,7 +24,7 @@ TEST_F(ExtractVariableTest, Test) {
         int z;
       } t;
       // return statement
-      return [[[[t.b[[a]]r]](t.z)]];
+      return [[[[t.b[[a]]r]]([[t.z]])]];
     }
     void f() {
       int a = [[5 +]] [[4 * [[[[xyz]]()]]]];
@@ -61,11 +59,22 @@ TEST_F(ExtractVariableTest, Test) {
   EXPECT_AVAILABLE(AvailableCases);
 
   ExtraArgs = {"-xc"};
-  const char *AvailableButC = R"cpp(
+  const char *AvailableC = R"cpp(
     void foo() {
       int x = [[1]];
     })cpp";
-  EXPECT_UNAVAILABLE(AvailableButC);
+  EXPECT_AVAILABLE(AvailableC);
+  ExtraArgs = {"-xobjective-c"};
+  const char *AvailableObjC = R"cpp(
+    __attribute__((objc_root_class))
+    @interface Foo
+    @end
+    @implementation Foo
+    - (void)method {
+      int x = [[1 + 2]];
+    }
+    @end)cpp";
+  EXPECT_AVAILABLE(AvailableObjC);
   ExtraArgs = {};
 
   const char *NoCrashCases = R"cpp(
@@ -81,10 +90,12 @@ TEST_F(ExtractVariableTest, Test) {
   const char *UnavailableCases = R"cpp(
     int xyz(int a = [[1]]) {
       struct T {
-        int bar(int a = [[1]]);
+        int bar(int a = [[1]]) {
+          int b = [[z]];
+        }
         int z = [[1]];
       } t;
-      return [[t]].bar([[[[t]].z]]);
+      return [[t]].bar([[t]].z);
     }
     void v() { return; }
     // function default argument
@@ -125,13 +136,13 @@ TEST_F(ExtractVariableTest, Test) {
   EXPECT_UNAVAILABLE(UnavailableCases);
 
   // vector of pairs of input and output strings
-  const std::vector<std::pair<std::string, std::string>> InputOutputs = {
+  std::vector<std::pair<std::string, std::string>> InputOutputs = {
       // extraction from variable declaration/assignment
       {R"cpp(void varDecl() {
                    int a = 5 * (4 + (3 [[- 1)]]);
                  })cpp",
        R"cpp(void varDecl() {
-                   auto dummy = (3 - 1); int a = 5 * (4 + dummy);
+                   auto placeholder = (3 - 1); int a = 5 * (4 + placeholder);
                  })cpp"},
       // FIXME: extraction from switch case
       /*{R"cpp(void f(int a) {
@@ -146,11 +157,11 @@ TEST_F(ExtractVariableTest, Test) {
                    }
              })cpp",
        R"cpp(void f(int a) {
-               auto dummy = 1 + 2; if(1)
+               auto placeholder = 1 + 2; if(1)
                  while(a < 1)
                    switch (1) {
                        case 1:
-                         a = dummy;
+                         a = placeholder;
                          break;
                        default:
                          break;
@@ -164,11 +175,11 @@ TEST_F(ExtractVariableTest, Test) {
        /*FIXME: It should be extracted like this.
         R"cpp(#define PLUS(x) x++
               void f(int a) {
-                auto dummy = 1+a; int y = PLUS(dummy);
+                auto placeholder = 1+a; int y = PLUS(placeholder);
               })cpp"},*/
        R"cpp(#define PLUS(x) x++
                  void f(int a) {
-                   auto dummy = PLUS(1+a); int y = dummy;
+                   auto placeholder = PLUS(1+a); int y = placeholder;
                  })cpp"},
       // ensure InsertionPoint isn't inside a macro
       {R"cpp(#define LOOP(x) while (1) {a = x;}
@@ -178,8 +189,8 @@ TEST_F(ExtractVariableTest, Test) {
                  })cpp",
        R"cpp(#define LOOP(x) while (1) {a = x;}
                  void f(int a) {
-                   auto dummy = 3; if(1)
-                    LOOP(5 + dummy)
+                   auto placeholder = 3; if(1)
+                    LOOP(5 + placeholder)
                  })cpp"},
       {R"cpp(#define LOOP(x) do {x;} while(1);
                  void f(int a) {
@@ -188,15 +199,15 @@ TEST_F(ExtractVariableTest, Test) {
                  })cpp",
        R"cpp(#define LOOP(x) do {x;} while(1);
                  void f(int a) {
-                   auto dummy = 3; if(1)
-                    LOOP(5 + dummy)
+                   auto placeholder = 3; if(1)
+                    LOOP(5 + placeholder)
                  })cpp"},
       // attribute testing
       {R"cpp(void f(int a) {
                     [ [gsl::suppress("type")] ] for (;;) a = [[1]] + 1;
                  })cpp",
        R"cpp(void f(int a) {
-                    auto dummy = 1; [ [gsl::suppress("type")] ] for (;;) a = dummy + 1;
+                    auto placeholder = 1; [ [gsl::suppress("type")] ] for (;;) a = placeholder + 1;
                  })cpp"},
       // MemberExpr
       {R"cpp(class T {
@@ -206,7 +217,7 @@ TEST_F(ExtractVariableTest, Test) {
                  };)cpp",
        R"cpp(class T {
                    T f() {
-                     auto dummy = T().f(); return dummy.f();
+                     auto placeholder = T().f(); return placeholder.f();
                    }
                  };)cpp"},
       // Function DeclRefExpr
@@ -214,7 +225,7 @@ TEST_F(ExtractVariableTest, Test) {
                    return [[f]]();
                  })cpp",
        R"cpp(int f() {
-                   auto dummy = f(); return dummy;
+                   auto placeholder = f(); return placeholder;
                  })cpp"},
       // FIXME: Wrong result for \[\[clang::uninitialized\]\] int b = [[1]];
       // since the attr is inside the DeclStmt and the bounds of
@@ -225,33 +236,33 @@ TEST_F(ExtractVariableTest, Test) {
                    int x = 1 + [[2 + 3 + 4]] + 5;
                  })cpp",
        R"cpp(void f() {
-                   auto dummy = 2 + 3 + 4; int x = 1 + dummy + 5;
+                   auto placeholder = 2 + 3 + 4; int x = 1 + placeholder + 5;
                  })cpp"},
       {R"cpp(void f() {
                    int x = [[1 + 2 + 3]] + 4 + 5;
                  })cpp",
        R"cpp(void f() {
-                   auto dummy = 1 + 2 + 3; int x = dummy + 4 + 5;
+                   auto placeholder = 1 + 2 + 3; int x = placeholder + 4 + 5;
                  })cpp"},
       {R"cpp(void f() {
                    int x = 1 + 2 + [[3 + 4 + 5]];
                  })cpp",
        R"cpp(void f() {
-                   auto dummy = 3 + 4 + 5; int x = 1 + 2 + dummy;
+                   auto placeholder = 3 + 4 + 5; int x = 1 + 2 + placeholder;
                  })cpp"},
       // Non-associative operations have no special support
       {R"cpp(void f() {
                    int x = 1 - [[2 - 3 - 4]] - 5;
                  })cpp",
        R"cpp(void f() {
-                   auto dummy = 1 - 2 - 3 - 4; int x = dummy - 5;
+                   auto placeholder = 1 - 2 - 3 - 4; int x = placeholder - 5;
                  })cpp"},
       // A mix of associative operators isn't associative.
       {R"cpp(void f() {
                    int x = 0 + 1 * [[2 + 3]] * 4 + 5;
                  })cpp",
        R"cpp(void f() {
-                   auto dummy = 1 * 2 + 3 * 4; int x = 0 + dummy + 5;
+                   auto placeholder = 1 * 2 + 3 * 4; int x = 0 + placeholder + 5;
                  })cpp"},
       // Overloaded operators are supported, we assume associativity
       // as if they were built-in.
@@ -269,7 +280,7 @@ TEST_F(ExtractVariableTest, Test) {
                  S operator+(S, S);
 
                  void f() {
-                   auto dummy = S(2) + S(3) + S(4); S x = S(1) + dummy + S(5);
+                   auto placeholder = S(2) + S(3) + S(4); S x = S(1) + placeholder + S(5);
                  })cpp"},
       // Don't try to analyze across macro boundaries
       // FIXME: it'd be nice to do this someday (in a safe way)
@@ -279,7 +290,7 @@ TEST_F(ExtractVariableTest, Test) {
                  })cpp",
        R"cpp(#define ECHO(X) X
                  void f() {
-                   auto dummy = 1 + ECHO(2 + 3) + 4; int x = dummy + 5;
+                   auto placeholder = 1 + ECHO(2 + 3) + 4; int x = placeholder + 5;
                  })cpp"},
       {R"cpp(#define ECHO(X) X
                  void f() {
@@ -287,8 +298,109 @@ TEST_F(ExtractVariableTest, Test) {
                  })cpp",
        R"cpp(#define ECHO(X) X
                  void f() {
-                   auto dummy = 1 + ECHO(2) + ECHO(3) + 4; int x = dummy + 5;
+                   auto placeholder = 1 + ECHO(2) + ECHO(3) + 4; int x = placeholder + 5;
                  })cpp"},
+  };
+  for (const auto &IO : InputOutputs) {
+    EXPECT_EQ(IO.second, apply(IO.first)) << IO.first;
+  }
+
+  ExtraArgs = {"-xc"};
+  InputOutputs = {
+      // Function Pointers
+      {R"cpp(struct Handlers {
+               void (*handlerFunc)(int);
+             };
+             void runFunction(void (*func)(int)) {}
+             void f(struct Handlers *handler) {
+               runFunction([[handler->handlerFunc]]);
+             })cpp",
+       R"cpp(struct Handlers {
+               void (*handlerFunc)(int);
+             };
+             void runFunction(void (*func)(int)) {}
+             void f(struct Handlers *handler) {
+               void (*placeholder)(int) = handler->handlerFunc; runFunction(placeholder);
+             })cpp"},
+      {R"cpp(int (*foo(char))(int);
+             void bar() {
+               (void)[[foo('c')]];
+             })cpp",
+       R"cpp(int (*foo(char))(int);
+             void bar() {
+               int (*placeholder)(int) = foo('c'); (void)placeholder;
+             })cpp"},
+      // Arithmetic on typedef types preserves typedef types
+      {R"cpp(typedef long NSInteger;
+             void varDecl() {
+                NSInteger a = 2 * 5;
+                NSInteger b = [[a * 7]] + 3;
+             })cpp",
+       R"cpp(typedef long NSInteger;
+             void varDecl() {
+                NSInteger a = 2 * 5;
+                NSInteger placeholder = a * 7; NSInteger b = placeholder + 3;
+             })cpp"},
+  };
+  for (const auto &IO : InputOutputs) {
+    EXPECT_EQ(IO.second, apply(IO.first)) << IO.first;
+  }
+
+  ExtraArgs = {"-xobjective-c"};
+  EXPECT_UNAVAILABLE(R"cpp(
+      __attribute__((objc_root_class))
+      @interface Foo
+      - (void)setMethod1:(int)a;
+      - (int)method1;
+      @property int prop1;
+      @end
+      @implementation Foo
+      - (void)method {
+        [[self.method1]] = 1;
+        [[self.method1]] += 1;
+        [[self.prop1]] = 1;
+        [[self.prop1]] += 1;
+      }
+      @end)cpp");
+  InputOutputs = {
+      // Support ObjC property references (explicit property getter).
+      {R"cpp(__attribute__((objc_root_class))
+             @interface Foo
+             @property int prop1;
+             @end
+             @implementation Foo
+             - (void)method {
+               int x = [[self.prop1]] + 1;
+             }
+             @end)cpp",
+       R"cpp(__attribute__((objc_root_class))
+             @interface Foo
+             @property int prop1;
+             @end
+             @implementation Foo
+             - (void)method {
+               int placeholder = self.prop1; int x = placeholder + 1;
+             }
+             @end)cpp"},
+      // Support ObjC property references (implicit property getter).
+      {R"cpp(__attribute__((objc_root_class))
+             @interface Foo
+             - (int)method1;
+             @end
+             @implementation Foo
+             - (void)method {
+               int x = [[self.method1]] + 1;
+             }
+             @end)cpp",
+       R"cpp(__attribute__((objc_root_class))
+             @interface Foo
+             - (int)method1;
+             @end
+             @implementation Foo
+             - (void)method {
+               int placeholder = self.method1; int x = placeholder + 1;
+             }
+             @end)cpp"},
   };
   for (const auto &IO : InputOutputs) {
     EXPECT_EQ(IO.second, apply(IO.first)) << IO.first;

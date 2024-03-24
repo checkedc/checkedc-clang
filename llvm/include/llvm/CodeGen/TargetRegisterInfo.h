@@ -29,7 +29,6 @@
 #include "llvm/Support/Printable.h"
 #include <cassert>
 #include <cstdint>
-#include <functional>
 
 namespace llvm {
 
@@ -55,8 +54,14 @@ public:
   const uint16_t *SuperRegIndices;
   const LaneBitmask LaneMask;
   /// Classes with a higher priority value are assigned first by register
-  /// allocators using a greedy heuristic. The value is in the range [0,63].
+  /// allocators using a greedy heuristic. The value is in the range [0,31].
   const uint8_t AllocationPriority;
+
+  // Change allocation priority heuristic used by greedy.
+  const bool GlobalPriority;
+
+  /// Configurable target specific flags.
+  const uint8_t TSFlags;
   /// Whether the class supports two (or more) disjunct subregister indices.
   const bool HasDisjunctSubRegs;
   /// Whether a combination of subregisters can cover every register in the
@@ -195,7 +200,7 @@ public:
   ///
   /// By default, this method returns all registers in the class.
   ArrayRef<MCPhysReg> getRawAllocationOrder(const MachineFunction &MF) const {
-    return OrderFunc ? OrderFunc(MF) : makeArrayRef(begin(), getNumRegs());
+    return OrderFunc ? OrderFunc(MF) : ArrayRef(begin(), getNumRegs());
   }
 
   /// Returns the combination of all lane masks of register in this class.
@@ -209,8 +214,10 @@ public:
 /// Extra information, not in MCRegisterDesc, about registers.
 /// These are used by codegen, not by MC.
 struct TargetRegisterInfoDesc {
-  unsigned CostPerUse;          // Extra cost of instructions using register.
-  bool inAllocatableClass;      // Register belongs to an allocatable regclass.
+  const uint8_t *CostPerUse; // Extra cost of instructions using register.
+  unsigned NumCosts; // Number of cost values associated with each register.
+  const bool
+      *InAllocatableClass; // Register belongs to an allocatable regclass.
 };
 
 /// Each TargetRegisterClass has a per register weight, and weight
@@ -281,12 +288,6 @@ public:
 
   /// Return the minimum required alignment in bytes for a spill slot for
   /// a register of this class.
-  unsigned getSpillAlignment(const TargetRegisterClass &RC) const {
-    return getRegClassInfo(RC).SpillAlignment / 8;
-  }
-
-  /// Return the minimum required alignment in bytes for a spill slot for
-  /// a register of this class.
   Align getSpillAlign(const TargetRegisterClass &RC) const {
     return Align(getRegClassInfo(RC).SpillAlignment / 8);
   }
@@ -296,6 +297,19 @@ public:
     for (auto I = legalclasstypes_begin(RC); *I != MVT::Other; ++I)
       if (MVT(*I) == T)
         return true;
+    return false;
+  }
+
+  /// Return true if the given TargetRegisterClass is compatible with LLT T.
+  bool isTypeLegalForClass(const TargetRegisterClass &RC, LLT T) const {
+    for (auto I = legalclasstypes_begin(RC); *I != MVT::Other; ++I) {
+      MVT VT(*I);
+      if (VT == MVT::Untyped)
+        return true;
+
+      if (LLT(VT) == T)
+        return true;
+    }
     return false;
   }
 
@@ -318,6 +332,13 @@ public:
   const TargetRegisterClass *getMinimalPhysRegClass(MCRegister Reg,
                                                     MVT VT = MVT::Other) const;
 
+  /// Returns the Register Class of a physical register of the given type,
+  /// picking the most sub register class of the right type that contains this
+  /// physreg. If there is no register class compatible with the given type,
+  /// returns nullptr.
+  const TargetRegisterClass *getMinimalPhysRegClassLLT(MCRegister Reg,
+                                                       LLT Ty = LLT()) const;
+
   /// Return the maximal subclass of the given register class that is
   /// allocatable or NULL.
   const TargetRegisterClass *
@@ -329,15 +350,19 @@ public:
   BitVector getAllocatableSet(const MachineFunction &MF,
                               const TargetRegisterClass *RC = nullptr) const;
 
-  /// Return the additional cost of using this register instead
-  /// of other registers in its class.
-  unsigned getCostPerUse(MCRegister RegNo) const {
-    return InfoDesc[RegNo].CostPerUse;
+  /// Get a list of cost values for all registers that correspond to the index
+  /// returned by RegisterCostTableIndex.
+  ArrayRef<uint8_t> getRegisterCosts(const MachineFunction &MF) const {
+    unsigned Idx = getRegisterCostTableIndex(MF);
+    unsigned NumRegs = getNumRegs();
+    assert(Idx < InfoDesc->NumCosts && "CostPerUse index out of bounds");
+
+    return ArrayRef(&InfoDesc->CostPerUse[Idx * NumRegs], NumRegs);
   }
 
   /// Return true if the register is in the allocation of any register class.
   bool isInAllocatableClass(MCRegister RegNo) const {
-    return InfoDesc[RegNo].inAllocatableClass;
+    return InfoDesc->InAllocatableClass[RegNo];
   }
 
   /// Return the human-readable symbolic target-specific
@@ -356,6 +381,15 @@ public:
     assert(SubIdx < getNumSubRegIndices() && "This is not a subregister index");
     return SubRegIndexLaneMasks[SubIdx];
   }
+
+  /// Try to find one or more subregister indexes to cover \p LaneMask.
+  ///
+  /// If this is possible, returns true and appends the best matching set of
+  /// indexes to \p Indexes. If this is not possible, returns false.
+  bool getCoveringSubRegIndexes(const MachineRegisterInfo &MRI,
+                                const TargetRegisterClass *RC,
+                                LaneBitmask LaneMask,
+                                SmallVectorImpl<unsigned> &Indexes) const;
 
   /// The lane masks returned by getSubRegIndexLaneMask() above can only be
   /// used to determine if sub-registers overlap - they can't be used to
@@ -384,19 +418,11 @@ public:
 
   /// Returns true if the two registers are equal or alias each other.
   /// The registers may be virtual registers.
-  bool regsOverlap(Register regA, Register regB) const {
-    if (regA == regB) return true;
-    if (!regA.isPhysical() || !regB.isPhysical())
-      return false;
-
-    // Regunits are numerically ordered. Find a common unit.
-    MCRegUnitIterator RUA(regA.asMCReg(), this);
-    MCRegUnitIterator RUB(regB.asMCReg(), this);
-    do {
-      if (*RUA == *RUB) return true;
-      if (*RUA < *RUB) ++RUA;
-      else             ++RUB;
-    } while (RUA.isValid() && RUB.isValid());
+  bool regsOverlap(Register RegA, Register RegB) const {
+    if (RegA == RegB)
+      return true;
+    if (RegA.isPhysical() && RegB.isPhysical())
+      return MCRegisterInfo::regsOverlap(RegA.asMCReg(), RegB.asMCReg());
     return false;
   }
 
@@ -499,6 +525,16 @@ public:
   /// markSuperRegs() and checkAllSuperRegsMarked() in this case.
   virtual BitVector getReservedRegs(const MachineFunction &MF) const = 0;
 
+  /// Returns either a string explaining why the given register is reserved for
+  /// this function, or an empty optional if no explanation has been written.
+  /// The absence of an explanation does not mean that the register is not
+  /// reserved (meaning, you should check that PhysReg is in fact reserved
+  /// before calling this).
+  virtual std::optional<std::string>
+  explainReservedReg(const MachineFunction &MF, MCRegister PhysReg) const {
+    return {};
+  }
+
   /// Returns false if we can't guarantee that Physreg, specified as an IR asm
   /// clobber constraint, will be preserved across the statement.
   virtual bool isAsmClobberable(const MachineFunction &MF,
@@ -535,6 +571,24 @@ public:
   /// Return true if the register is preserved after the call.
   virtual bool isCalleeSavedPhysReg(MCRegister PhysReg,
                                     const MachineFunction &MF) const;
+
+  /// Returns true if PhysReg can be used as an argument to a function.
+  virtual bool isArgumentRegister(const MachineFunction &MF,
+                                  MCRegister PhysReg) const {
+    return false;
+  }
+
+  /// Returns true if PhysReg is a fixed register.
+  virtual bool isFixedRegister(const MachineFunction &MF,
+                               MCRegister PhysReg) const {
+    return false;
+  }
+
+  /// Returns true if PhysReg is a general purpose register.
+  virtual bool isGeneralPurposeRegister(const MachineFunction &MF,
+                                        MCRegister PhysReg) const {
+    return false;
+  }
 
   /// Prior to adding the live-out mask to a stackmap or patchpoint
   /// instruction, provide the target the opportunity to adjust it (mainly to
@@ -584,6 +638,14 @@ public:
     return RC;
   }
 
+  /// Return a register class that can be used for a subregister copy from/into
+  /// \p SuperRC at \p SubRegIdx.
+  virtual const TargetRegisterClass *
+  getSubRegisterClass(const TargetRegisterClass *SuperRC,
+                      unsigned SubRegIdx) const {
+    return nullptr;
+  }
+
   /// Return the subregister index you get from composing
   /// two subregister indices.
   ///
@@ -631,6 +693,14 @@ public:
   static void dumpReg(Register Reg, unsigned SubRegIndex = 0,
                       const TargetRegisterInfo *TRI = nullptr);
 
+  /// Return target defined base register class for a physical register.
+  /// This is the register class with the lowest BaseClassOrder containing the
+  /// register.
+  /// Will be nullptr if the register is not in any base register class.
+  virtual const TargetRegisterClass *getPhysRegBaseClass(MCRegister Reg) const {
+    return nullptr;
+  }
+
 protected:
   /// Overridden by TableGen in targets that have sub-registers.
   virtual unsigned composeSubRegIndicesImpl(unsigned, unsigned) const {
@@ -646,6 +716,13 @@ protected:
   virtual LaneBitmask reverseComposeSubRegIndexLaneMaskImpl(unsigned,
                                                             LaneBitmask) const {
     llvm_unreachable("Target has no sub-registers");
+  }
+
+  /// Return the register cost table index. This implementation is sufficient
+  /// for most architectures and can be overriden by targets in case there are
+  /// multiple cost values associated with each register.
+  virtual unsigned getRegisterCostTableIndex(const MachineFunction &MF) const {
+    return 0;
   }
 
 public:
@@ -892,9 +969,12 @@ public:
 
   /// True if storage within the function requires the stack pointer to be
   /// aligned more than the normal calling convention calls for.
-  /// This cannot be overriden by the target, but canRealignStack can be
-  /// overridden.
-  bool needsStackRealignment(const MachineFunction &MF) const;
+  virtual bool shouldRealignStack(const MachineFunction &MF) const;
+
+  /// True if stack realignment is required and still possible.
+  bool hasStackRealignment(const MachineFunction &MF) const {
+    return shouldRealignStack(MF) && canRealignStack(MF);
+  }
 
   /// Get the offset from the referenced frame index in the instruction,
   /// if there is one.
@@ -955,6 +1035,12 @@ public:
     return false;
   }
 
+  /// Process frame indices in reverse block order. This changes the behavior of
+  /// the RegScavenger passed to eliminateFrameIndex. If this is true targets
+  /// should scavengeRegisterBackwards in eliminateFrameIndex. New targets
+  /// should prefer reverse scavenging behavior.
+  virtual bool supportsBackwardScavenger() const { return false; }
+
   /// This method must be overriden to eliminate abstract frame indices from
   /// instructions which may use them. The instruction referenced by the
   /// iterator contains an MO_FrameIndex operand which must be eliminated by
@@ -962,7 +1048,9 @@ public:
   /// as long as it keeps the iterator pointing at the finished product.
   /// SPAdj is the SP adjustment due to call frame setup instruction.
   /// FIOperandNum is the FI operand number.
-  virtual void eliminateFrameIndex(MachineBasicBlock::iterator MI,
+  /// Returns true if the current instruction was removed and the iterator
+  /// is not longer valid
+  virtual bool eliminateFrameIndex(MachineBasicBlock::iterator MI,
                                    int SPAdj, unsigned FIOperandNum,
                                    RegScavenger *RS = nullptr) const = 0;
 
@@ -1026,6 +1114,14 @@ public:
     return false;
   }
 
+  /// When prioritizing live ranges in register allocation, if this hook returns
+  /// true then the AllocationPriority of the register class will be treated as
+  /// more important than whether the range is local to a basic block or global.
+  virtual bool
+  regClassPriorityTrumpsGlobalness(const MachineFunction &MF) const {
+    return false;
+  }
+
   //===--------------------------------------------------------------------===//
   /// Debug information queries.
 
@@ -1052,6 +1148,13 @@ public:
   /// exist.
   inline MCRegister getSubReg(MCRegister Reg, unsigned Idx) const {
     return static_cast<const MCRegisterInfo *>(this)->getSubReg(Reg, Idx);
+  }
+
+  /// Some targets have non-allocatable registers that aren't technically part
+  /// of the explicit callee saved register list, but should be handled as such
+  /// in certain cases.
+  virtual bool isNonallocatableRegisterCalleeSave(MCRegister Reg) const {
+    return false;
   }
 };
 

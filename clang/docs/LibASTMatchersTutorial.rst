@@ -105,9 +105,12 @@ CMakeLists.txt should have the following contents:
         )
       target_link_libraries(loop-convert
         PRIVATE
-        clangTooling
-        clangBasic
+        clangAST
         clangASTMatchers
+        clangBasic
+        clangFrontend
+        clangSerialization
+        clangTooling
         )
 
 With that done, Ninja will be able to compile our tool. Let's give it
@@ -141,7 +144,13 @@ documentation <LibTooling.html>`_.
       static cl::extrahelp MoreHelp("\nMore help text...\n");
 
       int main(int argc, const char **argv) {
-        CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);
+        auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
+        if (!ExpectedParser) {
+          // Fail gracefully for unsupported options.
+          llvm::errs() << ExpectedParser.takeError();
+          return 1;
+        }
+        CommonOptionsParser& OptionsParser = ExpectedParser.get();
         ClangTool Tool(OptionsParser.getCompilations(),
                        OptionsParser.getSourcePathList());
         return Tool.run(newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
@@ -282,7 +291,13 @@ And change ``main()`` to:
 .. code-block:: c++
 
       int main(int argc, const char **argv) {
-        CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);
+        auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
+        if (!ExpectedParser) {
+          // Fail gracefully for unsupported options.
+          llvm::errs() << ExpectedParser.takeError();
+          return 1;
+        }
+        CommonOptionsParser& OptionsParser = ExpectedParser.get();
         ClangTool Tool(OptionsParser.getCompilations(),
                        OptionsParser.getSourcePathList());
 
@@ -384,7 +399,7 @@ in the callback. So we start with:
 
 .. code-block:: c++
 
-      hasCondition(binaryOperator(hasOperatorName("<"))
+      hasCondition(binaryOperator(hasOperatorName("<")))
 
 It makes sense to ensure that the left-hand side is a reference to a
 variable, and that the right-hand side has integer type.
@@ -514,7 +529,7 @@ address, all we need to do is make sure neither ``ValueDecl`` (base class of
       }
 
 If execution reaches the end of ``LoopPrinter::run()``, we know that the
-loop shell that looks like
+loop shell looks like
 
 .. code-block:: c++
 

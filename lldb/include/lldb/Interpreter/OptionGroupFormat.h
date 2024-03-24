@@ -16,6 +16,9 @@
 
 namespace lldb_private {
 
+typedef std::vector<std::tuple<lldb::CommandArgumentType, const char *>>
+    OptionGroupFormatUsageTextVector;
+
 // OptionGroupFormat
 
 class OptionGroupFormat : public OptionGroup {
@@ -30,15 +33,17 @@ public:
       uint64_t default_byte_size =
           UINT64_MAX, // Pass UINT64_MAX to disable the "--size" option
       uint64_t default_count =
-          UINT64_MAX); // Pass UINT64_MAX to disable the "--count" option
+          UINT64_MAX, // Pass UINT64_MAX to disable the "--count" option
+      OptionGroupFormatUsageTextVector usage_text_vector = {}
+      // Use to override default option usage text with the command specific one
+  );
 
-  ~OptionGroupFormat() override;
+  ~OptionGroupFormat() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override;
 
   Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_value,
                         ExecutionContext *execution_context) override;
-  Status SetOptionValue(uint32_t, const char *, ExecutionContext *) = delete;
 
   void OptionParsingStarting(ExecutionContext *execution_context) override;
 
@@ -74,6 +79,7 @@ protected:
   char m_prev_gdb_format;
   char m_prev_gdb_size;
   bool m_has_gdb_format;
+  OptionDefinition m_option_definitions[4];
 };
 
 } // namespace lldb_private

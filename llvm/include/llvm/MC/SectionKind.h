@@ -24,6 +24,10 @@ class SectionKind {
     /// Metadata - Debug info sections or other metadata.
     Metadata,
 
+    /// Exclude - This section will be excluded from the final executable or
+    /// shared library. Only valid for ELF / COFF targets.
+    Exclude,
+
     /// Text - Text section, used for functions and other executable code.
     Text,
 
@@ -82,6 +86,9 @@ class SectionKind {
            /// ThreadData - Initialized TLS data objects.
            ThreadData,
 
+           /// ThreadBSSLocal - Zero-initialized TLS data objects with local linkage.
+           ThreadBSSLocal,
+
        /// GlobalWriteableData - Writeable data that is global (not thread
        /// local).
 
@@ -115,6 +122,8 @@ public:
 
   bool isMetadata() const { return K == Metadata; }
 
+  bool isExclude() const { return K == Exclude; }
+
   bool isText() const { return K == Text || K == ExecuteOnly; }
 
   bool isExecuteOnly() const { return K == ExecuteOnly; }
@@ -146,11 +155,12 @@ public:
   }
 
   bool isThreadLocal() const {
-    return K == ThreadData || K == ThreadBSS;
+    return K == ThreadData || K == ThreadBSS || K == ThreadBSSLocal;
   }
 
-  bool isThreadBSS() const { return K == ThreadBSS; }
+  bool isThreadBSS() const { return K == ThreadBSS || K == ThreadBSSLocal; }
   bool isThreadData() const { return K == ThreadData; }
+  bool isThreadBSSLocal() const { return K == ThreadBSSLocal; }
 
   bool isGlobalWriteableData() const {
     return isBSS() || isCommon() || isData() || isReadOnlyWithRel();
@@ -176,6 +186,7 @@ private:
 public:
 
   static SectionKind getMetadata() { return get(Metadata); }
+  static SectionKind getExclude() { return get(Exclude); }
   static SectionKind getText() { return get(Text); }
   static SectionKind getExecuteOnly() { return get(ExecuteOnly); }
   static SectionKind getReadOnly() { return get(ReadOnly); }
@@ -194,6 +205,7 @@ public:
   static SectionKind getMergeableConst32() { return get(MergeableConst32); }
   static SectionKind getThreadBSS() { return get(ThreadBSS); }
   static SectionKind getThreadData() { return get(ThreadData); }
+  static SectionKind getThreadBSSLocal() { return get(ThreadBSSLocal); }
   static SectionKind getBSS() { return get(BSS); }
   static SectionKind getBSSLocal() { return get(BSSLocal); }
   static SectionKind getBSSExtern() { return get(BSSExtern); }

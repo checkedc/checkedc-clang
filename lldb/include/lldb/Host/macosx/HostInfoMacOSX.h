@@ -13,6 +13,7 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/XcodeSDK.h"
 #include "llvm/Support/VersionTuple.h"
+#include <optional>
 
 namespace lldb_private {
 
@@ -21,22 +22,16 @@ class ArchSpec;
 class HostInfoMacOSX : public HostInfoPosix {
   friend class HostInfoBase;
 
-private:
-  // Static class, unconstructable.
-  HostInfoMacOSX() = delete;
-  ~HostInfoMacOSX() = delete;
-
 public:
   static llvm::VersionTuple GetOSVersion();
   static llvm::VersionTuple GetMacCatalystVersion();
-  static bool GetOSBuildString(std::string &s);
-  static bool GetOSKernelDescription(std::string &s);
+  static std::optional<std::string> GetOSBuildString();
   static FileSpec GetProgramFileSpec();
   static FileSpec GetXcodeContentsDirectory();
   static FileSpec GetXcodeDeveloperDirectory();
 
   /// Query xcrun to find an Xcode SDK directory.
-  static llvm::StringRef GetXcodeSDKPath(XcodeSDK sdk);
+  static llvm::Expected<llvm::StringRef> GetXcodeSDKPath(XcodeSDK sdk);
 
   /// Shared cache utilities
   static SharedCacheImageInfo

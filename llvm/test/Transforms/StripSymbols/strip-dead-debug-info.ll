@@ -1,4 +1,3 @@
-; RUN: opt -strip-dead-debug-info -verify %s -S | FileCheck %s
 ; RUN: opt -passes='strip-dead-debug-info,verify' %s -S | FileCheck %s
 
 ; CHECK: ModuleID = '{{.*}}'
@@ -7,6 +6,7 @@
 ; CHECK-NOT: "GCC"
 ; CHECK: "Globals"
 ; CHECK: "abcd2"
+; CHECK: "abcd3"
 
 source_filename = "test/Transforms/StripSymbols/strip-dead-debug-info.ll"
 
@@ -25,7 +25,7 @@ entry:
 define i32 @foo(i32 %i) #2 !dbg !15 {
 entry:
   tail call void @llvm.dbg.value(metadata i32 %i, metadata !18, metadata !19), !dbg !20
-  %.0 = load i32, i32* @xyz, align 4, !dbg !30
+  %.0 = load i32, ptr @xyz, align 4, !dbg !30
   ret i32 %.0, !dbg !21
 }
 
@@ -61,9 +61,11 @@ attributes #2 = { nounwind readonly ssp }
 !22 = distinct !DILexicalBlock(scope: !15, file: !2, line: 7)
 !23 = distinct !DICompileUnit(language: DW_LANG_C89, file: !2, producer: "GCC", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !5, retainedTypes: !5, globals: !5)
 !24 = distinct !DICompileUnit(language: DW_LANG_C89, file: !2, producer: "Globals", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !5, retainedTypes: !5, globals: !25)
-!25 = !{!26}
+!25 = !{!26, !31}
 !26 = !DIGlobalVariableExpression(var: !27, expr: !DIExpression(DW_OP_constu, 0, DW_OP_stack_value))
 !27 = !DIGlobalVariable(name: "abcd2", scope: !2, file: !2, line: 2, type: !3, isLocal: true, isDefinition: true)
 !28 = distinct !DICompileUnit(language: DW_LANG_C89, file: !2, producer: "InlineTest", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !5, retainedTypes: !5, globals: !5)
 !29 = distinct !DISubprogram(name: "inlinefunc", linkageName: "inlinefunc", scope: null, file: !2, line: 7, type: !16, isLocal: false, isDefinition: true, isOptimized: true, unit: !28)
 !30 = !DILocation(line: 100, scope: !29, inlinedAt: !21)
+!31 = !DIGlobalVariableExpression(var: !32, expr: !DIExpression(DW_OP_consts, 18446744073709551615, DW_OP_stack_value))
+!32 = !DIGlobalVariable(name: "abcd3", scope: !2, file: !2, line: 3, type: !3, isLocal: true, isDefinition: true)

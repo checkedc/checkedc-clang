@@ -1,8 +1,7 @@
-// RUN: %libomptarget-compilexx-run-and-check-aarch64-unknown-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-powerpc64-ibm-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-powerpc64le-ibm-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-x86_64-pc-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-nvptx64-nvidia-cuda
+// RUN: %libomptarget-compilexx-run-and-check-generic
+
+// UNSUPPORTED: x86_64-pc-linux-gnu
+// UNSUPPORTED: x86_64-pc-linux-gnu-LTO
 
 #include <omp.h>
 
@@ -28,8 +27,7 @@ int main(int argc, char *argv[]) {
       }
       int buffer[n];
 #pragma omp target teams distribute parallel for is_device_ptr(p)              \
-    map(from                                                                   \
-        : buffer)
+    map(from : buffer)
       for (int j = 0; j < n; ++j) {
         buffer[j] = p[j];
       }

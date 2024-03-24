@@ -7,12 +7,12 @@
 #===----------------------------------------------------------------------===##
 """GDB pretty-printers for libc++.
 
-These should work for objects compiled when _LIBCPP_ABI_UNSTABLE is defined
-and when it is undefined.
+These should work for objects compiled with either the stable ABI or the unstable ABI.
 """
 
 from __future__ import print_function
 
+import math
 import re
 import gdb
 
@@ -62,6 +62,36 @@ def _remove_generics(typename):
 
     match = re.match("^([^<]+)", typename)
     return match.group(1)
+
+
+def _cc_field(node):
+    """Previous versions of libcxx had inconsistent field naming naming. Handle
+    both types.
+    """
+    try:
+        return node["__value_"]["__cc_"]
+    except:
+        return node["__value_"]["__cc"]
+
+
+def _data_field(node):
+    """Previous versions of libcxx had inconsistent field naming naming. Handle
+    both types.
+    """
+    try:
+        return node["__data_"]
+    except:
+        return node["__data"]
+
+
+def _size_field(node):
+    """Previous versions of libcxx had inconsistent field naming naming. Handle
+    both types.
+    """
+    try:
+        return node["__size_"]
+    except:
+        return node["__size"]
 
 
 # Some common substitutions on the types to reduce visual clutter (A user who
@@ -141,14 +171,12 @@ class StdTuplePrinter(object):
 
         def __next__(self):
             # child_iter raises StopIteration when appropriate.
-            field_name = self.child_iter.next()
+            field_name = next(self.child_iter)
             child = self.val["__base_"][field_name]["__value_"]
             self.count += 1
             return ("[%d]" % self.count, child)
 
-        # TODO Delete when we drop Python 2.
-        def next(self):
-            return self.__next__()
+        next = __next__  # Needed for GDB built against Python 2.7.
 
     def __init__(self, val):
         self.val = val
@@ -194,52 +222,22 @@ def _value_of_pair_first(value):
 class StdStringPrinter(object):
     """Print a std::string."""
 
-    def _get_short_size(self, short_field, short_size):
-        """Short size depends on both endianness and a compile-time define."""
-
-        # If the padding field is present after all this indirection, then string
-        # was compiled with _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT defined.
-        field = short_field.type.fields()[1].type.fields()[0]
-        libcpp_abi_alternate_string_layout = field.name and "__padding" in field.name
-
-        # This logical structure closely follows the original code (which is clearer
-        # in C++).  Keep them parallel to make them easier to compare.
-        if libcpp_abi_alternate_string_layout:
-            if _libcpp_big_endian:
-                return short_size >> 1
-            else:
-                return short_size
-        elif _libcpp_big_endian:
-            return short_size
-        else:
-            return short_size >> 1
-
     def __init__(self, val):
         self.val = val
 
     def to_string(self):
         """Build a python string from the data whether stored inline or separately."""
-
         value_field = _value_of_pair_first(self.val["__r_"])
         short_field = value_field["__s"]
         short_size = short_field["__size_"]
-        if short_size == 0:
-            return ""
-        short_mask = self.val["__short_mask"]
-        # Counter intuitive to compare the size and short_mask to see if the string
-        # is long, but that's the way the implementation does it. Note that
-        # __is_long() doesn't use get_short_size in C++.
-        is_long = short_size & short_mask
-        if is_long:
+        if short_field["__is_long_"]:
             long_field = value_field["__l"]
             data = long_field["__data_"]
             size = long_field["__size_"]
         else:
             data = short_field["__data_"]
-            size = self._get_short_size(short_field, short_size)
-        if hasattr(data, "lazy_string"):
-            return data.lazy_string(length=size)
-        return data.string(length=size)
+            size = short_field["__size_"]
+        return data.lazy_string(length=size)
 
     def display_hint(self):
         return "string"
@@ -251,24 +249,16 @@ class StdStringViewPrinter(object):
     def __init__(self, val):
       self.val = val
 
+    def display_hint(self):
+      return "string"
+
     def to_string(self):  # pylint: disable=g-bad-name
       """GDB calls this to compute the pretty-printed form."""
 
-      ptr = self.val["__data"]
-      length = self.val["__size"]
-      print_length = length
-      # We print more than just a simple string (i.e. we also print
-      # "of length %d").  Thus we can't use the "string" display_hint,
-      # and thus we have to handle "print elements" ourselves.
-      # For reference sake, gdb ensures limit == None or limit > 0.
-      limit = gdb.parameter("print elements")
-      if limit is not None:
-        print_length = min(print_length, limit)
-      # FIXME: Passing ISO-8859-1 here isn't always correct.
-      string = ptr.string("ISO-8859-1", "ignore", print_length)
-      if length > print_length:
-        string += "..."
-      return "std::string_view of length %d: \"%s\"" % (length, string)
+      ptr = _data_field(self.val)
+      ptr = ptr.cast(ptr.type.target().strip_typedefs().pointer())
+      size = _size_field(self.val)
+      return ptr.lazy_string(length=size)
 
 
 class StdUniquePtrPrinter(object):
@@ -311,12 +301,21 @@ class StdSharedPointerPrinter(object):
             return "%s is nullptr" % typename
         refcount = self.val["__cntrl_"]
         if refcount != 0:
-            usecount = refcount["__shared_owners_"] + 1
-            weakcount = refcount["__shared_weak_owners_"]
-            if usecount == 0:
-                state = "expired, weak %d" % weakcount
-            else:
-                state = "count %d, weak %d" % (usecount, weakcount)
+            try:
+                usecount = refcount["__shared_owners_"] + 1
+                weakcount = refcount["__shared_weak_owners_"]
+                if usecount == 0:
+                    state = "expired, weak %d" % weakcount
+                else:
+                    state = "count %d, weak %d" % (usecount, weakcount)
+            except:
+                # Debug info for a class with virtual functions is emitted
+                # in the same place as its key function. That means that
+                # for std::shared_ptr, __shared_owners_ is emitted into
+                # into libcxx.[so|a] itself, rather than into the shared_ptr
+                # instantiation point. So if libcxx.so was built without
+                # debug info, these fields will be missing.
+                state = "count ?, weak ? (libc++ missing debug info)"
         return "%s<%s> %s containing" % (typename, pointee_type, state)
 
     def __iter__(self):
@@ -360,9 +359,7 @@ class StdVectorPrinter(object):
                 self.offset = 0
             return ("[%d]" % self.count, outbit)
 
-        # TODO Delete when we drop Python 2.
-        def next(self):
-            return self.__next__()
+        next = __next__  # Needed for GDB built against Python 2.7.
 
     class _VectorIterator(object):
         """Class to iterate over the non-bool vector's children."""
@@ -383,9 +380,7 @@ class StdVectorPrinter(object):
             self.item += 1
             return ("[%d]" % self.count, entry)
 
-        # TODO Delete when we drop Python 2.
-        def next(self):
-            return self.__next__()
+        next = __next__  # Needed for GDB built against Python 2.7.
 
     def __init__(self, val):
         """Set val, length, capacity, and iterator for bool and normal vectors."""
@@ -425,6 +420,7 @@ class StdBitsetPrinter(object):
         self.val = val
         self.n_words = int(self.val["__n_words"])
         self.bits_per_word = int(self.val["__bits_per_word"])
+        self.bit_count = self.val.type.template_argument(0)
         if self.n_words == 1:
             self.values = [int(self.val["__first_"])]
         else:
@@ -435,21 +431,12 @@ class StdBitsetPrinter(object):
         typename = _prettify_typename(self.val.type)
         return "%s" % typename
 
-    def _byte_it(self, value):
-        index = -1
-        while value:
-            index += 1
-            will_yield = value % 2
-            value /= 2
-            if will_yield:
-                yield index
-
     def _list_it(self):
-        for word_index in range(self.n_words):
-            current = self.values[word_index]
-            if current:
-                for n in self._byte_it(current):
-                    yield ("[%d]" % (word_index * self.bits_per_word + n), 1)
+        for bit in range(self.bit_count):
+            word = bit // self.bits_per_word
+            word_bit = bit % self.bits_per_word
+            if self.values[word] & (1 << word_bit):
+                yield ("[%d]" % bit, 1)
 
     def __iter__(self):
         return self._list_it()
@@ -707,8 +694,7 @@ class StdMapPrinter(AbstractRBTreePrinter):
         return "map"
 
     def _get_key_value(self, node):
-        key_value = node.cast(self.util.cast_type).dereference()[
-            "__value_"]["__cc"]
+        key_value = _cc_field(node.cast(self.util.cast_type).dereference())
         return [key_value["first"], key_value["second"]]
 
 
@@ -774,7 +760,7 @@ class MapIteratorPrinter(AbstractRBTreeIteratorPrinter):
                          _remove_generics(_prettify_typename(val.type)))
 
     def _get_node_value(self, node):
-        return node["__value_"]["__cc"]
+        return _cc_field(node)
 
 
 class SetIteratorPrinter(AbstractRBTreeIteratorPrinter):
@@ -797,10 +783,18 @@ class StdFposPrinter(object):
         typename = _remove_generics(_prettify_typename(self.val.type))
         offset = self.val["__off_"]
         state = self.val["__st_"]
-        count = state["__count"]
-        value = state["__value"]["__wch"]
-        return "%s with stream offset:%s with state: {count:%s value:%s}" % (
-            typename, offset, count, value)
+
+        state_fields = []
+        if state.type.code == gdb.TYPE_CODE_STRUCT:
+            state_fields = [f.name for f in state.type.fields()]
+
+        state_string = ""
+        if "__count" in state_fields and "__value" in state_fields:
+            count = state["__count"]
+            value = state["__value"]["__wch"]
+            state_string = " with state: {count:%s value:%s}" % (count, value)
+
+        return "%s with stream offset:%s%s" % (typename, offset, state_string)
 
 
 class AbstractUnorderedCollectionPrinter(object):
@@ -853,7 +847,7 @@ class StdUnorderedMapPrinter(AbstractUnorderedCollectionPrinter):
     """Print a std::unordered_(multi)map."""
 
     def _get_key_value(self, node):
-        key_value = node["__value_"]["__cc"]
+        key_value = _cc_field(node)
         return [key_value["first"], key_value["second"]]
 
     def display_hint(self):
@@ -909,7 +903,7 @@ class StdUnorderedMapIteratorPrinter(AbstractHashMapIteratorPrinter):
         self._initialize(val, val["__i_"]["__node_"])
 
     def _get_key_value(self):
-        key_value = self.node["__value_"]["__cc"]
+        key_value = _cc_field(self.node)
         return [key_value["first"], key_value["second"]]
 
     def display_hint(self):

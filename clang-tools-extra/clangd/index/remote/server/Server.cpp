@@ -6,8 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Feature.h"
 #include "Index.pb.h"
+#include "MonitoringService.grpc.pb.h"
+#include "MonitoringService.pb.h"
 #include "Service.grpc.pb.h"
+#include "Service.pb.h"
 #include "index/Index.h"
 #include "index/Serialization.h"
 #include "index/Symbol.h"
@@ -18,7 +22,6 @@
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/CommandLine.h"
@@ -33,7 +36,18 @@
 #include <grpc++/grpc++.h>
 #include <grpc++/health_check_service_interface.h>
 #include <memory>
+#include <optional>
+#include <string>
 #include <thread>
+#include <utility>
+
+#if ENABLE_GRPC_REFLECTION
+#include <grpc++/ext/proto_server_reflection_plugin.h>
+#endif
+
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 
 namespace clang {
 namespace clangd {
@@ -66,6 +80,12 @@ llvm::cl::opt<bool> LogPublic{
     llvm::cl::init(false),
 };
 
+llvm::cl::opt<std::string> LogPrefix{
+    "log-prefix",
+    llvm::cl::desc("A string that'll be prepended to all log statements. "
+                   "Useful when running multiple instances on same host."),
+};
+
 llvm::cl::opt<std::string> TraceFile(
     "trace-file",
     llvm::cl::desc("Path to the file where tracer logs will be stored"));
@@ -79,6 +99,17 @@ llvm::cl::opt<bool> PrettyPrint{
 llvm::cl::opt<std::string> ServerAddress(
     "server-address", llvm::cl::init("0.0.0.0:50051"),
     llvm::cl::desc("Address of the invoked server. Defaults to 0.0.0.0:50051"));
+
+llvm::cl::opt<size_t> IdleTimeoutSeconds(
+    "idle-timeout", llvm::cl::init(8 * 60),
+    llvm::cl::desc("Maximum time a channel may stay idle until server closes "
+                   "the connection, in seconds. Defaults to 480."));
+
+llvm::cl::opt<size_t> LimitResults(
+    "limit-results", llvm::cl::init(10000),
+    llvm::cl::desc("Maximum number of results to stream as a response to "
+                   "single request. Limit is to keep the server from being "
+                   "DOS'd. Defaults to 10000."));
 
 static Key<grpc::ServerContext *> CurrentRequest;
 
@@ -110,7 +141,12 @@ private:
     }
     unsigned Sent = 0;
     unsigned FailedToSend = 0;
+    bool HasMore = false;
     Index.lookup(*Req, [&](const clangd::Symbol &Item) {
+      if (Sent >= LimitResults) {
+        HasMore = true;
+        return;
+      }
       auto SerializedItem = ProtobufMarshaller->toProtobuf(Item);
       if (!SerializedItem) {
         elog("Unable to convert Symbol to protobuf: {0}",
@@ -124,8 +160,10 @@ private:
       Reply->Write(NextMessage);
       ++Sent;
     });
+    if (HasMore)
+      log("[public] Limiting result size for Lookup request.");
     LookupReply LastMessage;
-    LastMessage.mutable_final_result()->set_has_more(true);
+    LastMessage.mutable_final_result()->set_has_more(HasMore);
     logResponse(LastMessage);
     Reply->Write(LastMessage);
     SPAN_ATTACH(Tracer, "Sent", Sent);
@@ -146,6 +184,11 @@ private:
       elog("Can not parse FuzzyFindRequest from protobuf: {0}",
            Req.takeError());
       return grpc::Status::CANCELLED;
+    }
+    if (!Req->Limit || *Req->Limit > LimitResults) {
+      log("[public] Limiting result size for FuzzyFind request from {0} to {1}",
+          Req->Limit, LimitResults);
+      Req->Limit = LimitResults;
     }
     unsigned Sent = 0;
     unsigned FailedToSend = 0;
@@ -183,6 +226,11 @@ private:
     if (!Req) {
       elog("Can not parse RefsRequest from protobuf: {0}", Req.takeError());
       return grpc::Status::CANCELLED;
+    }
+    if (!Req->Limit || *Req->Limit > LimitResults) {
+      log("[public] Limiting result size for Refs request from {0} to {1}.",
+          Req->Limit, LimitResults);
+      Req->Limit = LimitResults;
     }
     unsigned Sent = 0;
     unsigned FailedToSend = 0;
@@ -222,6 +270,12 @@ private:
       elog("Can not parse RelationsRequest from protobuf: {0}",
            Req.takeError());
       return grpc::Status::CANCELLED;
+    }
+    if (!Req->Limit || *Req->Limit > LimitResults) {
+      log("[public] Limiting result size for Relations request from {0} to "
+          "{1}.",
+          Req->Limit, LimitResults);
+      Req->Limit = LimitResults;
     }
     unsigned Sent = 0;
     unsigned FailedToSend = 0;
@@ -278,11 +332,59 @@ private:
   clangd::SymbolIndex &Index;
 };
 
+class Monitor final : public v1::Monitor::Service {
+public:
+  Monitor(llvm::sys::TimePoint<> IndexAge)
+      : StartTime(std::chrono::system_clock::now()), IndexBuildTime(IndexAge) {}
+
+  void updateIndex(llvm::sys::TimePoint<> UpdateTime) {
+    IndexBuildTime.exchange(UpdateTime);
+  }
+
+private:
+  // FIXME(kirillbobyrev): Most fields should be populated when the index
+  // reloads (probably in adjacent metadata.txt file next to loaded .idx) but
+  // they aren't right now.
+  grpc::Status MonitoringInfo(grpc::ServerContext *Context,
+                              const v1::MonitoringInfoRequest *Request,
+                              v1::MonitoringInfoReply *Reply) override {
+    Reply->set_uptime_seconds(std::chrono::duration_cast<std::chrono::seconds>(
+                                  std::chrono::system_clock::now() - StartTime)
+                                  .count());
+    // FIXME(kirillbobyrev): We are currently making use of the last
+    // modification time of the index artifact to deduce its age. This is wrong
+    // as it doesn't account for the indexing delay. Propagate some metadata
+    // with the index artifacts to indicate time of the commit we indexed.
+    Reply->set_index_age_seconds(
+        std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now() - IndexBuildTime.load())
+            .count());
+    return grpc::Status::OK;
+  }
+
+  const llvm::sys::TimePoint<> StartTime;
+  std::atomic<llvm::sys::TimePoint<>> IndexBuildTime;
+};
+
+void maybeTrimMemory() {
+#if defined(__GLIBC__) && CLANGD_MALLOC_TRIM
+  malloc_trim(0);
+#endif
+}
+
 // Detect changes in \p IndexPath file and load new versions of the index
 // whenever they become available.
 void hotReload(clangd::SwapIndex &Index, llvm::StringRef IndexPath,
                llvm::vfs::Status &LastStatus,
-               llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> &FS) {
+               llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> &FS,
+               Monitor &Monitor) {
+  // glibc malloc doesn't shrink an arena if there are items living at the end,
+  // which might happen since we destroy the old index after building new one.
+  // Trim more aggresively to keep memory usage of the server low.
+  // Note that we do it deliberately here rather than after Index.reset(),
+  // because old index might still be kept alive after the reset call if we are
+  // serving requests.
+  maybeTrimMemory();
   auto Status = FS->status(IndexPath);
   // Requested file is same as loaded index: no reload is needed.
   if (!Status || (Status->getLastModificationTime() ==
@@ -293,25 +395,33 @@ void hotReload(clangd::SwapIndex &Index, llvm::StringRef IndexPath,
        "{0}, new index was modified at {1}. Attempting to reload.",
        LastStatus.getLastModificationTime(), Status->getLastModificationTime());
   LastStatus = *Status;
-  std::unique_ptr<clang::clangd::SymbolIndex> NewIndex = loadIndex(IndexPath);
+  std::unique_ptr<clang::clangd::SymbolIndex> NewIndex =
+      loadIndex(IndexPath, SymbolOrigin::Static);
   if (!NewIndex) {
     elog("Failed to load new index. Old index will be served.");
     return;
   }
   Index.reset(std::move(NewIndex));
+  Monitor.updateIndex(Status->getLastModificationTime());
   log("New index version loaded. Last modification time: {0}, size: {1} bytes.",
       Status->getLastModificationTime(), Status->getSize());
 }
 
 void runServerAndWait(clangd::SymbolIndex &Index, llvm::StringRef ServerAddress,
-                      llvm::StringRef IndexPath) {
+                      llvm::StringRef IndexPath, Monitor &Monitor) {
   RemoteIndexServer Service(Index, IndexRoot);
 
   grpc::EnableDefaultHealthCheckService(true);
+#if ENABLE_GRPC_REFLECTION
+  grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+#endif
   grpc::ServerBuilder Builder;
   Builder.AddListeningPort(ServerAddress.str(),
                            grpc::InsecureServerCredentials());
+  Builder.AddChannelArgument(GRPC_ARG_MAX_CONNECTION_IDLE_MS,
+                             IdleTimeoutSeconds * 1000);
   Builder.RegisterService(&Service);
+  Builder.RegisterService(&Monitor);
   std::unique_ptr<grpc::Server> Server(Builder.BuildAndStart());
   log("Server listening on {0}", ServerAddress);
 
@@ -326,27 +436,48 @@ void runServerAndWait(clangd::SymbolIndex &Index, llvm::StringRef ServerAddress,
   ServerShutdownWatcher.join();
 }
 
-std::unique_ptr<Logger> makeLogger(llvm::raw_ostream &OS) {
-  if (!LogPublic)
-    return std::make_unique<StreamLogger>(OS, LogLevel);
-  // Redacted mode:
-  //  - messages outside the scope of a request: log fully
-  //  - messages tagged [public]: log fully
-  //  - errors: log the format string
-  //  - others: drop
-  class RedactedLogger : public StreamLogger {
+std::unique_ptr<Logger> makeLogger(llvm::StringRef LogPrefix,
+                                   llvm::raw_ostream &OS) {
+  std::unique_ptr<Logger> Base;
+  if (LogPublic) {
+    // Redacted mode:
+    //  - messages outside the scope of a request: log fully
+    //  - messages tagged [public]: log fully
+    //  - errors: log the format string
+    //  - others: drop
+    class RedactedLogger : public StreamLogger {
+    public:
+      using StreamLogger::StreamLogger;
+      void log(Level L, const char *Fmt,
+               const llvm::formatv_object_base &Message) override {
+        if (Context::current().get(CurrentRequest) == nullptr ||
+            llvm::StringRef(Fmt).startswith("[public]"))
+          return StreamLogger::log(L, Fmt, Message);
+        if (L >= Error)
+          return StreamLogger::log(L, Fmt,
+                                   llvm::formatv("[redacted] {0}", Fmt));
+      }
+    };
+    Base = std::make_unique<RedactedLogger>(OS, LogLevel);
+  } else {
+    Base = std::make_unique<StreamLogger>(OS, LogLevel);
+  }
+
+  if (LogPrefix.empty())
+    return Base;
+  class PrefixedLogger : public Logger {
+    std::string LogPrefix;
+    std::unique_ptr<Logger> Base;
+
   public:
-    using StreamLogger::StreamLogger;
+    PrefixedLogger(llvm::StringRef LogPrefix, std::unique_ptr<Logger> Base)
+        : LogPrefix(LogPrefix.str()), Base(std::move(Base)) {}
     void log(Level L, const char *Fmt,
              const llvm::formatv_object_base &Message) override {
-      if (Context::current().get(CurrentRequest) == nullptr ||
-          llvm::StringRef(Fmt).startswith("[public]"))
-        return StreamLogger::log(L, Fmt, Message);
-      if (L >= Error)
-        return StreamLogger::log(L, Fmt, llvm::formatv("[redacted] {0}", Fmt));
+      Base->log(L, Fmt, llvm::formatv("[{0}] {1}", LogPrefix, Message));
     }
   };
-  return std::make_unique<RedactedLogger>(OS, LogLevel);
+  return std::make_unique<PrefixedLogger>(LogPrefix, std::move(Base));
 }
 
 } // namespace
@@ -370,10 +501,10 @@ int main(int argc, char *argv[]) {
   llvm::errs().SetBuffered();
   // Don't flush stdout when logging for thread safety.
   llvm::errs().tie(nullptr);
-  auto Logger = makeLogger(llvm::errs());
+  auto Logger = makeLogger(LogPrefix.getValue(), llvm::errs());
   clang::clangd::LoggingSession LoggingSession(*Logger);
 
-  llvm::Optional<llvm::raw_fd_ostream> TracerStream;
+  std::optional<llvm::raw_fd_ostream> TracerStream;
   std::unique_ptr<clang::clangd::trace::EventTracer> Tracer;
   if (!TraceFile.empty()) {
     std::error_code EC;
@@ -391,35 +522,38 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  llvm::Optional<clang::clangd::trace::Session> TracingSession;
+  std::optional<clang::clangd::trace::Session> TracingSession;
   if (Tracer)
     TracingSession.emplace(*Tracer);
 
   clang::clangd::RealThreadsafeFS TFS;
-  auto FS = TFS.view(llvm::None);
+  auto FS = TFS.view(std::nullopt);
   auto Status = FS->status(IndexPath);
   if (!Status) {
     elog("{0} does not exist.", IndexPath);
     return Status.getError().value();
   }
 
-  auto SymIndex = clang::clangd::loadIndex(IndexPath);
+  auto SymIndex =
+      clang::clangd::loadIndex(IndexPath, clang::clangd::SymbolOrigin::Static);
   if (!SymIndex) {
     llvm::errs() << "Failed to open the index.\n";
     return -1;
   }
   clang::clangd::SwapIndex Index(std::move(SymIndex));
 
-  std::thread HotReloadThread([&Index, &Status, &FS]() {
+  Monitor Monitor(Status->getLastModificationTime());
+
+  std::thread HotReloadThread([&Index, &Status, &FS, &Monitor]() {
     llvm::vfs::Status LastStatus = *Status;
     static constexpr auto RefreshFrequency = std::chrono::seconds(30);
     while (!clang::clangd::shutdownRequested()) {
-      hotReload(Index, llvm::StringRef(IndexPath), LastStatus, FS);
+      hotReload(Index, llvm::StringRef(IndexPath), LastStatus, FS, Monitor);
       std::this_thread::sleep_for(RefreshFrequency);
     }
   });
 
-  runServerAndWait(Index, ServerAddress, IndexPath);
+  runServerAndWait(Index, ServerAddress, IndexPath, Monitor);
 
   HotReloadThread.join();
 }

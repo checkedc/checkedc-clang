@@ -12,9 +12,7 @@
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 namespace {
 /// Information about an opening preprocessor directive.
@@ -24,39 +22,40 @@ struct PreprocessorEntry {
   std::string Condition;
 };
 
+const char WarningDescription[] =
+    "nested redundant %select{#if|#ifdef|#ifndef}0; consider removing it";
+const char NoteDescription[] = "previous %select{#if|#ifdef|#ifndef}0 was here";
+
 class RedundantPreprocessorCallbacks : public PPCallbacks {
   enum DirectiveKind { DK_If = 0, DK_Ifdef = 1, DK_Ifndef = 2 };
 
 public:
   explicit RedundantPreprocessorCallbacks(ClangTidyCheck &Check,
                                           Preprocessor &PP)
-      : Check(Check), PP(PP),
-        WarningDescription("nested redundant %select{#if|#ifdef|#ifndef}0; "
-                           "consider removing it"),
-        NoteDescription("previous %select{#if|#ifdef|#ifndef}0 was here") {}
+      : Check(Check), PP(PP) {}
 
   void If(SourceLocation Loc, SourceRange ConditionRange,
           ConditionValueKind ConditionValue) override {
     StringRef Condition =
         Lexer::getSourceText(CharSourceRange::getTokenRange(ConditionRange),
                              PP.getSourceManager(), PP.getLangOpts());
-    CheckMacroRedundancy(Loc, Condition, IfStack, DK_If, DK_If, true);
+    checkMacroRedundancy(Loc, Condition, IfStack, DK_If, DK_If, true);
   }
 
   void Ifdef(SourceLocation Loc, const Token &MacroNameTok,
              const MacroDefinition &MacroDefinition) override {
     std::string MacroName = PP.getSpelling(MacroNameTok);
-    CheckMacroRedundancy(Loc, MacroName, IfdefStack, DK_Ifdef, DK_Ifdef, true);
-    CheckMacroRedundancy(Loc, MacroName, IfndefStack, DK_Ifdef, DK_Ifndef,
+    checkMacroRedundancy(Loc, MacroName, IfdefStack, DK_Ifdef, DK_Ifdef, true);
+    checkMacroRedundancy(Loc, MacroName, IfndefStack, DK_Ifdef, DK_Ifndef,
                          false);
   }
 
   void Ifndef(SourceLocation Loc, const Token &MacroNameTok,
               const MacroDefinition &MacroDefinition) override {
     std::string MacroName = PP.getSpelling(MacroNameTok);
-    CheckMacroRedundancy(Loc, MacroName, IfndefStack, DK_Ifndef, DK_Ifndef,
+    checkMacroRedundancy(Loc, MacroName, IfndefStack, DK_Ifndef, DK_Ifndef,
                          true);
-    CheckMacroRedundancy(Loc, MacroName, IfdefStack, DK_Ifndef, DK_Ifdef,
+    checkMacroRedundancy(Loc, MacroName, IfdefStack, DK_Ifndef, DK_Ifdef,
                          false);
   }
 
@@ -70,7 +69,7 @@ public:
   }
 
 private:
-  void CheckMacroRedundancy(SourceLocation Loc, StringRef MacroName,
+  void checkMacroRedundancy(SourceLocation Loc, StringRef MacroName,
                             SmallVector<PreprocessorEntry, 4> &Stack,
                             DirectiveKind WarningKind, DirectiveKind NoteKind,
                             bool Store) {
@@ -94,8 +93,6 @@ private:
   SmallVector<PreprocessorEntry, 4> IfStack;
   SmallVector<PreprocessorEntry, 4> IfdefStack;
   SmallVector<PreprocessorEntry, 4> IfndefStack;
-  const std::string WarningDescription;
-  const std::string NoteDescription;
 };
 } // namespace
 
@@ -105,6 +102,4 @@ void RedundantPreprocessorCheck::registerPPCallbacks(
       ::std::make_unique<RedundantPreprocessorCallbacks>(*this, *PP));
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

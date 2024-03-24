@@ -13,8 +13,11 @@
 #include "flang/Common/Fortran.h"
 #include "flang/Common/enum-set.h"
 #include "flang/Common/reference.h"
+#include "flang/Common/visit.h"
 #include "llvm/ADT/DenseMapInfo.h"
+
 #include <array>
+#include <functional>
 #include <list>
 #include <optional>
 #include <set>
@@ -22,6 +25,9 @@
 
 namespace llvm {
 class raw_ostream;
+}
+namespace Fortran::parser {
+struct Expr;
 }
 
 namespace Fortran::semantics {
@@ -59,16 +65,30 @@ public:
 private:
 };
 
-class SubprogramDetails {
+class WithBindName {
+public:
+  const std::string *bindName() const {
+    return bindName_ ? &*bindName_ : nullptr;
+  }
+  void set_bindName(std::string &&name) { bindName_ = std::move(name); }
+
+private:
+  std::optional<std::string> bindName_;
+};
+
+// A subroutine or function definition, or a subprogram interface defined
+// in an INTERFACE block as part of the definition of a dummy procedure
+// or a procedure pointer (with just POINTER).
+class SubprogramDetails : public WithBindName {
 public:
   bool isFunction() const { return result_ != nullptr; }
   bool isInterface() const { return isInterface_; }
   void set_isInterface(bool value = true) { isInterface_ = value; }
+  bool isDummy() const { return isDummy_; }
+  void set_isDummy(bool value = true) { isDummy_ = value; }
   Scope *entryScope() { return entryScope_; }
   const Scope *entryScope() const { return entryScope_; }
   void set_entryScope(Scope &scope) { entryScope_ = &scope; }
-  MaybeExpr bindName() const { return bindName_; }
-  void set_bindName(MaybeExpr &&expr) { bindName_ = std::move(expr); }
   const Symbol &result() const {
     CHECK(isFunction());
     return *result_;
@@ -82,20 +102,32 @@ public:
   void add_alternateReturn() { dummyArgs_.push_back(nullptr); }
   const MaybeExpr &stmtFunction() const { return stmtFunction_; }
   void set_stmtFunction(SomeExpr &&expr) { stmtFunction_ = std::move(expr); }
+  Symbol *moduleInterface() { return moduleInterface_; }
+  const Symbol *moduleInterface() const { return moduleInterface_; }
+  void set_moduleInterface(Symbol &);
+  void ReplaceResult(Symbol &result) {
+    CHECK(result_ != nullptr);
+    result_ = &result;
+  }
 
 private:
   bool isInterface_{false}; // true if this represents an interface-body
-  MaybeExpr bindName_;
+  bool isDummy_{false}; // true when interface of dummy procedure
   std::vector<Symbol *> dummyArgs_; // nullptr -> alternate return indicator
   Symbol *result_{nullptr};
   Scope *entryScope_{nullptr}; // if ENTRY, points to subprogram's scope
   MaybeExpr stmtFunction_;
+  // For MODULE FUNCTION or SUBROUTINE, this is the symbol of its declared
+  // interface.  For MODULE PROCEDURE, this is the declared interface if it
+  // appeared in an ancestor (sub)module.
+  Symbol *moduleInterface_{nullptr};
+
   friend llvm::raw_ostream &operator<<(
       llvm::raw_ostream &, const SubprogramDetails &);
 };
 
 // For SubprogramNameDetails, the kind indicates whether it is the name
-// of a module subprogram or internal subprogram.
+// of a module subprogram or an internal subprogram or ENTRY.
 ENUM_CLASS(SubprogramKind, Module, Internal)
 
 // Symbol with SubprogramNameDetails is created when we scan for module and
@@ -116,7 +148,7 @@ private:
 };
 
 // A name from an entity-decl -- could be object or function.
-class EntityDetails {
+class EntityDetails : public WithBindName {
 public:
   explicit EntityDetails(bool isDummy = false) : isDummy_{isDummy} {}
   const DeclTypeSpec *type() const { return type_; }
@@ -126,14 +158,11 @@ public:
   void set_isDummy(bool value = true) { isDummy_ = value; }
   bool isFuncResult() const { return isFuncResult_; }
   void set_funcResult(bool x) { isFuncResult_ = x; }
-  MaybeExpr bindName() const { return bindName_; }
-  void set_bindName(MaybeExpr &&expr) { bindName_ = std::move(expr); }
 
 private:
   bool isDummy_{false};
   bool isFuncResult_{false};
   const DeclTypeSpec *type_{nullptr};
-  MaybeExpr bindName_;
   friend llvm::raw_ostream &operator<<(
       llvm::raw_ostream &, const EntityDetails &);
 };
@@ -162,11 +191,18 @@ class ObjectEntityDetails : public EntityDetails {
 public:
   explicit ObjectEntityDetails(EntityDetails &&);
   ObjectEntityDetails(const ObjectEntityDetails &) = default;
+  ObjectEntityDetails(ObjectEntityDetails &&) = default;
   ObjectEntityDetails &operator=(const ObjectEntityDetails &) = default;
   ObjectEntityDetails(bool isDummy = false) : EntityDetails(isDummy) {}
   MaybeExpr &init() { return init_; }
   const MaybeExpr &init() const { return init_; }
   void set_init(MaybeExpr &&expr) { init_ = std::move(expr); }
+  const parser::Expr *unanalyzedPDTComponentInit() const {
+    return unanalyzedPDTComponentInit_;
+  }
+  void set_unanalyzedPDTComponentInit(const parser::Expr *expr) {
+    unanalyzedPDTComponentInit_ = expr;
+  }
   ArraySpec &shape() { return shape_; }
   const ArraySpec &shape() const { return shape_; }
   ArraySpec &coshape() { return coshape_; }
@@ -179,15 +215,16 @@ public:
   }
   bool IsArray() const { return !shape_.empty(); }
   bool IsCoarray() const { return !coshape_.empty(); }
-  bool IsAssumedShape() const { return isDummy() && shape_.IsAssumedShape(); }
-  bool IsDeferredShape() const {
-    return !isDummy() && shape_.IsDeferredShape();
+  bool CanBeAssumedShape() const {
+    return isDummy() && shape_.CanBeAssumedShape();
   }
-  bool IsAssumedSize() const { return isDummy() && shape_.IsAssumedSize(); }
+  bool CanBeDeferredShape() const { return shape_.CanBeDeferredShape(); }
+  bool IsAssumedSize() const { return isDummy() && shape_.CanBeAssumedSize(); }
   bool IsAssumedRank() const { return isDummy() && shape_.IsAssumedRank(); }
 
 private:
   MaybeExpr init_;
+  const parser::Expr *unanalyzedPDTComponentInit_{nullptr};
   ArraySpec shape_;
   ArraySpec coshape_;
   const Symbol *commonBlock_{nullptr}; // common block this object is in
@@ -209,18 +246,20 @@ private:
   std::optional<SourceName> passName_;
 };
 
-// A procedure pointer, dummy procedure, or external procedure
+// A procedure pointer (other than one defined with POINTER and an
+// INTERFACE block), a dummy procedure (without an INTERFACE but with
+// EXTERNAL or use in a procedure reference), or external procedure.
 class ProcEntityDetails : public EntityDetails, public WithPassArg {
 public:
   ProcEntityDetails() = default;
-  explicit ProcEntityDetails(EntityDetails &&d);
+  explicit ProcEntityDetails(EntityDetails &&);
+  ProcEntityDetails(const ProcEntityDetails &) = default;
+  ProcEntityDetails(ProcEntityDetails &&) = default;
+  ProcEntityDetails &operator=(const ProcEntityDetails &) = default;
 
-  const ProcInterface &interface() const { return interface_; }
-  ProcInterface &interface() { return interface_; }
-  void set_interface(const ProcInterface &interface) { interface_ = interface; }
-  bool IsInterfaceSet() {
-    return interface_.symbol() != nullptr || interface_.type() != nullptr;
-  }
+  const Symbol *procInterface() const { return procInterface_; }
+  void set_procInterface(const Symbol &sym) { procInterface_ = &sym; }
+  bool IsInterfaceSet() { return procInterface_ || type(); }
   inline bool HasExplicitInterface() const;
 
   // Be advised: !init().has_value() => uninitialized pointer,
@@ -230,7 +269,7 @@ public:
   void set_init(std::nullptr_t) { init_ = nullptr; }
 
 private:
-  ProcInterface interface_;
+  const Symbol *procInterface_{nullptr};
   std::optional<const Symbol *> init_;
   friend llvm::raw_ostream &operator<<(
       llvm::raw_ostream &, const ProcEntityDetails &);
@@ -246,6 +285,7 @@ public:
   const std::list<SourceName> &paramNames() const { return paramNames_; }
   const SymbolVector &paramDecls() const { return paramDecls_; }
   bool sequence() const { return sequence_; }
+  bool isDECStructure() const { return isDECStructure_; }
   std::map<SourceName, SymbolRef> &finals() { return finals_; }
   const std::map<SourceName, SymbolRef> &finals() const { return finals_; }
   bool isForwardReferenced() const { return isForwardReferenced_; }
@@ -253,7 +293,8 @@ public:
   void add_paramDecl(const Symbol &symbol) { paramDecls_.push_back(symbol); }
   void add_component(const Symbol &);
   void set_sequence(bool x = true) { sequence_ = x; }
-  void set_isForwardReferenced() { isForwardReferenced_ = true; }
+  void set_isDECStructure(bool x = true) { isDECStructure_ = x; }
+  void set_isForwardReferenced(bool value) { isForwardReferenced_ = value; }
   const std::list<SourceName> &componentNames() const {
     return componentNames_;
   }
@@ -283,6 +324,7 @@ private:
   std::list<SourceName> componentNames_;
   std::map<SourceName, SymbolRef> finals_; // FINAL :: subr
   bool sequence_{false};
+  bool isDECStructure_{false};
   bool isForwardReferenced_{false};
   friend llvm::raw_ostream &operator<<(
       llvm::raw_ostream &, const DerivedTypeDetails &);
@@ -309,19 +351,20 @@ private:
   SymbolVector objects_;
 };
 
-class CommonBlockDetails {
+class CommonBlockDetails : public WithBindName {
 public:
   MutableSymbolVector &objects() { return objects_; }
   const MutableSymbolVector &objects() const { return objects_; }
   void add_object(Symbol &object) { objects_.emplace_back(object); }
-  MaybeExpr bindName() const { return bindName_; }
-  void set_bindName(MaybeExpr &&expr) { bindName_ = std::move(expr); }
+  void replace_object(Symbol &object, unsigned index) {
+    CHECK(index < (unsigned)objects_.size());
+    objects_[index] = object;
+  }
   std::size_t alignment() const { return alignment_; }
   void set_alignment(std::size_t alignment) { alignment_ = alignment; }
 
 private:
   MutableSymbolVector objects_;
-  MaybeExpr bindName_;
   std::size_t alignment_{0}; // required alignment in bytes
 };
 
@@ -408,6 +451,7 @@ struct GenericKind {
   bool IsIntrinsicOperator() const;
   bool IsOperator() const;
   std::string ToString() const;
+  static SourceName AsFortran(DefinedIo);
   std::variant<OtherKind, common::NumericOperator, common::LogicalOperator,
       common::RelationalOperator, DefinedIo>
       u;
@@ -437,9 +481,11 @@ public:
   Symbol *specific() { return specific_; }
   const Symbol *specific() const { return specific_; }
   void set_specific(Symbol &specific);
+  void clear_specific();
   Symbol *derivedType() { return derivedType_; }
   const Symbol *derivedType() const { return derivedType_; }
   void set_derivedType(Symbol &derivedType);
+  void clear_derivedType();
   void AddUse(const Symbol &);
 
   // Copy in specificProcs, specific, and derivedType from another generic
@@ -478,9 +524,9 @@ std::string DetailsToString(const Details &);
 class Symbol {
 public:
   ENUM_CLASS(Flag,
-      Function, // symbol is a function
+      Function, // symbol is a function or statement function
       Subroutine, // symbol is a subroutine
-      StmtFunction, // symbol is a statement function (Function is set too)
+      StmtFunction, // symbol is a statement function or result
       Implicit, // symbol is implicitly typed
       ImplicitOrError, // symbol must be implicitly typed or it's an error
       ModFile, // symbol came from .mod file
@@ -489,8 +535,12 @@ public:
       LocalityLocal, // named in LOCAL locality-spec
       LocalityLocalInit, // named in LOCAL_INIT locality-spec
       LocalityShared, // named in SHARED locality-spec
-      InDataStmt, // initialized in a DATA statement
-      InNamelist, // flag is set if the symbol is in Namelist statement
+      InDataStmt, // initialized in a DATA statement, =>object, or /init/
+      InNamelist, // in a Namelist group
+      CompilerCreated, // A compiler created symbol
+      // For compiler created symbols that are constant but cannot legally have
+      // the PARAMETER attribute.
+      ReadOnly,
       // OpenACC data-sharing attribute
       AccPrivate, AccFirstPrivate, AccShared,
       // OpenACC data-mapping attribute
@@ -502,17 +552,20 @@ public:
       // OpenMP data-mapping attribute
       OmpMapTo, OmpMapFrom, OmpMapAlloc, OmpMapRelease, OmpMapDelete,
       // OpenMP data-copying attribute
-      OmpCopyIn,
+      OmpCopyIn, OmpCopyPrivate,
       // OpenMP miscellaneous flags
-      OmpCommonBlock, OmpReduction, OmpAllocate, OmpDeclareSimd,
-      OmpDeclareTarget, OmpThreadprivate, OmpDeclareReduction, OmpFlushed,
-      OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined, OmpAligned);
+      OmpCommonBlock, OmpReduction, OmpAligned, OmpNontemporal, OmpAllocate,
+      OmpDeclarativeAllocateDirective, OmpExecutableAllocateDirective,
+      OmpDeclareSimd, OmpDeclareTarget, OmpThreadprivate, OmpDeclareReduction,
+      OmpFlushed, OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined);
   using Flags = common::EnumSet<Flag, Flag_enumSize>;
 
   const Scope &owner() const { return *owner_; }
   const SourceName &name() const { return name_; }
   Attrs &attrs() { return attrs_; }
   const Attrs &attrs() const { return attrs_; }
+  Attrs &implicitAttrs() { return implicitAttrs_; }
+  const Attrs &implicitAttrs() const { return implicitAttrs_; }
   Flags &flags() { return flags_; }
   const Flags &flags() const { return flags_; }
   bool test(Flag flag) const { return flags_.test(flag); }
@@ -564,72 +617,46 @@ public:
 
   inline DeclTypeSpec *GetType();
   inline const DeclTypeSpec *GetType() const;
-
   void SetType(const DeclTypeSpec &);
+
+  const std::string *GetBindName() const;
+  void SetBindName(std::string &&);
   bool IsFuncResult() const;
   bool IsObjectArray() const;
   bool IsSubprogram() const;
   bool IsFromModFile() const;
   bool HasExplicitInterface() const {
-    return std::visit(common::visitors{
-                          [](const SubprogramDetails &) { return true; },
-                          [](const SubprogramNameDetails &) { return true; },
-                          [&](const ProcEntityDetails &x) {
-                            return attrs_.test(Attr::INTRINSIC) ||
-                                x.HasExplicitInterface();
-                          },
-                          [](const ProcBindingDetails &x) {
-                            return x.symbol().HasExplicitInterface();
-                          },
-                          [](const UseDetails &x) {
-                            return x.symbol().HasExplicitInterface();
-                          },
-                          [](const HostAssocDetails &x) {
-                            return x.symbol().HasExplicitInterface();
-                          },
-                          [](const auto &) { return false; },
-                      },
+    return common::visit(
+        common::visitors{
+            [](const SubprogramDetails &) { return true; },
+            [](const SubprogramNameDetails &) { return true; },
+            [&](const ProcEntityDetails &x) {
+              return attrs_.test(Attr::INTRINSIC) || x.HasExplicitInterface();
+            },
+            [](const ProcBindingDetails &x) {
+              return x.symbol().HasExplicitInterface();
+            },
+            [](const UseDetails &x) {
+              return x.symbol().HasExplicitInterface();
+            },
+            [](const HostAssocDetails &x) {
+              return x.symbol().HasExplicitInterface();
+            },
+            [](const GenericDetails &x) {
+              return x.specific() && x.specific()->HasExplicitInterface();
+            },
+            [](const auto &) { return false; },
+        },
         details_);
   }
 
   bool operator==(const Symbol &that) const { return this == &that; }
   bool operator!=(const Symbol &that) const { return !(*this == that); }
-  bool operator<(const Symbol &that) const {
-    // For sets of symbols: collate them by source location
-    return name_.begin() < that.name_.begin();
-  }
 
-  int Rank() const {
-    return std::visit(
-        common::visitors{
-            [](const SubprogramDetails &sd) {
-              return sd.isFunction() ? sd.result().Rank() : 0;
-            },
-            [](const GenericDetails &) {
-              return 0; /*TODO*/
-            },
-            [](const ProcBindingDetails &x) { return x.symbol().Rank(); },
-            [](const UseDetails &x) { return x.symbol().Rank(); },
-            [](const HostAssocDetails &x) { return x.symbol().Rank(); },
-            [](const ObjectEntityDetails &oed) { return oed.shape().Rank(); },
-            [](const AssocEntityDetails &aed) {
-              if (const auto &expr{aed.expr()}) {
-                if (auto assocRank{aed.rank()}) {
-                  return *assocRank;
-                } else {
-                  return expr->Rank();
-                }
-              } else {
-                return 0;
-              }
-            },
-            [](const auto &) { return 0; },
-        },
-        details_);
-  }
+  int Rank() const { return RankImpl(); }
 
   int Corank() const {
-    return std::visit(
+    return common::visit(
         common::visitors{
             [](const SubprogramDetails &sd) {
               return sd.isFunction() ? sd.result().Corank() : 0;
@@ -650,10 +677,21 @@ public:
   // for a parameterized derived type instantiation with the instance's scope.
   const DerivedTypeSpec *GetParentTypeSpec(const Scope * = nullptr) const;
 
+  // If a derived type's symbol refers to an extended derived type,
+  // return the parent component's symbol.  The scope of the derived type
+  // can be overridden.
+  const Symbol *GetParentComponent(const Scope * = nullptr) const;
+
+  SemanticsContext &GetSemanticsContext() const;
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  LLVM_DUMP_METHOD void dump() const;
+#endif
+
 private:
   const Scope *owner_;
   SourceName name_;
   Attrs attrs_;
+  Attrs implicitAttrs_; // subset of attrs_ that were not explicit
   Flags flags_;
   Scope *scope_{nullptr};
   std::size_t size_{0}; // size in bytes
@@ -661,18 +699,55 @@ private:
   Details details_;
 
   Symbol() {} // only created in class Symbols
-  const std::string GetDetailsName() const;
+  std::string GetDetailsName() const;
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Symbol &);
   friend llvm::raw_ostream &DumpForUnparse(
       llvm::raw_ostream &, const Symbol &, bool);
 
-  // If a derived type's symbol refers to an extended derived type,
-  // return the parent component's symbol.  The scope of the derived type
-  // can be overridden.
-  const Symbol *GetParentComponent(const Scope * = nullptr) const;
+  static constexpr int startRecursionDepth{100};
 
+  inline const DeclTypeSpec *GetTypeImpl(int depth = startRecursionDepth) const;
+  inline int RankImpl(int depth = startRecursionDepth) const {
+    if (depth-- == 0) {
+      return 0;
+    }
+    return common::visit(
+        common::visitors{
+            [&](const SubprogramDetails &sd) {
+              return sd.isFunction() ? sd.result().RankImpl(depth) : 0;
+            },
+            [](const GenericDetails &) {
+              return 0; /*TODO*/
+            },
+            [&](const ProcBindingDetails &x) {
+              return x.symbol().RankImpl(depth);
+            },
+            [&](const UseDetails &x) { return x.symbol().RankImpl(depth); },
+            [&](const HostAssocDetails &x) {
+              return x.symbol().RankImpl(depth);
+            },
+            [](const ObjectEntityDetails &oed) { return oed.shape().Rank(); },
+            [&](const ProcEntityDetails &ped) {
+              const Symbol *iface{ped.procInterface()};
+              return iface ? iface->RankImpl(depth) : 0;
+            },
+            [](const AssocEntityDetails &aed) {
+              if (const auto &expr{aed.expr()}) {
+                if (auto assocRank{aed.rank()}) {
+                  return *assocRank;
+                } else {
+                  return expr->Rank();
+                }
+              } else {
+                return 0;
+              }
+            },
+            [](const auto &) { return 0; },
+        },
+        details_);
+  }
   template <std::size_t> friend class Symbols;
-  template <class, std::size_t> friend struct std::array;
+  template <class, std::size_t> friend class std::array;
 };
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, Symbol::Flag);
@@ -716,10 +791,7 @@ private:
 // between the two shared libraries.
 
 inline bool ProcEntityDetails::HasExplicitInterface() const {
-  if (auto *symbol{interface_.symbol()}) {
-    return symbol->HasExplicitInterface();
-  }
-  return false;
+  return procInterface_ && procInterface_->HasExplicitInterface();
 }
 
 inline Symbol &Symbol::GetUltimate() {
@@ -739,33 +811,77 @@ inline DeclTypeSpec *Symbol::GetType() {
   return const_cast<DeclTypeSpec *>(
       const_cast<const Symbol *>(this)->GetType());
 }
-inline const DeclTypeSpec *Symbol::GetType() const {
-  return std::visit(
+
+inline const DeclTypeSpec *Symbol::GetTypeImpl(int depth) const {
+  if (depth-- == 0) {
+    return nullptr;
+  }
+  return common::visit(
       common::visitors{
           [](const EntityDetails &x) { return x.type(); },
           [](const ObjectEntityDetails &x) { return x.type(); },
           [](const AssocEntityDetails &x) { return x.type(); },
-          [](const SubprogramDetails &x) {
-            return x.isFunction() ? x.result().GetType() : nullptr;
+          [&](const SubprogramDetails &x) {
+            return x.isFunction() ? x.result().GetTypeImpl(depth) : nullptr;
           },
-          [](const ProcEntityDetails &x) {
-            const Symbol *symbol{x.interface().symbol()};
-            return symbol ? symbol->GetType() : x.interface().type();
+          [&](const ProcEntityDetails &x) {
+            const Symbol *symbol{x.procInterface()};
+            return symbol ? symbol->GetTypeImpl(depth) : x.type();
           },
-          [](const ProcBindingDetails &x) { return x.symbol().GetType(); },
+          [&](const ProcBindingDetails &x) {
+            return x.symbol().GetTypeImpl(depth);
+          },
           [](const TypeParamDetails &x) { return x.type(); },
-          [](const UseDetails &x) { return x.symbol().GetType(); },
-          [](const HostAssocDetails &x) { return x.symbol().GetType(); },
+          [&](const UseDetails &x) { return x.symbol().GetTypeImpl(depth); },
+          [&](const HostAssocDetails &x) {
+            return x.symbol().GetTypeImpl(depth);
+          },
           [](const auto &) -> const DeclTypeSpec * { return nullptr; },
       },
       details_);
 }
 
-inline bool operator<(SymbolRef x, SymbolRef y) { return *x < *y; }
-inline bool operator<(MutableSymbolRef x, MutableSymbolRef y) {
-  return *x < *y;
+inline const DeclTypeSpec *Symbol::GetType() const { return GetTypeImpl(); }
+
+// Sets and maps keyed by Symbols
+
+struct SymbolAddressCompare {
+  bool operator()(const SymbolRef &x, const SymbolRef &y) const {
+    return &*x < &*y;
+  }
+  bool operator()(const MutableSymbolRef &x, const MutableSymbolRef &y) const {
+    return &*x < &*y;
+  }
+};
+
+// Symbol comparison is usually based on the order of cooked source
+// stream creation and, when both are from the same cooked source,
+// their positions in that cooked source stream.
+// Don't use this comparator or OrderedSymbolSet to hold
+// Symbols that might be subject to ReplaceName().
+struct SymbolSourcePositionCompare {
+  // These functions are implemented in Evaluate/tools.cpp to
+  // satisfy complicated shared library interdependency.
+  bool operator()(const SymbolRef &, const SymbolRef &) const;
+  bool operator()(const MutableSymbolRef &, const MutableSymbolRef &) const;
+};
+
+struct SymbolOffsetCompare {
+  bool operator()(const SymbolRef &, const SymbolRef &) const;
+  bool operator()(const MutableSymbolRef &, const MutableSymbolRef &) const;
+};
+
+using UnorderedSymbolSet = std::set<SymbolRef, SymbolAddressCompare>;
+using SourceOrderedSymbolSet = std::set<SymbolRef, SymbolSourcePositionCompare>;
+
+template <typename A>
+SourceOrderedSymbolSet OrderBySourcePosition(const A &container) {
+  SourceOrderedSymbolSet result;
+  for (SymbolRef x : container) {
+    result.emplace(x);
+  }
+  return result;
 }
-using SymbolSet = std::set<SymbolRef>;
 
 } // namespace Fortran::semantics
 

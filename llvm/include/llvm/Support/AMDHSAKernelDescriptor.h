@@ -122,14 +122,31 @@ enum : int32_t {
 };
 #undef COMPUTE_PGM_RSRC2
 
-// Compute program resource register 3. Must match hardware definition.
-#define COMPUTE_PGM_RSRC3(NAME, SHIFT, WIDTH) \
-  AMDHSA_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC3_ ## NAME, SHIFT, WIDTH)
+// Compute program resource register 3 for GFX90A+. Must match hardware
+// definition.
+#define COMPUTE_PGM_RSRC3_GFX90A(NAME, SHIFT, WIDTH) \
+  AMDHSA_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC3_GFX90A_ ## NAME, SHIFT, WIDTH)
 enum : int32_t {
-  COMPUTE_PGM_RSRC3(SHARED_VGPR_COUNT, 0, 4), // GFX10+
-  COMPUTE_PGM_RSRC3(RESERVED0, 4, 28),
+  COMPUTE_PGM_RSRC3_GFX90A(ACCUM_OFFSET, 0, 6),
+  COMPUTE_PGM_RSRC3_GFX90A(RESERVED0, 6, 10),
+  COMPUTE_PGM_RSRC3_GFX90A(TG_SPLIT, 16, 1),
+  COMPUTE_PGM_RSRC3_GFX90A(RESERVED1, 17, 15),
 };
-#undef COMPUTE_PGM_RSRC3
+#undef COMPUTE_PGM_RSRC3_GFX90A
+
+// Compute program resource register 3 for GFX10+. Must match hardware
+// definition.
+#define COMPUTE_PGM_RSRC3_GFX10_PLUS(NAME, SHIFT, WIDTH) \
+  AMDHSA_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC3_GFX10_PLUS_ ## NAME, SHIFT, WIDTH)
+enum : int32_t {
+  COMPUTE_PGM_RSRC3_GFX10_PLUS(SHARED_VGPR_COUNT, 0, 4), // GFX10+
+  COMPUTE_PGM_RSRC3_GFX10_PLUS(INST_PREF_SIZE, 4, 6),    // GFX11+
+  COMPUTE_PGM_RSRC3_GFX10_PLUS(TRAP_ON_START, 10, 1),    // GFX11+
+  COMPUTE_PGM_RSRC3_GFX10_PLUS(TRAP_ON_END, 11, 1),      // GFX11+
+  COMPUTE_PGM_RSRC3_GFX10_PLUS(RESERVED0, 12, 19),
+  COMPUTE_PGM_RSRC3_GFX10_PLUS(IMAGE_OP, 31, 1),         // GFX11+
+};
+#undef COMPUTE_PGM_RSRC3_GFX10_PLUS
 
 // Kernel code properties. Must be kept backwards compatible.
 #define KERNEL_CODE_PROPERTY(NAME, SHIFT, WIDTH) \
@@ -144,7 +161,8 @@ enum : int32_t {
   KERNEL_CODE_PROPERTY(ENABLE_SGPR_PRIVATE_SEGMENT_SIZE, 6, 1),
   KERNEL_CODE_PROPERTY(RESERVED0, 7, 3),
   KERNEL_CODE_PROPERTY(ENABLE_WAVEFRONT_SIZE32, 10, 1), // GFX10+
-  KERNEL_CODE_PROPERTY(RESERVED1, 11, 5),
+  KERNEL_CODE_PROPERTY(USES_DYNAMIC_STACK, 11, 1),
+  KERNEL_CODE_PROPERTY(RESERVED1, 12, 4),
 };
 #undef KERNEL_CODE_PROPERTY
 
@@ -152,10 +170,11 @@ enum : int32_t {
 struct kernel_descriptor_t {
   uint32_t group_segment_fixed_size;
   uint32_t private_segment_fixed_size;
-  uint8_t reserved0[8];
+  uint32_t kernarg_size;
+  uint8_t reserved0[4];
   int64_t kernel_code_entry_byte_offset;
   uint8_t reserved1[20];
-  uint32_t compute_pgm_rsrc3; // GFX10+
+  uint32_t compute_pgm_rsrc3; // GFX10+ and GFX90A+
   uint32_t compute_pgm_rsrc1;
   uint32_t compute_pgm_rsrc2;
   uint16_t kernel_code_properties;
@@ -165,7 +184,8 @@ struct kernel_descriptor_t {
 enum : uint32_t {
   GROUP_SEGMENT_FIXED_SIZE_OFFSET = 0,
   PRIVATE_SEGMENT_FIXED_SIZE_OFFSET = 4,
-  RESERVED0_OFFSET = 8,
+  KERNARG_SIZE_OFFSET = 8,
+  RESERVED0_OFFSET = 12,
   KERNEL_CODE_ENTRY_BYTE_OFFSET_OFFSET = 16,
   RESERVED1_OFFSET = 24,
   COMPUTE_PGM_RSRC3_OFFSET = 44,
@@ -184,6 +204,9 @@ static_assert(offsetof(kernel_descriptor_t, group_segment_fixed_size) ==
 static_assert(offsetof(kernel_descriptor_t, private_segment_fixed_size) ==
                   PRIVATE_SEGMENT_FIXED_SIZE_OFFSET,
               "invalid offset for private_segment_fixed_size");
+static_assert(offsetof(kernel_descriptor_t, kernarg_size) ==
+                  KERNARG_SIZE_OFFSET,
+              "invalid offset for kernarg_size");
 static_assert(offsetof(kernel_descriptor_t, reserved0) == RESERVED0_OFFSET,
               "invalid offset for reserved0");
 static_assert(offsetof(kernel_descriptor_t, kernel_code_entry_byte_offset) ==

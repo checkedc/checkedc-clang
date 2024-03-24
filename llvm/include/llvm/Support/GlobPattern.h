@@ -11,12 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_SUPPORT_GLOB_PATTERN_H
-#define LLVM_SUPPORT_GLOB_PATTERN_H
+#ifndef LLVM_SUPPORT_GLOBPATTERN_H
+#define LLVM_SUPPORT_GLOBPATTERN_H
 
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Error.h"
+#include <optional>
 #include <vector>
 
 // This class represents a glob pattern. Supported metacharacters
@@ -48,10 +48,10 @@ private:
   std::vector<BitVector> Tokens;
 
   // The following members are for optimization.
-  Optional<StringRef> Exact;
-  Optional<StringRef> Prefix;
-  Optional<StringRef> Suffix;
+  std::optional<StringRef> Exact;
+  std::optional<StringRef> Prefix;
+  std::optional<StringRef> Suffix;
 };
 }
 
-#endif // LLVM_SUPPORT_GLOB_PATTERN_H
+#endif // LLVM_SUPPORT_GLOBPATTERN_H

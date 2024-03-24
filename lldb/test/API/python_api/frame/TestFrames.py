@@ -3,8 +3,7 @@ Use lldb Python SBFrame API to get the argument values of the call stacks.
 And other SBFrame API tests.
 """
 
-from __future__ import print_function
-
+import io
 
 import lldb
 from lldbsuite.test.decorators import *
@@ -14,9 +13,6 @@ from lldbsuite.test import lldbutil
 
 class FrameAPITestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
-    @add_test_categories(['pyapi'])
     def test_get_arg_vals_for_call_stack(self):
         """Exercise SBFrame.GetVariables() API to get argument vals."""
         self.build()
@@ -38,15 +34,14 @@ class FrameAPITestCase(TestBase):
             None, None, self.get_process_working_directory())
 
         process = target.GetProcess()
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
 
         # Keeps track of the number of times 'a' is called where it is within a
         # depth of 3 of the 'c' leaf function.
         callsOfA = 0
 
-        from six import StringIO as SixStringIO
-        session = SixStringIO()
+        session = io.StringIO()
         while process.GetState() == lldb.eStateStopped:
             thread = lldbutil.get_stopped_thread(
                 process, lldb.eStopReasonBreakpoint)
@@ -88,25 +83,26 @@ class FrameAPITestCase(TestBase):
                 # instruction as PC.
                 if self.getArchitecture() in ['arm', 'armv7', 'armv7k']:
                     pc_value_int &= ~1
-                self.assertTrue(
-                    pc_value_int == frame.GetPC(),
+                self.assertEqual(
+                    pc_value_int, frame.GetPC(),
                     "PC gotten as a value should equal frame's GetPC")
                 sp_value = gpr_reg_set.GetChildMemberWithName("sp")
                 self.assertTrue(
                     sp_value, "We should have a valid Stack Pointer.")
-                self.assertTrue(int(sp_value.GetValue(), 0) == frame.GetSP(
-                ), "SP gotten as a value should equal frame's GetSP")
+                self.assertEqual(
+                    int(sp_value.GetValue(), 0), frame.GetSP(),
+                    "SP gotten as a value should equal frame's GetSP")
 
             print("---", file=session)
             process.Continue()
 
         # At this point, the inferior process should have exited.
-        self.assertTrue(
-            process.GetState() == lldb.eStateExited,
+        self.assertEqual(
+            process.GetState(), lldb.eStateExited,
             PROCESS_EXITED)
 
         # Expect to find 'a' on the call stacks two times.
-        self.assertTrue(callsOfA == 2,
+        self.assertEqual(callsOfA, 2,
                         "Expect to find 'a' on the call stacks two times")
         # By design, the 'a' call frame has the following arg vals:
         #     o a((int)val=1, (char)ch='A')
@@ -119,7 +115,6 @@ class FrameAPITestCase(TestBase):
                     substrs=["a((int)val=1, (char)ch='A')",
                              "a((int)val=3, (char)ch='A')"])
 
-    @add_test_categories(['pyapi'])
     def test_frame_api_boundary_condition(self):
         """Exercise SBFrame APIs with boundary condition inputs."""
         self.build()
@@ -141,8 +136,8 @@ class FrameAPITestCase(TestBase):
             None, None, self.get_process_working_directory())
 
         process = target.GetProcess()
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
 
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
@@ -161,7 +156,6 @@ class FrameAPITestCase(TestBase):
 
         frame.EvaluateExpression(None)
 
-    @add_test_categories(['pyapi'])
     def test_frame_api_IsEqual(self):
         """Exercise SBFrame API IsEqual."""
         self.build()
@@ -183,8 +177,8 @@ class FrameAPITestCase(TestBase):
             None, None, self.get_process_working_directory())
 
         process = target.GetProcess()
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
 
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)

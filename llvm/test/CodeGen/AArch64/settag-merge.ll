@@ -1,8 +1,8 @@
 ; RUN: llc < %s -mtriple=aarch64 -mattr=+mte -aarch64-order-frame-objects=0 | FileCheck %s
 
-declare void @use(i8* %p)
-declare void @llvm.aarch64.settag(i8* %p, i64 %a)
-declare void @llvm.aarch64.settag.zero(i8* %p, i64 %a)
+declare void @use(ptr %p)
+declare void @llvm.aarch64.settag(ptr %p, i64 %a)
+declare void @llvm.aarch64.settag.zero(ptr %p, i64 %a)
 
 define void @stg16_16() {
 entry:
@@ -11,26 +11,26 @@ entry:
 ; CHECK: ret
   %a = alloca i8, i32 16, align 16
   %b = alloca i8, i32 16, align 16
-  call void @llvm.aarch64.settag(i8* %a, i64 16)
-  call void @llvm.aarch64.settag(i8* %b, i64 16)
+  call void @llvm.aarch64.settag(ptr %a, i64 16)
+  call void @llvm.aarch64.settag(ptr %b, i64 16)
   ret void
 }
 
 define i32 @stg16_16_16_16_ret() {
 entry:
 ; CHECK-LABEL: stg16_16_16_16_ret:
+; CHECK: mov  w0, wzr
 ; CHECK: st2g sp, [sp, #32]
 ; CHECK: st2g sp, [sp], #64
-; CHECK: mov  w0, wzr
 ; CHECK: ret
   %a = alloca i8, i32 16, align 16
   %b = alloca i8, i32 16, align 16
   %c = alloca i8, i32 16, align 16
   %d = alloca i8, i32 16, align 16
-  call void @llvm.aarch64.settag(i8* %a, i64 16)
-  call void @llvm.aarch64.settag(i8* %b, i64 16)
-  call void @llvm.aarch64.settag(i8* %c, i64 16)
-  call void @llvm.aarch64.settag(i8* %d, i64 16)
+  call void @llvm.aarch64.settag(ptr %a, i64 16)
+  call void @llvm.aarch64.settag(ptr %b, i64 16)
+  call void @llvm.aarch64.settag(ptr %c, i64 16)
+  call void @llvm.aarch64.settag(ptr %d, i64 16)
   ret i32 0
 }
 
@@ -44,10 +44,10 @@ entry:
   %b = alloca i8, i32 16, align 16
   %c = alloca i8, i32 16, align 16
   %d = alloca i8, i32 16, align 16
-  call void @llvm.aarch64.settag(i8* %a, i64 16)
-  call void @llvm.aarch64.settag(i8* %b, i64 16)
-  call void @llvm.aarch64.settag(i8* %c, i64 16)
-  call void @llvm.aarch64.settag(i8* %d, i64 16)
+  call void @llvm.aarch64.settag(ptr %a, i64 16)
+  call void @llvm.aarch64.settag(ptr %b, i64 16)
+  call void @llvm.aarch64.settag(ptr %c, i64 16)
+  call void @llvm.aarch64.settag(ptr %d, i64 16)
   ret void
 }
 
@@ -63,10 +63,10 @@ entry:
   %b = alloca i8, i32 128, align 16
   %c = alloca i8, i32 128, align 16
   %d = alloca i8, i32 128, align 16
-  call void @llvm.aarch64.settag(i8* %a, i64 128)
-  call void @llvm.aarch64.settag(i8* %b, i64 128)
-  call void @llvm.aarch64.settag(i8* %c, i64 128)
-  call void @llvm.aarch64.settag(i8* %d, i64 128)
+  call void @llvm.aarch64.settag(ptr %a, i64 128)
+  call void @llvm.aarch64.settag(ptr %b, i64 128)
+  call void @llvm.aarch64.settag(ptr %c, i64 128)
+  call void @llvm.aarch64.settag(ptr %d, i64 128)
   ret void
 }
 
@@ -81,9 +81,9 @@ entry:
   %a = alloca i8, i32 16, align 16
   %b = alloca i8, i32 512, align 16
   %c = alloca i8, i32 16, align 16
-  call void @llvm.aarch64.settag(i8* %a, i64 16)
-  call void @llvm.aarch64.settag(i8* %b, i64 512)
-  call void @llvm.aarch64.settag(i8* %c, i64 16)
+  call void @llvm.aarch64.settag(ptr %a, i64 16)
+  call void @llvm.aarch64.settag(ptr %b, i64 512)
+  call void @llvm.aarch64.settag(ptr %c, i64 16)
   ret void
 }
 
@@ -98,9 +98,9 @@ entry:
   %a = alloca i8, i32 512, align 16
   %b = alloca i8, i32 512, align 16
   %c = alloca i8, i32 512, align 16
-  call void @llvm.aarch64.settag(i8* %a, i64 512)
-  call void @llvm.aarch64.settag(i8* %b, i64 512)
-  call void @llvm.aarch64.settag(i8* %c, i64 512)
+  call void @llvm.aarch64.settag(ptr %a, i64 512)
+  call void @llvm.aarch64.settag(ptr %b, i64 512)
+  call void @llvm.aarch64.settag(ptr %c, i64 512)
   ret void
 }
 
@@ -121,12 +121,12 @@ entry:
   br i1 %flag, label %if.then, label %if.end
 
 if.then:
-  call void @llvm.aarch64.settag(i8* %a, i64 48)
-  call void @llvm.aarch64.settag(i8* %b, i64 48)
+  call void @llvm.aarch64.settag(ptr %a, i64 48)
+  call void @llvm.aarch64.settag(ptr %b, i64 48)
   br label %if.end
 
 if.end:
-  call void @llvm.aarch64.settag(i8* %c, i64 48)
+  call void @llvm.aarch64.settag(ptr %c, i64 48)
   ret void
 }
 
@@ -136,8 +136,8 @@ entry:
 ; CHECK: tbz   w0, #0, [[LABEL:.LBB.*]]
 ; CHECK: add   x9, sp, #
 ; CHECK: mov   x8, #256
-; CHECK: st2g  x9, [x9], #32
 ; CHECK: sub   x8, x8, #32
+; CHECK: st2g  x9, [x9], #32
 ; CHECK: cbnz  x8,
 ; CHECK: [[LABEL]]:
 ; CHECK: stg     sp, [sp, #
@@ -149,12 +149,12 @@ entry:
   br i1 %flag, label %if.then, label %if.end
 
 if.then:
-  call void @llvm.aarch64.settag(i8* %a, i64 128)
-  call void @llvm.aarch64.settag(i8* %b, i64 128)
+  call void @llvm.aarch64.settag(ptr %a, i64 128)
+  call void @llvm.aarch64.settag(ptr %b, i64 128)
   br label %if.end
 
 if.end:
-  call void @llvm.aarch64.settag(i8* %c, i64 48)
+  call void @llvm.aarch64.settag(ptr %c, i64 48)
   ret void
 }
 
@@ -164,8 +164,8 @@ entry:
 ; CHECK: tbz   w0, #0, [[LABEL:.LBB.*]]
 ; CHECK: add   x9, sp, #
 ; CHECK: mov   x8, #1024
-; CHECK: st2g  x9, [x9], #32
 ; CHECK: sub   x8, x8, #32
+; CHECK: st2g  x9, [x9], #32
 ; CHECK: cbnz  x8,
 ; CHECK: [[LABEL]]:
 ; CHECK: stg     sp, [sp, #
@@ -177,12 +177,12 @@ entry:
   br i1 %flag, label %if.then, label %if.end
 
 if.then:
-  call void @llvm.aarch64.settag(i8* %a, i64 512)
-  call void @llvm.aarch64.settag(i8* %b, i64 512)
+  call void @llvm.aarch64.settag(ptr %a, i64 512)
+  call void @llvm.aarch64.settag(ptr %b, i64 512)
   br label %if.end
 
 if.end:
-  call void @llvm.aarch64.settag(i8* %c, i64 48)
+  call void @llvm.aarch64.settag(ptr %c, i64 48)
   ret void
 }
 
@@ -192,8 +192,8 @@ entry:
 ; CHECK-LABEL: stg128_128_gap_128_128:
 ; CHECK: mov     x9, sp
 ; CHECK: mov     x8, #256
-; CHECK: st2g    x9, [x9], #32
 ; CHECK: sub     x8, x8, #32
+; CHECK: st2g    x9, [x9], #32
 ; CHECK: cbnz    x8,
 ; CHECK: mov     x8, #256
 ; CHECK: st2g    sp, [sp], #32
@@ -205,10 +205,10 @@ entry:
   %b = alloca i8, i32 32, align 16
   %c = alloca i8, i32 128, align 16
   %c2 = alloca i8, i32 128, align 16
-  call void @use(i8* %b)
-  call void @llvm.aarch64.settag(i8* %a, i64 128)
-  call void @llvm.aarch64.settag(i8* %a2, i64 128)
-  call void @llvm.aarch64.settag(i8* %c, i64 128)
-  call void @llvm.aarch64.settag(i8* %c2, i64 128)
+  call void @use(ptr %b)
+  call void @llvm.aarch64.settag(ptr %a, i64 128)
+  call void @llvm.aarch64.settag(ptr %a2, i64 128)
+  call void @llvm.aarch64.settag(ptr %c, i64 128)
+  call void @llvm.aarch64.settag(ptr %c2, i64 128)
   ret void
 }

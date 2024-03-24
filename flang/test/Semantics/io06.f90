@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
   character(kind=1,len=100) msg1
   character(kind=2,len=200) msg2
   character, parameter :: const_msg = 'doof'
@@ -29,13 +29,13 @@
   !ERROR: Duplicate IOSTAT specifier
   endfile(iostat=stat2, err=9, unit=10, iostat=stat8, iomsg=msg1)
 
-  !ERROR: IOMSG variable 'const_msg' must be definable
+  !ERROR: IOMSG variable 'const_msg' is not definable
+  !BECAUSE: '"d"' is not a variable or pointer
   flush(iomsg=const_msg, unit=10, iostat=stat8, err=9)
 
   !ERROR: REWIND statement must have a UNIT number specifier
   rewind(iostat=stat2)
 
-  !ERROR: Duplicate ERR specifier
   !ERROR: Duplicate ERR specifier
   flush(err=9, unit=10, &
         err=9, &

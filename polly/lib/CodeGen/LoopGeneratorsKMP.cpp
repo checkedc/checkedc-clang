@@ -57,7 +57,8 @@ void ParallelLoopGeneratorKMP::createCallSpawnThreads(Value *SubFn,
                    Stride,
                    SubFnParam};
 
-  Builder.CreateCall(F, Args);
+  CallInst *Call = Builder.CreateCall(F, Args);
+  Call->setDebugLoc(DLGenerated);
 }
 
 void ParallelLoopGeneratorKMP::deployParallelExecution(Function *SubFn,
@@ -181,8 +182,8 @@ ParallelLoopGeneratorKMP::createSubFn(Value *SequentialLoopStride,
                           Map);
 
   const auto Alignment = llvm::Align(is64BitArch() ? 8 : 4);
-  Value *ID =
-      Builder.CreateAlignedLoad(IDPtr, Alignment, "polly.par.global_tid");
+  Value *ID = Builder.CreateAlignedLoad(Builder.getInt32Ty(), IDPtr, Alignment,
+                                        "polly.par.global_tid");
 
   Builder.CreateAlignedStore(LB, LBPtr, Alignment);
   Builder.CreateAlignedStore(UB, UBPtr, Alignment);
@@ -223,8 +224,10 @@ ParallelLoopGeneratorKMP::createSubFn(Value *SequentialLoopStride,
       Builder.CreateCondBr(HasIteration, PreHeaderBB, ExitBB);
 
       Builder.SetInsertPoint(PreHeaderBB);
-      LB = Builder.CreateAlignedLoad(LBPtr, Alignment, "polly.indvar.LB");
-      UB = Builder.CreateAlignedLoad(UBPtr, Alignment, "polly.indvar.UB");
+      LB = Builder.CreateAlignedLoad(LongType, LBPtr, Alignment,
+                                     "polly.indvar.LB");
+      UB = Builder.CreateAlignedLoad(LongType, UBPtr, Alignment,
+                                     "polly.indvar.UB");
     }
     break;
   case OMPGeneralSchedulingType::StaticChunked:
@@ -234,11 +237,13 @@ ParallelLoopGeneratorKMP::createSubFn(Value *SequentialLoopStride,
       Builder.CreateAlignedStore(AdjustedUB, UBPtr, Alignment);
       createCallStaticInit(ID, IsLastPtr, LBPtr, UBPtr, StridePtr, ChunkSize);
 
-      Value *ChunkedStride =
-          Builder.CreateAlignedLoad(StridePtr, Alignment, "polly.kmpc.stride");
+      Value *ChunkedStride = Builder.CreateAlignedLoad(
+          LongType, StridePtr, Alignment, "polly.kmpc.stride");
 
-      LB = Builder.CreateAlignedLoad(LBPtr, Alignment, "polly.indvar.LB");
-      UB = Builder.CreateAlignedLoad(UBPtr, Alignment, "polly.indvar.UB.temp");
+      LB = Builder.CreateAlignedLoad(LongType, LBPtr, Alignment,
+                                     "polly.indvar.LB");
+      UB = Builder.CreateAlignedLoad(LongType, UBPtr, Alignment,
+                                     "polly.indvar.UB.temp");
 
       Value *UBInRange =
           Builder.CreateICmp(llvm::CmpInst::Predicate::ICMP_SLE, UB, AdjustedUB,
@@ -252,9 +257,9 @@ ParallelLoopGeneratorKMP::createSubFn(Value *SequentialLoopStride,
 
       if (Scheduling == OMPGeneralSchedulingType::StaticChunked) {
         Builder.SetInsertPoint(PreHeaderBB);
-        LB = Builder.CreateAlignedLoad(LBPtr, Alignment,
+        LB = Builder.CreateAlignedLoad(LongType, LBPtr, Alignment,
                                        "polly.indvar.LB.entry");
-        UB = Builder.CreateAlignedLoad(UBPtr, Alignment,
+        UB = Builder.CreateAlignedLoad(LongType, UBPtr, Alignment,
                                        "polly.indvar.UB.entry");
       }
 
@@ -325,7 +330,9 @@ Value *ParallelLoopGeneratorKMP::createCallGlobalThreadNum() {
     F = Function::Create(Ty, Linkage, Name, M);
   }
 
-  return Builder.CreateCall(F, {SourceLocationInfo});
+  CallInst *Call = Builder.CreateCall(F, {SourceLocationInfo});
+  Call->setDebugLoc(DLGenerated);
+  return Call;
 }
 
 void ParallelLoopGeneratorKMP::createCallPushNumThreads(Value *GlobalThreadID,
@@ -348,7 +355,8 @@ void ParallelLoopGeneratorKMP::createCallPushNumThreads(Value *GlobalThreadID,
 
   Value *Args[] = {SourceLocationInfo, GlobalThreadID, NumThreads};
 
-  Builder.CreateCall(F, Args);
+  CallInst *Call = Builder.CreateCall(F, Args);
+  Call->setDebugLoc(DLGenerated);
 }
 
 void ParallelLoopGeneratorKMP::createCallStaticInit(Value *GlobalThreadID,
@@ -393,7 +401,8 @@ void ParallelLoopGeneratorKMP::createCallStaticInit(Value *GlobalThreadID,
       ConstantInt::get(LongType, 1),
       ChunkSize};
 
-  Builder.CreateCall(F, Args);
+  CallInst *Call = Builder.CreateCall(F, Args);
+  Call->setDebugLoc(DLGenerated);
 }
 
 void ParallelLoopGeneratorKMP::createCallStaticFini(Value *GlobalThreadID) {
@@ -412,7 +421,8 @@ void ParallelLoopGeneratorKMP::createCallStaticFini(Value *GlobalThreadID) {
 
   Value *Args[] = {SourceLocationInfo, GlobalThreadID};
 
-  Builder.CreateCall(F, Args);
+  CallInst *Call = Builder.CreateCall(F, Args);
+  Call->setDebugLoc(DLGenerated);
 }
 
 void ParallelLoopGeneratorKMP::createCallDispatchInit(Value *GlobalThreadID,
@@ -452,7 +462,8 @@ void ParallelLoopGeneratorKMP::createCallDispatchInit(Value *GlobalThreadID,
       Inc,
       ChunkSize};
 
-  Builder.CreateCall(F, Args);
+  CallInst *Call = Builder.CreateCall(F, Args);
+  Call->setDebugLoc(DLGenerated);
 }
 
 Value *ParallelLoopGeneratorKMP::createCallDispatchNext(Value *GlobalThreadID,
@@ -484,7 +495,9 @@ Value *ParallelLoopGeneratorKMP::createCallDispatchNext(Value *GlobalThreadID,
   Value *Args[] = {SourceLocationInfo, GlobalThreadID, IsLastPtr, LBPtr, UBPtr,
                    StridePtr};
 
-  return Builder.CreateCall(F, Args);
+  CallInst *Call = Builder.CreateCall(F, Args);
+  Call->setDebugLoc(DLGenerated);
+  return Call;
 }
 
 // TODO: This function currently creates a source location dummy. It might be
@@ -513,8 +526,9 @@ GlobalVariable *ParallelLoopGeneratorKMP::createSourceLocation() {
         llvm::ArrayType::get(Builder.getInt8Ty(), /* Length */ 23);
 
     // Global Variable Definitions
-    GlobalVariable *StrVar = new GlobalVariable(
-        *M, ArrayType, true, GlobalValue::PrivateLinkage, 0, ".str.ident");
+    GlobalVariable *StrVar =
+        new GlobalVariable(*M, ArrayType, true, GlobalValue::PrivateLinkage,
+                           nullptr, ".str.ident");
     StrVar->setAlignment(llvm::Align(1));
 
     SourceLocDummy = new GlobalVariable(

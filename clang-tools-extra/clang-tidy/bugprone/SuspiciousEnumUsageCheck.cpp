@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 static const char DifferentEnumErrorMessage[] =
     "enum values are from different enum types";
@@ -87,9 +85,7 @@ static bool isMaxValAllBitSetLiteral(const EnumDecl *EnumDec) {
 }
 
 static int countNonPowOfTwoLiteralNum(const EnumDecl *EnumDec) {
-  return std::count_if(
-      EnumDec->enumerator_begin(), EnumDec->enumerator_end(),
-      [](const EnumConstantDecl *E) { return isNonPowerOf2NorNullLiteral(E); });
+  return llvm::count_if(EnumDec->enumerators(), isNonPowerOf2NorNullLiteral);
 }
 
 /// Check if there is one or two enumerators that are not a power of 2 and are
@@ -117,36 +113,34 @@ void SuspiciousEnumUsageCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void SuspiciousEnumUsageCheck::registerMatchers(MatchFinder *Finder) {
-  const auto enumExpr = [](StringRef RefName, StringRef DeclName) {
-    return expr(ignoringImpCasts(expr().bind(RefName)),
-                ignoringImpCasts(hasType(enumDecl().bind(DeclName))));
+  const auto EnumExpr = [](StringRef RefName, StringRef DeclName) {
+    return expr(hasType(enumDecl().bind(DeclName))).bind(RefName);
   };
 
   Finder->addMatcher(
-      binaryOperator(hasOperatorName("|"), hasLHS(enumExpr("", "enumDecl")),
-                     hasRHS(expr(enumExpr("", "otherEnumDecl"),
-                                 ignoringImpCasts(hasType(enumDecl(
-                                     unless(equalsBoundNode("enumDecl"))))))))
+      binaryOperator(
+          hasOperatorName("|"), hasLHS(hasType(enumDecl().bind("enumDecl"))),
+          hasRHS(hasType(enumDecl(unless(equalsBoundNode("enumDecl")))
+                             .bind("otherEnumDecl"))))
           .bind("diffEnumOp"),
       this);
 
   Finder->addMatcher(
       binaryOperator(hasAnyOperatorName("+", "|"),
-                     hasLHS(enumExpr("lhsExpr", "enumDecl")),
-                     hasRHS(expr(enumExpr("rhsExpr", ""),
-                                 ignoringImpCasts(hasType(
-                                     enumDecl(equalsBoundNode("enumDecl"))))))),
+                     hasLHS(EnumExpr("lhsExpr", "enumDecl")),
+                     hasRHS(expr(hasType(enumDecl(equalsBoundNode("enumDecl"))))
+                                .bind("rhsExpr"))),
       this);
 
   Finder->addMatcher(
       binaryOperator(
           hasAnyOperatorName("+", "|"),
-          hasOperands(expr(hasType(isInteger()), unless(enumExpr("", ""))),
-                      enumExpr("enumExpr", "enumDecl"))),
+          hasOperands(expr(hasType(isInteger()), unless(hasType(enumDecl()))),
+                      EnumExpr("enumExpr", "enumDecl"))),
       this);
 
   Finder->addMatcher(binaryOperator(hasAnyOperatorName("|=", "+="),
-                                    hasRHS(enumExpr("enumExpr", "enumDecl"))),
+                                    hasRHS(EnumExpr("enumExpr", "enumDecl"))),
                      this);
 }
 
@@ -212,6 +206,4 @@ void SuspiciousEnumUsageCheck::check(const MatchFinder::MatchResult &Result) {
   checkSuspiciousBitmaskUsage(RhsExpr, EnumDec);
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

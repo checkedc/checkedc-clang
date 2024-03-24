@@ -1,9 +1,10 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Confirm enforcement of constraints and restrictions in 7.5.7.3
 ! and C733, C734 and C779, C780, C782, C783, C784, and C785.
 
 module m
   !ERROR: An ABSTRACT derived type must be extensible
+  !PORTABILITY: A derived type with the BIND attribute is empty
   type, abstract, bind(c) :: badAbstract1
   end type
   !ERROR: An ABSTRACT derived type must be extensible
@@ -44,6 +45,7 @@ module m
   end type
   type, extends(intermediate) :: concrete2  ! ensure no false missing binding error
   end type
+  !WARNING: A derived type with the BIND attribute is empty
   type, bind(c) :: inextensible1
   end type
   !ERROR: The parent type is not extensible
@@ -131,6 +133,105 @@ contains
     class(t),intent(in) :: x
   end subroutine
 end module m1
+
+module m2
+  type parent
+    real realField
+  contains
+    !ERROR: Procedure binding 'proc' with no dummy arguments must have NOPASS attribute
+    procedure proc
+  end type parent
+  type,extends(parent) :: child
+  contains
+    !ERROR: Procedure binding 'proc' with no dummy arguments must have NOPASS attribute
+    procedure proc
+  end type child
+contains
+  subroutine proc 
+  end subroutine
+end module m2
+
+module m3
+  type t
+  contains
+    procedure b
+  end type
+contains
+  !ERROR: Cannot use an alternate return as the passed-object dummy argument
+  subroutine b(*)
+    return 1
+  end subroutine
+end module m3
+
+module m4
+  type t
+  contains
+    procedure b
+  end type
+contains
+  ! Check to see that alternate returns work with default PASS arguments
+  subroutine b(this, *)
+    class(t) :: this
+    return 1
+  end subroutine
+end module m4
+
+module m5
+  type t
+  contains
+    !ERROR: Passed-object dummy argument 'passarg' of procedure 'b' must be of type 't' but is 'INTEGER(4)'
+    procedure, pass(passArg) ::  b
+  end type
+contains
+  subroutine b(*, passArg)
+    integer :: passArg
+    return 1
+  end subroutine
+end module m5
+
+module m6
+  type t
+  contains
+    !ERROR: Passed-object dummy argument 'passarg' of procedure 'b' must be polymorphic because 't' is extensible
+    procedure, pass(passArg) ::  b
+  end type
+contains
+  subroutine b(*, passArg)
+    type(t) :: passArg
+    return 1
+  end subroutine
+end module m6
+
+module m7
+  type t
+  contains
+  ! Check to see that alternate returns work with PASS arguments
+    procedure, pass(passArg) ::  b
+  end type
+contains
+  subroutine b(*, passArg)
+    class(t) :: passArg
+    return 1
+  end subroutine
+end module m7
+
+module m8 ! C1529 - warning only
+  type t
+    procedure(mysubr), pointer, nopass :: pp
+   contains
+    procedure, nopass :: tbp => mysubr
+  end type
+ contains
+  subroutine mysubr
+  end subroutine
+  subroutine test
+    type(t) a(2)
+    !PORTABILITY: Base of NOPASS type-bound procedure reference should be scalar
+    call a%tbp
+    !ERROR: Base of procedure component reference must be scalar
+    call a%pp
+  end subroutine
+end module
 
 program test
   use m1

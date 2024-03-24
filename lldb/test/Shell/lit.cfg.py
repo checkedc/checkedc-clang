@@ -12,7 +12,6 @@ import lit.formats
 from lit.llvm import llvm_config
 from lit.llvm.subst import FindTool
 from lit.llvm.subst import ToolSubst
-from distutils.spawn import find_executable
 
 site.addsitedir(os.path.dirname(__file__))
 from helper import toolchain
@@ -36,12 +35,16 @@ config.excludes = ['Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.lldb_obj_root, 'test')
+config.test_exec_root = os.path.join(config.lldb_obj_root, 'test', 'Shell')
 
-# Propagate reproducer environment vars.
-if 'LLDB_CAPTURE_REPRODUCER' in os.environ:
-  config.environment['LLDB_CAPTURE_REPRODUCER'] = os.environ[
-      'LLDB_CAPTURE_REPRODUCER']
+# Propagate environment vars.
+llvm_config.with_system_environment([
+    'FREEBSD_LEGACY_PLUGIN',
+    'HOME',
+    'TEMP',
+    'TMP',
+    'XDG_CACHE_HOME',
+])
 
 # Support running the test suite under the lldb-repro wrapper. This makes it
 # possible to capture a test suite run and then rerun all the test from the
@@ -58,6 +61,12 @@ toolchain.use_support_substitutions(config)
 
 if re.match(r'^arm(hf.*-linux)|(.*-linux-gnuabihf)', config.target_triple):
     config.available_features.add("armhf-linux")
+
+if re.match(r'.*-(windows-msvc)$', config.target_triple):
+    config.available_features.add("windows-msvc")
+
+if re.match(r'.*-(windows-gnu|mingw32)$', config.target_triple):
+    config.available_features.add("windows-gnu")
 
 def calculate_arch_features(arch_string):
     # This will add a feature such as x86, arm, mips, etc for each built
@@ -81,7 +90,7 @@ llvm_config.feature_config(
 # lit.py invocation is close enough.
 for cachedir in [config.clang_module_cache, config.lldb_module_cache]:
   if os.path.isdir(cachedir):
-     print("Deleting module cache at %s."%cachedir)
+     lit_config.note("Deleting module cache at %s."%cachedir)
      shutil.rmtree(cachedir)
 
 # Set a default per-test timeout of 10 minutes. Setting a timeout per test
@@ -117,11 +126,14 @@ if config.lldb_enable_lua:
 if config.lldb_enable_lzma:
     config.available_features.add('lzma')
 
-if find_executable('xz') != None:
+if shutil.which('xz') != None:
     config.available_features.add('xz')
 
 if config.lldb_system_debugserver:
     config.available_features.add('system-debugserver')
+
+if config.have_lldb_server:
+    config.available_features.add('lldb-server')
 
 # NetBSD permits setting dbregs either if one is root
 # or if user_set_dbregs is enabled
@@ -137,5 +149,5 @@ if platform.system() == 'NetBSD' and os.geteuid() != 0:
 if can_set_dbregs:
     config.available_features.add('dbregs-set')
 
-# pass control variable through
-llvm_config.with_system_environment('FREEBSD_LEGACY_PLUGIN')
+if 'LD_PRELOAD' in os.environ:
+    config.available_features.add('ld_preload-present')

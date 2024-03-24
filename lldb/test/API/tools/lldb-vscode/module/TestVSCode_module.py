@@ -2,9 +2,6 @@
 Test lldb-vscode setBreakpoints request
 """
 
-from __future__ import print_function
-
-import unittest2
 import vscode
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,8 +10,6 @@ import lldbvscode_testcase
 import re
 
 class TestVSCode_module(lldbvscode_testcase.VSCodeTestCaseBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def run_test(self, symbol_basename, expect_debug_info_size):
         program_basename = "a.out.stripped"
@@ -31,7 +26,7 @@ class TestVSCode_module(lldbvscode_testcase.VSCodeTestCaseBase):
         self.assertEqual(program_basename, program_module['name'])
         self.assertIn('path', program_module, 'make sure path is in module')
         self.assertEqual(program, program_module['path'])
-        self.assertTrue('symbolFilePath' not in program_module, 'Make sure a.out.stripped has no debug info')
+        self.assertNotIn('symbolFilePath', program_module, 'Make sure a.out.stripped has no debug info')
         symbols_path = self.getBuildArtifact(symbol_basename)
         self.vscode.request_evaluate('`%s' % ('target symbols add -s "%s" "%s"' % (program, symbols_path)))
 
@@ -90,7 +85,5 @@ class TestVSCode_module(lldbvscode_testcase.VSCodeTestCaseBase):
         moduleId = self.vscode.get_modules()['a.out']['id']
         response = self.vscode.request_compileUnits(moduleId)
         self.assertTrue(response['body'])
-        self.assertTrue(len(response['body']['compileUnits']) == 1,
-                        'Only one source file should exist')
-        self.assertTrue(response['body']['compileUnits'][0]['compileUnitPath'] == main_source_path,
-                        'Real path to main.cpp matches')
+        cu_paths = [cu['compileUnitPath'] for cu in response['body']['compileUnits']]
+        self.assertIn(main_source_path, cu_paths, 'Real path to main.cpp matches')

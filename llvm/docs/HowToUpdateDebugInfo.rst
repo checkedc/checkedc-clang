@@ -217,6 +217,15 @@ Deleting a MIR-level MachineInstr
 
 TODO
 
+Rules for updating ``DIAssignID`` Attachments
+=============================================
+
+``DIAssignID`` metadata attachments are used by Assignment Tracking, which is
+currently an experimental debug mode.
+
+See :doc:`AssignmentTracking` for how to update them and for more info on
+Assignment Tracking.
+
 How to automatically convert tests into debug info tests
 ========================================================
 
@@ -229,8 +238,8 @@ An IR test case for a transformation can, in many cases, be automatically
 mutated to test debug info handling within that transformation. This is a
 simple way to test for proper debug info handling.
 
-The ``debugify`` utility
-^^^^^^^^^^^^^^^^^^^^^^^^
+The ``debugify`` utility pass
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``debugify`` testing utility is just a pair of passes: ``debugify`` and
 ``check-debugify``.
@@ -345,6 +354,62 @@ tests. Changes to this pass are not allowed to break existing tests.
    be precise enough), moving the test to its own file is preferred.
 
 .. _MIRDebugify:
+
+Test original debug info preservation in optimizations
+------------------------------------------------------
+
+In addition to automatically generating debug info, the checks provided by
+the ``debugify`` utility pass can also be used to test the preservation of
+pre-existing debug info metadata. It could be run as follows:
+
+.. code-block:: bash
+
+  # Run the pass by checking original Debug Info preservation.
+  $ opt -verify-debuginfo-preserve -pass-to-test sample.ll
+
+  # Check the preservation of original Debug Info after each pass.
+  $ opt -verify-each-debuginfo-preserve -O2 sample.ll
+
+Limit number of observed functions to speed up the analysis:
+
+.. code-block:: bash
+
+  # Test up to 100 functions (per compile unit) per pass.
+  $ opt -verify-each-debuginfo-preserve -O2 -debugify-func-limit=100 sample.ll
+
+Please do note that running ``-verify-each-debuginfo-preserve`` on big projects
+could be heavily time consuming. Therefore, we suggest using
+``-debugify-func-limit`` with a suitable limit number to prevent extremely long
+builds.
+
+Furthermore, there is a way to export the issues that have been found into
+a JSON file as follows:
+
+.. code-block:: bash
+
+  $ opt -verify-debuginfo-preserve -verify-di-preserve-export=sample.json -pass-to-test sample.ll
+
+and then use the ``llvm/utils/llvm-original-di-preservation.py`` script
+to generate an HTML page with the issues reported in a more human readable form
+as follows:
+
+.. code-block:: bash
+
+  $ llvm-original-di-preservation.py sample.json sample.html
+
+Testing of original debug info preservation can be invoked from front-end level
+as follows:
+
+.. code-block:: bash
+
+  # Test each pass.
+  $ clang -Xclang -fverify-debuginfo-preserve -g -O2 sample.c
+
+  # Test each pass and export the issues report into the JSON file.
+  $ clang -Xclang -fverify-debuginfo-preserve -Xclang -fverify-debuginfo-preserve-export=sample.json -g -O2 sample.c
+
+Please do note that there are some known false positives, for source locations
+and debug intrinsic checking, so that will be addressed as a future work.
 
 Mutation testing for MIR-level transformations
 ----------------------------------------------

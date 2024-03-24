@@ -27,15 +27,7 @@ RemoteClientManager *Manager;
 __attribute__((constructor(101))) void initRPC() {
   DP("Init RPC library!\n");
 
-  RPCConfig Config;
-  parseEnvironment(Config);
-
-  int Timeout = 5;
-  if (const char *Env1 = std::getenv("LIBOMPTARGET_RPC_LATENCY"))
-    Timeout = std::stoi(Env1);
-
-  Manager = new RemoteClientManager(Config.ServerAddresses, Timeout,
-                                    Config.MaxSize, Config.BlockSize);
+  Manager = new RemoteClientManager();
 }
 
 __attribute__((destructor(101))) void deinitRPC() {
@@ -76,92 +68,51 @@ __tgt_target_table *__tgt_rtl_load_binary(int32_t DeviceId,
   return Manager->loadBinary(DeviceId, (__tgt_device_image *)Image);
 }
 
-int32_t __tgt_rtl_synchronize(int32_t DeviceId,
-                              __tgt_async_info *AsyncInfoPtr) {
-  return Manager->synchronize(DeviceId, AsyncInfoPtr);
-}
-
 int32_t __tgt_rtl_is_data_exchangable(int32_t SrcDevId, int32_t DstDevId) {
   return Manager->isDataExchangeable(SrcDevId, DstDevId);
 }
 
-void *__tgt_rtl_data_alloc(int32_t DeviceId, int64_t Size, void *HstPtr) {
+void *__tgt_rtl_data_alloc(int32_t DeviceId, int64_t Size, void *HstPtr,
+                           int32_t Kind) {
+  if (Kind != TARGET_ALLOC_DEFAULT) {
+    REPORT("Invalid target data allocation kind or requested allocator not "
+           "implemented yet\n");
+    return NULL;
+  }
+
   return Manager->dataAlloc(DeviceId, Size, HstPtr);
 }
 
 int32_t __tgt_rtl_data_submit(int32_t DeviceId, void *TgtPtr, void *HstPtr,
                               int64_t Size) {
-  return Manager->dataSubmitAsync(DeviceId, TgtPtr, HstPtr, Size, nullptr);
-}
-
-int32_t __tgt_rtl_data_submit_async(int32_t DeviceId, void *TgtPtr,
-                                    void *HstPtr, int64_t Size,
-                                    __tgt_async_info *AsyncInfoPtr) {
-  return Manager->dataSubmitAsync(DeviceId, TgtPtr, HstPtr, Size, AsyncInfoPtr);
+  return Manager->dataSubmit(DeviceId, TgtPtr, HstPtr, Size);
 }
 
 int32_t __tgt_rtl_data_retrieve(int32_t DeviceId, void *HstPtr, void *TgtPtr,
                                 int64_t Size) {
-  return Manager->dataRetrieveAsync(DeviceId, HstPtr, TgtPtr, Size, nullptr);
+  return Manager->dataRetrieve(DeviceId, HstPtr, TgtPtr, Size);
 }
 
-int32_t __tgt_rtl_data_retrieve_async(int32_t DeviceId, void *HstPtr,
-                                      void *TgtPtr, int64_t Size,
-                                      __tgt_async_info *AsyncInfoPtr) {
-  return Manager->dataRetrieveAsync(DeviceId, HstPtr, TgtPtr, Size,
-                                    AsyncInfoPtr);
-}
-
-int32_t __tgt_rtl_data_delete(int32_t DeviceId, void *TgtPtr) {
+int32_t __tgt_rtl_data_delete(int32_t DeviceId, void *TgtPtr, int32_t) {
   return Manager->dataDelete(DeviceId, TgtPtr);
 }
 
 int32_t __tgt_rtl_data_exchange(int32_t SrcDevId, void *SrcPtr,
                                 int32_t DstDevId, void *DstPtr, int64_t Size) {
-  return Manager->dataExchangeAsync(SrcDevId, SrcPtr, DstDevId, DstPtr, Size,
-                                    nullptr);
+  return Manager->dataExchange(SrcDevId, SrcPtr, DstDevId, DstPtr, Size);
 }
 
-int32_t __tgt_rtl_data_exchange_async(int32_t SrcDevId, void *SrcPtr,
-                                      int32_t DstDevId, void *DstPtr,
-                                      int64_t Size,
-                                      __tgt_async_info *AsyncInfoPtr) {
-  return Manager->dataExchangeAsync(SrcDevId, SrcPtr, DstDevId, DstPtr, Size,
-                                    AsyncInfoPtr);
-}
-
-int32_t __tgt_rtl_run_target_region(int32_t DeviceId, void *TgtEntryPtr,
-                                    void **TgtArgs, ptrdiff_t *TgtOffsets,
-                                    int32_t ArgNum) {
-  return Manager->runTargetRegionAsync(DeviceId, TgtEntryPtr, TgtArgs,
-                                       TgtOffsets, ArgNum, nullptr);
-}
-
-int32_t __tgt_rtl_run_target_region_async(int32_t DeviceId, void *TgtEntryPtr,
-                                          void **TgtArgs, ptrdiff_t *TgtOffsets,
-                                          int32_t ArgNum,
-                                          __tgt_async_info *AsyncInfoPtr) {
-  return Manager->runTargetRegionAsync(DeviceId, TgtEntryPtr, TgtArgs,
-                                       TgtOffsets, ArgNum, AsyncInfoPtr);
-}
-
-int32_t __tgt_rtl_run_target_team_region(int32_t DeviceId, void *TgtEntryPtr,
-                                         void **TgtArgs, ptrdiff_t *TgtOffsets,
-                                         int32_t ArgNum, int32_t TeamNum,
-                                         int32_t ThreadLimit,
-                                         uint64_t LoopTripCount) {
-  return Manager->runTargetTeamRegionAsync(DeviceId, TgtEntryPtr, TgtArgs,
-                                           TgtOffsets, ArgNum, TeamNum,
-                                           ThreadLimit, LoopTripCount, nullptr);
-}
-
-int32_t __tgt_rtl_run_target_team_region_async(
-    int32_t DeviceId, void *TgtEntryPtr, void **TgtArgs, ptrdiff_t *TgtOffsets,
-    int32_t ArgNum, int32_t TeamNum, int32_t ThreadLimit,
-    uint64_t LoopTripCount, __tgt_async_info *AsyncInfoPtr) {
-  return Manager->runTargetTeamRegionAsync(
-      DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets, ArgNum, TeamNum, ThreadLimit,
-      LoopTripCount, AsyncInfoPtr);
+int32_t __tgt_rtl_launch_kernel(int32_t DeviceId, void *TgtEntryPtr,
+                                void **TgtArgs, ptrdiff_t *TgtOffsets,
+                                KernelArgsTy *KernelArgs,
+                                __tgt_async_info *AsyncInfoPtr) {
+  assert(!KernelArgs->NumTeams[1] && !KernelArgs->NumTeams[2] &&
+         !KernelArgs->ThreadLimit[1] && !KernelArgs->ThreadLimit[2] &&
+         "Only one dimensional kernels supported.");
+  return Manager->runTargetTeamRegion(
+      DeviceId, TgtEntryPtr, TgtArgs, TgtOffsets, KernelArgs->NumArgs,
+      KernelArgs->NumTeams[0], KernelArgs->ThreadLimit[0],
+      KernelArgs->Tripcount);
 }
 
 // Exposed library API function

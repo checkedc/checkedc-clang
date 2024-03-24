@@ -15,9 +15,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void SuspiciousMemsetUsageCheck::registerMatchers(MatchFinder *Finder) {
   // Match the standard memset:
@@ -32,30 +30,27 @@ void SuspiciousMemsetUsageCheck::registerMatchers(MatchFinder *Finder) {
   // Look for memset(x, '0', z). Probably memset(x, 0, z) was intended.
   Finder->addMatcher(
       callExpr(
-          callee(MemsetDecl),
+          callee(MemsetDecl), argumentCountIs(3),
           hasArgument(1, characterLiteral(equals(static_cast<unsigned>('0')))
                              .bind("char-zero-fill")),
-          unless(
-              eachOf(hasArgument(0, anyOf(hasType(pointsTo(isAnyCharacter())),
-                                          hasType(arrayType(hasElementType(
-                                              isAnyCharacter()))))),
-                     isInTemplateInstantiation()))),
+          unless(hasArgument(
+              0, anyOf(hasType(pointsTo(isAnyCharacter())),
+                       hasType(arrayType(hasElementType(isAnyCharacter()))))))),
       this);
 
   // Look for memset with an integer literal in its fill_char argument.
   // Will check if it gets truncated.
-  Finder->addMatcher(callExpr(callee(MemsetDecl),
-                              hasArgument(1, integerLiteral().bind("num-fill")),
-                              unless(isInTemplateInstantiation())),
-                     this);
+  Finder->addMatcher(
+      callExpr(callee(MemsetDecl), argumentCountIs(3),
+               hasArgument(1, integerLiteral().bind("num-fill"))),
+      this);
 
   // Look for memset(x, y, 0) as that is most likely an argument swap.
   Finder->addMatcher(
-      callExpr(callee(MemsetDecl),
+      callExpr(callee(MemsetDecl), argumentCountIs(3),
                unless(hasArgument(1, anyOf(characterLiteral(equals(
                                                static_cast<unsigned>('0'))),
-                                           integerLiteral()))),
-               unless(isInTemplateInstantiation()))
+                                           integerLiteral()))))
           .bind("call"),
       this);
 }
@@ -136,6 +131,4 @@ void SuspiciousMemsetUsageCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

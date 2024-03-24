@@ -12,6 +12,7 @@
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
 
@@ -20,14 +21,14 @@ using namespace lldb_private;
 
 // ThreadPlan constructor
 ThreadPlan::ThreadPlan(ThreadPlanKind kind, const char *name, Thread &thread,
-                       Vote stop_vote, Vote run_vote)
+                       Vote report_stop_vote, Vote report_run_vote)
     : m_process(*thread.GetProcess().get()), m_tid(thread.GetID()),
-      m_stop_vote(stop_vote), m_run_vote(run_vote),
+      m_report_stop_vote(report_stop_vote), m_report_run_vote(report_run_vote),
       m_takes_iteration_count(false), m_could_not_resolve_hw_bp(false),
       m_thread(&thread), m_kind(kind), m_name(name), m_plan_complete_mutex(),
       m_cached_plan_explains_stop(eLazyBoolCalculate), m_plan_complete(false),
-      m_plan_private(false), m_okay_to_discard(true), m_is_master_plan(false),
-      m_plan_succeeded(true) {
+      m_plan_private(false), m_okay_to_discard(true),
+      m_is_controlling_plan(false), m_plan_succeeded(true) {
   SetID(GetNextID());
 }
 
@@ -50,7 +51,7 @@ Thread &ThreadPlan::GetThread() {
 bool ThreadPlan::PlanExplainsStop(Event *event_ptr) {
   if (m_cached_plan_explains_stop == eLazyBoolCalculate) {
     bool actual_value = DoPlanExplainsStop(event_ptr);
-    m_cached_plan_explains_stop = actual_value ? eLazyBoolYes : eLazyBoolNo;
+    CachePlanExplainsStop(actual_value);
     return actual_value;
   } else {
     return m_cached_plan_explains_stop == eLazyBoolYes;
@@ -76,9 +77,9 @@ bool ThreadPlan::MischiefManaged() {
 }
 
 Vote ThreadPlan::ShouldReportStop(Event *event_ptr) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
 
-  if (m_stop_vote == eVoteNoOpinion) {
+  if (m_report_stop_vote == eVoteNoOpinion) {
     ThreadPlan *prev_plan = GetPreviousPlan();
     if (prev_plan) {
       Vote prev_vote = prev_plan->ShouldReportStop(event_ptr);
@@ -86,17 +87,17 @@ Vote ThreadPlan::ShouldReportStop(Event *event_ptr) {
       return prev_vote;
     }
   }
-  LLDB_LOG(log, "Returning vote: {0}", m_stop_vote);
-  return m_stop_vote;
+  LLDB_LOG(log, "Returning vote: {0}", m_report_stop_vote);
+  return m_report_stop_vote;
 }
 
 Vote ThreadPlan::ShouldReportRun(Event *event_ptr) {
-  if (m_run_vote == eVoteNoOpinion) {
+  if (m_report_run_vote == eVoteNoOpinion) {
     ThreadPlan *prev_plan = GetPreviousPlan();
     if (prev_plan)
       return prev_plan->ShouldReportRun(event_ptr);
   }
-  return m_run_vote;
+  return m_report_run_vote;
 }
 
 void ThreadPlan::ClearThreadCache() { m_thread = nullptr; }
@@ -116,7 +117,7 @@ bool ThreadPlan::WillResume(StateType resume_state, bool current_plan) {
   m_cached_plan_explains_stop = eLazyBoolCalculate;
 
   if (current_plan) {
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+    Log *log = GetLog(LLDBLog::Step);
 
     if (log) {
       RegisterContext *reg_ctx = GetThread().GetRegisterContext().get();
@@ -149,15 +150,14 @@ lldb::user_id_t ThreadPlan::GetNextID() {
 
 void ThreadPlan::DidPush() {}
 
-void ThreadPlan::WillPop() {}
+void ThreadPlan::DidPop() {}
 
 bool ThreadPlan::OkayToDiscard() {
-  return IsMasterPlan() ? m_okay_to_discard : true;
+  return IsControllingPlan() ? m_okay_to_discard : true;
 }
 
 lldb::StateType ThreadPlan::RunState() {
-  if (m_tracer_sp && m_tracer_sp->TracingEnabled() &&
-      m_tracer_sp->SingleStepEnabled())
+  if (m_tracer_sp && m_tracer_sp->TracingEnabled())
     return eStateStepping;
   else
     return GetPlanRunState();
@@ -196,7 +196,7 @@ bool ThreadPlanNull::ValidatePlan(Stream *error) {
           ", ptid = 0x%" PRIx64 ")",
           LLVM_PRETTY_FUNCTION, m_tid, GetThread().GetProtocolID());
 #else
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
   if (log)
     log->Error("%s called on thread that has been destroyed (tid = 0x%" PRIx64
                ", ptid = 0x%" PRIx64 ")",
@@ -212,7 +212,7 @@ bool ThreadPlanNull::ShouldStop(Event *event_ptr) {
           ", ptid = 0x%" PRIx64 ")",
           LLVM_PRETTY_FUNCTION, m_tid, GetThread().GetProtocolID());
 #else
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
   if (log)
     log->Error("%s called on thread that has been destroyed (tid = 0x%" PRIx64
                ", ptid = 0x%" PRIx64 ")",
@@ -228,7 +228,7 @@ bool ThreadPlanNull::WillStop() {
           ", ptid = 0x%" PRIx64 ")",
           LLVM_PRETTY_FUNCTION, m_tid, GetThread().GetProtocolID());
 #else
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
   if (log)
     log->Error("%s called on thread that has been destroyed (tid = 0x%" PRIx64
                ", ptid = 0x%" PRIx64 ")",
@@ -244,7 +244,7 @@ bool ThreadPlanNull::DoPlanExplainsStop(Event *event_ptr) {
           ", ptid = 0x%" PRIx64 ")",
           LLVM_PRETTY_FUNCTION, GetThread().GetID(), GetThread().GetProtocolID());
 #else
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
   if (log)
     log->Error("%s called on thread that has been destroyed (tid = 0x%" PRIx64
                ", ptid = 0x%" PRIx64 ")",
@@ -262,7 +262,7 @@ bool ThreadPlanNull::MischiefManaged() {
           ", ptid = 0x%" PRIx64 ")",
           LLVM_PRETTY_FUNCTION, m_tid, GetThread().GetProtocolID());
 #else
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
   if (log)
     log->Error("%s called on thread that has been destroyed (tid = 0x%" PRIx64
                ", ptid = 0x%" PRIx64 ")",
@@ -279,7 +279,7 @@ lldb::StateType ThreadPlanNull::GetPlanRunState() {
           ", ptid = 0x%" PRIx64 ")",
           LLVM_PRETTY_FUNCTION, m_tid, GetThread().GetProtocolID());
 #else
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
   if (log)
     log->Error("%s called on thread that has been destroyed (tid = 0x%" PRIx64
                ", ptid = 0x%" PRIx64 ")",

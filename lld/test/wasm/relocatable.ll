@@ -20,20 +20,20 @@ declare i32 @foo_import() local_unnamed_addr
 declare extern_weak i32 @bar_import() local_unnamed_addr
 @data_import = external global i64
 
-@func_addr1 = hidden global i32()* @my_func, align 4
-@func_addr2 = hidden global i32()* @foo_import, align 4
-@func_addr3 = hidden global i32()* @bar_import, align 4
-@data_addr1 = hidden global i64* @data_import, align 8
+@func_addr1 = hidden global ptr @my_func, align 4
+@func_addr2 = hidden global ptr @foo_import, align 4
+@func_addr3 = hidden global ptr @bar_import, align 4
+@data_addr1 = hidden global ptr @data_import, align 8
 
 $func_comdat = comdat any
 @data_comdat = weak_odr constant [3 x i8] c"abc", comdat($func_comdat)
 define linkonce_odr i32 @func_comdat() comdat {
 entry:
-  ret i32 ptrtoint ([3 x i8]* @data_comdat to i32)
+  ret i32 ptrtoint (ptr @data_comdat to i32)
 }
 
 ; Test that __attribute__(used) (i.e NO_STRIP) is preserved in the relocated symbol table
-@llvm.used = appending global [1 x i8*] [i8* bitcast (i32 ()* @my_func to i8*)], section "llvm.metadata"
+@llvm.used = appending global [1 x ptr] [ptr @my_func], section "llvm.metadata"
 
 define void @_start() {
   ret void
@@ -60,6 +60,14 @@ define void @_start() {
 ; CHECK-NEXT:   - Type:            IMPORT
 ; CHECK-NEXT:     Imports:
 ; CHECK-NEXT:       - Module:          env
+; CHECK-NEXT:         Field:           __indirect_function_table
+; CHECK-NEXT:         Kind:            TABLE
+; CHECK-NEXT:         Table:
+; CHECK-NEXT:           Index:           0
+; CHECK-NEXT:           ElemType:        FUNCREF
+; CHECK-NEXT:           Limits:
+; CHECK-NEXT:             Minimum:         0x4
+; CHECK-NEXT:       - Module:          env
 ; CHECK-NEXT:         Field:           puts
 ; CHECK-NEXT:         Kind:            FUNCTION
 ; CHECK-NEXT:         SigIndex:        0
@@ -71,19 +79,11 @@ define void @_start() {
 ; CHECK-NEXT:         Field:           bar_import
 ; CHECK-NEXT:         Kind:            FUNCTION
 ; CHECK-NEXT:         SigIndex:        1
-; CHECK-NEXT:       - Module:          env
-; CHECK-NEXT:         Field:           __indirect_function_table
-; CHECK-NEXT:         Kind:            TABLE
-; CHECK-NEXT:         Table:
-; CHECK-NEXT:           Index:           0
-; CHECK-NEXT:           ElemType:        FUNCREF
-; CHECK-NEXT:           Limits:
-; CHECK-NEXT:             Initial:         0x3
 ; CHECK-NEXT:   - Type:            FUNCTION
 ; CHECK-NEXT:     FunctionTypes:   [ 2, 1, 1, 2 ]
 ; CHECK-NEXT:   - Type:            MEMORY
 ; CHECK-NEXT:     Memories:
-; CHECK-NEXT:      - Initial:         0x1
+; CHECK-NEXT:      - Minimum:         0x1
 ; CHECK-NEXT:   - Type:            ELEM
 ; CHECK-NEXT:     Segments:
 ; CHECK-NEXT:       - Offset:

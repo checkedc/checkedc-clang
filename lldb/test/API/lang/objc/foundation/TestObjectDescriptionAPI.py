@@ -2,9 +2,6 @@
 Test SBValue.GetObjectDescription() with the value from SBTarget.FindGlobalVariables().
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -12,8 +9,6 @@ from lldbsuite.test import lldbutil
 
 
 class ObjectDescriptionAPITestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def setUp(self):
         # Call super's setUp().
@@ -46,7 +41,7 @@ class ObjectDescriptionAPITestCase(TestBase):
         # Make sure we hit our breakpoint:
         thread_list = lldbutil.get_threads_stopped_at_breakpoint(
             process, breakpoint)
-        self.assertTrue(len(thread_list) == 1)
+        self.assertEqual(len(thread_list), 1)
 
         thread = thread_list[0]
         frame0 = thread.GetFrameAtIndex(0)
@@ -59,7 +54,7 @@ class ObjectDescriptionAPITestCase(TestBase):
                 print("val:", v)
                 print("object description:", v.GetObjectDescription())
             if v.GetName() == 'my_global_str':
-                self.assertTrue(v.GetObjectDescription() ==
+                self.assertEqual(v.GetObjectDescription(),
                                 'This is a global string')
 
         # But not here!
@@ -70,5 +65,5 @@ class ObjectDescriptionAPITestCase(TestBase):
                 print("val:", v)
                 print("object description:", v.GetObjectDescription())
             if v.GetName() == 'my_global_str':
-                self.assertTrue(v.GetObjectDescription() ==
+                self.assertEqual(v.GetObjectDescription(),
                                 'This is a global string')

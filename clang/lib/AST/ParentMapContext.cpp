@@ -49,7 +49,17 @@ DynTypedNode ParentMapContext::traverseIgnored(const DynTypedNode &N) const {
   return N;
 }
 
+template <typename T, typename... U>
+std::tuple<bool, DynTypedNodeList, const T *, const U *...>
+matchParents(const DynTypedNodeList &NodeList,
+             ParentMapContext::ParentMap *ParentMap);
+
+template <typename, typename...> struct MatchParents;
+
 class ParentMapContext::ParentMap {
+
+  template <typename, typename...> friend struct ::MatchParents;
+
   /// Contains parents of a node.
   using ParentVector = llvm::SmallVector<DynTypedNode, 2>;
 
@@ -89,7 +99,7 @@ class ParentMapContext::ParentMap {
       return llvm::ArrayRef<DynTypedNode>();
     }
     if (const auto *V = I->second.template dyn_cast<ParentVector *>()) {
-      return llvm::makeArrayRef(*V);
+      return llvm::ArrayRef(*V);
     }
     return getSingleDynTypedNodeFromParentMap(I->second);
   }
@@ -117,11 +127,72 @@ public:
     if (Node.getNodeKind().hasPointerIdentity()) {
       auto ParentList =
           getDynNodeFromMap(Node.getMemoizationData(), PointerParents);
-      if (ParentList.size() == 1 && TK == TK_IgnoreUnlessSpelledInSource) {
-        const auto *E = ParentList[0].get<Expr>();
-        const auto *Child = Node.get<Expr>();
-        if (E && Child)
-          return AscendIgnoreUnlessSpelledInSource(E, Child);
+      if (ParentList.size() > 0 && TK == TK_IgnoreUnlessSpelledInSource) {
+
+        const auto *ChildExpr = Node.get<Expr>();
+
+        {
+          // Don't match explicit node types because different stdlib
+          // implementations implement this in different ways and have
+          // different intermediate nodes.
+          // Look up 4 levels for a cxxRewrittenBinaryOperator as that is
+          // enough for the major stdlib implementations.
+          auto RewrittenBinOpParentsList = ParentList;
+          int I = 0;
+          while (ChildExpr && RewrittenBinOpParentsList.size() == 1 &&
+                 I++ < 4) {
+            const auto *S = RewrittenBinOpParentsList[0].get<Stmt>();
+            if (!S)
+              break;
+
+            const auto *RWBO = dyn_cast<CXXRewrittenBinaryOperator>(S);
+            if (!RWBO) {
+              RewrittenBinOpParentsList = getDynNodeFromMap(S, PointerParents);
+              continue;
+            }
+            if (RWBO->getLHS()->IgnoreUnlessSpelledInSource() != ChildExpr &&
+                RWBO->getRHS()->IgnoreUnlessSpelledInSource() != ChildExpr)
+              break;
+            return DynTypedNode::create(*RWBO);
+          }
+        }
+
+        const auto *ParentExpr = ParentList[0].get<Expr>();
+        if (ParentExpr && ChildExpr)
+          return AscendIgnoreUnlessSpelledInSource(ParentExpr, ChildExpr);
+
+        {
+          auto AncestorNodes =
+              matchParents<DeclStmt, CXXForRangeStmt>(ParentList, this);
+          if (std::get<bool>(AncestorNodes) &&
+              std::get<const CXXForRangeStmt *>(AncestorNodes)
+                      ->getLoopVarStmt() ==
+                  std::get<const DeclStmt *>(AncestorNodes))
+            return std::get<DynTypedNodeList>(AncestorNodes);
+        }
+        {
+          auto AncestorNodes = matchParents<VarDecl, DeclStmt, CXXForRangeStmt>(
+              ParentList, this);
+          if (std::get<bool>(AncestorNodes) &&
+              std::get<const CXXForRangeStmt *>(AncestorNodes)
+                      ->getRangeStmt() ==
+                  std::get<const DeclStmt *>(AncestorNodes))
+            return std::get<DynTypedNodeList>(AncestorNodes);
+        }
+        {
+          auto AncestorNodes =
+              matchParents<CXXMethodDecl, CXXRecordDecl, LambdaExpr>(ParentList,
+                                                                     this);
+          if (std::get<bool>(AncestorNodes))
+            return std::get<DynTypedNodeList>(AncestorNodes);
+        }
+        {
+          auto AncestorNodes =
+              matchParents<FunctionTemplateDecl, CXXRecordDecl, LambdaExpr>(
+                  ParentList, this);
+          if (std::get<bool>(AncestorNodes))
+            return std::get<DynTypedNodeList>(AncestorNodes);
+        }
       }
       return ParentList;
     }
@@ -181,7 +252,7 @@ public:
       const auto *S = It->second.dyn_cast<const Stmt *>();
       if (!S) {
         if (auto *Vec = It->second.dyn_cast<ParentVector *>())
-          return llvm::makeArrayRef(*Vec);
+          return llvm::ArrayRef(*Vec);
         return getSingleDynTypedNodeFromParentMap(It->second);
       }
       const auto *P = dyn_cast<Expr>(S);
@@ -194,6 +265,50 @@ public:
   }
 };
 
+template <typename T, typename... U> struct MatchParents {
+  static std::tuple<bool, DynTypedNodeList, const T *, const U *...>
+  match(const DynTypedNodeList &NodeList,
+        ParentMapContext::ParentMap *ParentMap) {
+    if (const auto *TypedNode = NodeList[0].get<T>()) {
+      auto NextParentList =
+          ParentMap->getDynNodeFromMap(TypedNode, ParentMap->PointerParents);
+      if (NextParentList.size() == 1) {
+        auto TailTuple = MatchParents<U...>::match(NextParentList, ParentMap);
+        if (std::get<bool>(TailTuple)) {
+          return std::apply(
+              [TypedNode](bool, DynTypedNodeList NodeList, auto... TupleTail) {
+                return std::make_tuple(true, NodeList, TypedNode, TupleTail...);
+              },
+              TailTuple);
+        }
+      }
+    }
+    return std::tuple_cat(std::make_tuple(false, NodeList),
+                          std::tuple<const T *, const U *...>());
+  }
+};
+
+template <typename T> struct MatchParents<T> {
+  static std::tuple<bool, DynTypedNodeList, const T *>
+  match(const DynTypedNodeList &NodeList,
+        ParentMapContext::ParentMap *ParentMap) {
+    if (const auto *TypedNode = NodeList[0].get<T>()) {
+      auto NextParentList =
+          ParentMap->getDynNodeFromMap(TypedNode, ParentMap->PointerParents);
+      if (NextParentList.size() == 1)
+        return std::make_tuple(true, NodeList, TypedNode);
+    }
+    return std::make_tuple(false, NodeList, nullptr);
+  }
+};
+
+template <typename T, typename... U>
+std::tuple<bool, DynTypedNodeList, const T *, const U *...>
+matchParents(const DynTypedNodeList &NodeList,
+             ParentMapContext::ParentMap *ParentMap) {
+  return MatchParents<T, U...>::match(NodeList, ParentMap);
+}
+
 /// Template specializations to abstract away from pointers and TypeLocs.
 /// @{
 template <typename T> static DynTypedNode createDynTypedNode(const T &Node) {
@@ -204,6 +319,9 @@ template <> DynTypedNode createDynTypedNode(const TypeLoc &Node) {
 }
 template <>
 DynTypedNode createDynTypedNode(const NestedNameSpecifierLoc &Node) {
+  return DynTypedNode::create(Node);
+}
+template <> DynTypedNode createDynTypedNode(const ObjCProtocolLoc &Node) {
   return DynTypedNode::create(Node);
 }
 /// @}
@@ -265,21 +383,23 @@ private:
       auto *Vector = NodeOrVector.template get<ParentVector *>();
       // Skip duplicates for types that have memoization data.
       // We must check that the type has memoization data before calling
-      // std::find() because DynTypedNode::operator== can't compare all
+      // llvm::is_contained() because DynTypedNode::operator== can't compare all
       // types.
       bool Found = ParentStack.back().getMemoizationData() &&
-                   std::find(Vector->begin(), Vector->end(),
-                             ParentStack.back()) != Vector->end();
+                   llvm::is_contained(*Vector, ParentStack.back());
       if (!Found)
         Vector->push_back(ParentStack.back());
     }
   }
 
+  template <typename T> static bool isNull(T Node) { return !Node; }
+  static bool isNull(ObjCProtocolLoc Node) { return false; }
+
   template <typename T, typename MapNodeTy, typename BaseTraverseFn,
             typename MapTy>
   bool TraverseNode(T Node, MapNodeTy MapNode, BaseTraverseFn BaseTraverse,
                     MapTy *Parents) {
-    if (!Node)
+    if (isNull(Node))
       return true;
     addParent(MapNode, Parents);
     ParentStack.push_back(createDynTypedNode(Node));
@@ -303,6 +423,17 @@ private:
     return TraverseNode(
         NNSLocNode, DynTypedNode::create(NNSLocNode),
         [&] { return VisitorBase::TraverseNestedNameSpecifierLoc(NNSLocNode); },
+        &Map.OtherParents);
+  }
+  bool TraverseAttr(Attr *AttrNode) {
+    return TraverseNode(
+        AttrNode, AttrNode, [&] { return VisitorBase::TraverseAttr(AttrNode); },
+        &Map.PointerParents);
+  }
+  bool TraverseObjCProtocolLoc(ObjCProtocolLoc ProtocolLocNode) {
+    return TraverseNode(
+        ProtocolLocNode, DynTypedNode::create(ProtocolLocNode),
+        [&] { return VisitorBase::TraverseObjCProtocolLoc(ProtocolLocNode); },
         &Map.OtherParents);
   }
 

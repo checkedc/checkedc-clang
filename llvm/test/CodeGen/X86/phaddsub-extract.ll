@@ -1563,7 +1563,7 @@ define i16 @extract_extract01_v32i16_sub_i16_commute(<32 x i16> %x) {
 
 ; Check output when 1 or both extracts have extra uses.
 
-define i32 @extract_extract01_v4i32_add_i32_uses1(<4 x i32> %x, i32* %p) {
+define i32 @extract_extract01_v4i32_add_i32_uses1(<4 x i32> %x, ptr %p) {
 ; SSE3-SLOW-LABEL: extract_extract01_v4i32_add_i32_uses1:
 ; SSE3-SLOW:       # %bb.0:
 ; SSE3-SLOW-NEXT:    movd %xmm0, %ecx
@@ -1595,13 +1595,13 @@ define i32 @extract_extract01_v4i32_add_i32_uses1(<4 x i32> %x, i32* %p) {
 ; AVX-FAST-NEXT:    vmovd %xmm0, %eax
 ; AVX-FAST-NEXT:    retq
   %x0 = extractelement <4 x i32> %x, i32 0
-  store i32 %x0, i32* %p
+  store i32 %x0, ptr %p
   %x1 = extractelement <4 x i32> %x, i32 1
   %x01 = add i32 %x0, %x1
   ret i32 %x01
 }
 
-define i32 @extract_extract01_v4i32_add_i32_uses2(<4 x i32> %x, i32* %p) {
+define i32 @extract_extract01_v4i32_add_i32_uses2(<4 x i32> %x, ptr %p) {
 ; SSE3-SLOW-LABEL: extract_extract01_v4i32_add_i32_uses2:
 ; SSE3-SLOW:       # %bb.0:
 ; SSE3-SLOW-NEXT:    movd %xmm0, %ecx
@@ -1635,12 +1635,12 @@ define i32 @extract_extract01_v4i32_add_i32_uses2(<4 x i32> %x, i32* %p) {
 ; AVX-FAST-NEXT:    retq
   %x0 = extractelement <4 x i32> %x, i32 0
   %x1 = extractelement <4 x i32> %x, i32 1
-  store i32 %x1, i32* %p
+  store i32 %x1, ptr %p
   %x01 = add i32 %x0, %x1
   ret i32 %x01
 }
 
-define i32 @extract_extract01_v4i32_add_i32_uses3(<4 x i32> %x, i32* %p1, i32* %p2) {
+define i32 @extract_extract01_v4i32_add_i32_uses3(<4 x i32> %x, ptr %p1, ptr %p2) {
 ; SSE3-LABEL: extract_extract01_v4i32_add_i32_uses3:
 ; SSE3:       # %bb.0:
 ; SSE3-NEXT:    movd %xmm0, %ecx
@@ -1660,9 +1660,9 @@ define i32 @extract_extract01_v4i32_add_i32_uses3(<4 x i32> %x, i32* %p1, i32* %
 ; AVX-NEXT:    vpextrd $1, %xmm0, (%rsi)
 ; AVX-NEXT:    retq
   %x0 = extractelement <4 x i32> %x, i32 0
-  store i32 %x0, i32* %p1
+  store i32 %x0, ptr %p1
   %x1 = extractelement <4 x i32> %x, i32 1
-  store i32 %x1, i32* %p2
+  store i32 %x1, ptr %p2
   %x01 = add i32 %x0, %x1
   ret i32 %x01
 }
@@ -1861,6 +1861,63 @@ define i32 @partial_reduction_sub_v16i32(<16 x i32> %x) {
   %x0123 = sub <16 x i32> %x0213, %x13
   %r = extractelement <16 x i32> %x0123, i32 0
   ret i32 %r
+}
+
+; https://bugs.chromium.org/p/chromium/issues/detail?id=1195353
+define <2 x i64> @negative_extract_v16i16_v8i16(<4 x i64> %a0) {
+; SSE3-LABEL: negative_extract_v16i16_v8i16:
+; SSE3:       # %bb.0:
+; SSE3-NEXT:    paddw %xmm1, %xmm0
+; SSE3-NEXT:    retq
+;
+; AVX1-SLOW-LABEL: negative_extract_v16i16_v8i16:
+; AVX1-SLOW:       # %bb.0:
+; AVX1-SLOW-NEXT:    vextractf128 $1, %ymm0, %xmm1
+; AVX1-SLOW-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
+; AVX1-SLOW-NEXT:    vzeroupper
+; AVX1-SLOW-NEXT:    retq
+;
+; AVX1-FAST-LABEL: negative_extract_v16i16_v8i16:
+; AVX1-FAST:       # %bb.0:
+; AVX1-FAST-NEXT:    vextractf128 $1, %ymm0, %xmm1
+; AVX1-FAST-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
+; AVX1-FAST-NEXT:    vzeroupper
+; AVX1-FAST-NEXT:    retq
+;
+; AVX2-SLOW-LABEL: negative_extract_v16i16_v8i16:
+; AVX2-SLOW:       # %bb.0:
+; AVX2-SLOW-NEXT:    vextracti128 $1, %ymm0, %xmm1
+; AVX2-SLOW-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
+; AVX2-SLOW-NEXT:    vzeroupper
+; AVX2-SLOW-NEXT:    retq
+;
+; AVX2-FAST-LABEL: negative_extract_v16i16_v8i16:
+; AVX2-FAST:       # %bb.0:
+; AVX2-FAST-NEXT:    vextracti128 $1, %ymm0, %xmm1
+; AVX2-FAST-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
+; AVX2-FAST-NEXT:    vzeroupper
+; AVX2-FAST-NEXT:    retq
+;
+; AVX512-SLOW-LABEL: negative_extract_v16i16_v8i16:
+; AVX512-SLOW:       # %bb.0:
+; AVX512-SLOW-NEXT:    vextracti128 $1, %ymm0, %xmm1
+; AVX512-SLOW-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
+; AVX512-SLOW-NEXT:    vzeroupper
+; AVX512-SLOW-NEXT:    retq
+;
+; AVX512-FAST-LABEL: negative_extract_v16i16_v8i16:
+; AVX512-FAST:       # %bb.0:
+; AVX512-FAST-NEXT:    vextracti128 $1, %ymm0, %xmm1
+; AVX512-FAST-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
+; AVX512-FAST-NEXT:    vzeroupper
+; AVX512-FAST-NEXT:    retq
+  %s = shufflevector <4 x i64> %a0, <4 x i64> undef, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
+  %b = bitcast <4 x i64> %a0 to <16 x i16>
+  %c = bitcast <4 x i64> %s to <16 x i16>
+  %d = add <16 x i16> %b, %c
+  %e = bitcast <16 x i16> %d to <4 x i64>
+  %f = shufflevector <4 x i64> %e, <4 x i64> undef, <2 x i32> <i32 0, i32 1>
+  ret <2 x i64> %f
 }
 
 ; PR42023 - https://bugs.llvm.org/show_bug.cgi?id=42023

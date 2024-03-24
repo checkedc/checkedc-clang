@@ -40,8 +40,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/LoopSimplify.h"
-#include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -59,14 +57,11 @@
 #include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -127,14 +122,12 @@ BasicBlock *llvm::InsertPreheaderForLoop(Loop *L, DominatorTree *DT,
 
   // Compute the set of predecessors of the loop that are not in the loop.
   SmallVector<BasicBlock*, 8> OutsideBlocks;
-  for (pred_iterator PI = pred_begin(Header), PE = pred_end(Header);
-       PI != PE; ++PI) {
-    BasicBlock *P = *PI;
+  for (BasicBlock *P : predecessors(Header)) {
     if (!L->contains(P)) {         // Coming in from outside the loop?
       // If the loop is branched to from an indirect terminator, we won't
       // be able to fully transform the loop, because it prohibits
       // edge splitting.
-      if (P->getTerminator()->isIndirectTerminator())
+      if (isa<IndirectBrInst>(P->getTerminator()))
         return nullptr;
 
       // Keep track of it.
@@ -183,7 +176,7 @@ static PHINode *findPHIToPartitionLoops(Loop *L, DominatorTree *DT,
   for (BasicBlock::iterator I = L->getHeader()->begin(); isa<PHINode>(I); ) {
     PHINode *PN = cast<PHINode>(I);
     ++I;
-    if (Value *V = SimplifyInstruction(PN, {DL, nullptr, DT, AC})) {
+    if (Value *V = simplifyInstruction(PN, {DL, nullptr, DT, AC})) {
       // This is a degenerate PHI already, don't modify it!
       PN->replaceAllUsesWith(V);
       PN->eraseFromParent();
@@ -238,7 +231,7 @@ static Loop *separateNestedLoop(Loop *L, BasicBlock *Preheader,
   // a function call is present until a better alternative becomes
   // available. This is similar to the conservative treatment of
   // convergent function calls in GVNHoist and JumpThreading.
-  for (auto BB : L->blocks()) {
+  for (auto *BB : L->blocks()) {
     for (auto &II : *BB) {
       if (auto CI = dyn_cast<CallBase>(&II)) {
         if (CI->isConvergent()) {
@@ -263,7 +256,7 @@ static Loop *separateNestedLoop(Loop *L, BasicBlock *Preheader,
     if (PN->getIncomingValue(i) != PN ||
         !L->contains(PN->getIncomingBlock(i))) {
       // We can't split indirect control flow edges.
-      if (PN->getIncomingBlock(i)->getTerminator()->isIndirectTerminator())
+      if (isa<IndirectBrInst>(PN->getIncomingBlock(i)->getTerminator()))
         return nullptr;
       OuterLoopPreds.push_back(PN->getIncomingBlock(i));
     }
@@ -295,9 +288,8 @@ static Loop *separateNestedLoop(Loop *L, BasicBlock *Preheader,
   // L is now a subloop of our outer loop.
   NewOuter->addChildLoop(L);
 
-  for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
-       I != E; ++I)
-    NewOuter->addBlockEntry(*I);
+  for (BasicBlock *BB : L->blocks())
+    NewOuter->addBlockEntry(BB);
 
   // Now reset the header in L, which had been moved by
   // SplitBlockPredecessors for the outer loop.
@@ -381,11 +373,9 @@ static BasicBlock *insertUniqueBackedgeBlock(Loop *L, BasicBlock *Preheader,
 
   // Figure out which basic blocks contain back-edges to the loop header.
   std::vector<BasicBlock*> BackedgeBlocks;
-  for (pred_iterator I = pred_begin(Header), E = pred_end(Header); I != E; ++I){
-    BasicBlock *P = *I;
-
+  for (BasicBlock *P : predecessors(Header)) {
     // Indirect edges cannot be split, so we must fail if we find one.
-    if (P->getTerminator()->isIndirectTerminator())
+    if (isa<IndirectBrInst>(P->getTerminator()))
       return nullptr;
 
     if (P != Preheader) BackedgeBlocks.push_back(P);
@@ -402,7 +392,7 @@ static BasicBlock *insertUniqueBackedgeBlock(Loop *L, BasicBlock *Preheader,
 
   // Move the new backedge block to right after the last backedge block.
   Function::iterator InsertPos = ++BackedgeBlocks.back()->getIterator();
-  F->getBasicBlockList().splice(InsertPos, F->getBasicBlockList(), BEBlock);
+  F->splice(InsertPos, F, BEBlock->getIterator());
 
   // Now that the block has been inserted into the function, create PHI nodes in
   // the backedge block which correspond to any PHI nodes in the header block.
@@ -450,7 +440,7 @@ static BasicBlock *insertUniqueBackedgeBlock(Loop *L, BasicBlock *Preheader,
     // eliminate the PHI Node.
     if (HasUniqueIncomingValue) {
       NewPN->replaceAllUsesWith(UniqueValue);
-      BEBlock->getInstList().erase(NewPN);
+      NewPN->eraseFromParent();
     }
   }
 
@@ -460,8 +450,8 @@ static BasicBlock *insertUniqueBackedgeBlock(Loop *L, BasicBlock *Preheader,
   // it from the backedge and add it to BEBlock.
   unsigned LoopMDKind = BEBlock->getContext().getMDKindID("llvm.loop");
   MDNode *LoopMD = nullptr;
-  for (unsigned i = 0, e = BackedgeBlocks.size(); i != e; ++i) {
-    Instruction *TI = BackedgeBlocks[i]->getTerminator();
+  for (BasicBlock *BB : BackedgeBlocks) {
+    Instruction *TI = BB->getTerminator();
     if (!LoopMD)
       LoopMD = TI->getMetadata(LoopMDKind);
     TI->setMetadata(LoopMDKind, nullptr);
@@ -500,17 +490,14 @@ ReprocessLoop:
   // predecessors that are not in the loop.  This is not valid for natural
   // loops, but can occur if the blocks are unreachable.  Since they are
   // unreachable we can just shamelessly delete those CFG edges!
-  for (Loop::block_iterator BB = L->block_begin(), E = L->block_end();
-       BB != E; ++BB) {
-    if (*BB == L->getHeader()) continue;
+  for (BasicBlock *BB : L->blocks()) {
+    if (BB == L->getHeader())
+      continue;
 
     SmallPtrSet<BasicBlock*, 4> BadPreds;
-    for (pred_iterator PI = pred_begin(*BB),
-         PE = pred_end(*BB); PI != PE; ++PI) {
-      BasicBlock *P = *PI;
+    for (BasicBlock *P : predecessors(BB))
       if (!L->contains(P))
         BadPreds.insert(P);
-    }
 
     // Delete each unique out-of-loop (and thus dead) predecessor.
     for (BasicBlock *P : BadPreds) {
@@ -520,7 +507,7 @@ ReprocessLoop:
 
       // Zap the dead pred's terminator and replace it with unreachable.
       Instruction *TI = P->getTerminator();
-      changeToUnreachable(TI, /*UseLLVMTrap=*/false, PreserveLCSSA,
+      changeToUnreachable(TI, PreserveLCSSA,
                           /*DTU=*/nullptr, MSSAU);
       Changed = true;
     }
@@ -610,7 +597,7 @@ ReprocessLoop:
   PHINode *PN;
   for (BasicBlock::iterator I = L->getHeader()->begin();
        (PN = dyn_cast<PHINode>(I++)); )
-    if (Value *V = SimplifyInstruction(PN, {DL, nullptr, DT, AC})) {
+    if (Value *V = simplifyInstruction(PN, {DL, nullptr, DT, AC})) {
       if (SE) SE->forgetValue(PN);
       if (!PreserveLCSSA || LI->replacementPreservesLCSSAForm(PN, V)) {
         PN->replaceAllUsesWith(V);
@@ -662,18 +649,13 @@ ReprocessLoop:
           continue;
         if (!L->makeLoopInvariant(
                 Inst, AnyInvariant,
-                Preheader ? Preheader->getTerminator() : nullptr, MSSAU)) {
+                Preheader ? Preheader->getTerminator() : nullptr, MSSAU, SE)) {
           AllInvariant = false;
           break;
         }
       }
-      if (AnyInvariant) {
+      if (AnyInvariant)
         Changed = true;
-        // The loop disposition of all SCEV expressions that depend on any
-        // hoisted values have also changed.
-        if (SE)
-          SE->forgetLoopDispositions(L);
-      }
       if (!AllInvariant) continue;
 
       // The block has now been cleared of all instructions except for
@@ -786,8 +768,7 @@ namespace {
       AU.addPreserved<DependenceAnalysisWrapperPass>();
       AU.addPreservedID(BreakCriticalEdgesID);  // No critical edges added.
       AU.addPreserved<BranchProbabilityInfoWrapperPass>();
-      if (EnableMSSALoopDependency)
-        AU.addPreserved<MemorySSAWrapperPass>();
+      AU.addPreserved<MemorySSAWrapperPass>();
     }
 
     /// verifyAnalysis() - Verify LoopSimplifyForm's guarantees.
@@ -821,12 +802,10 @@ bool LoopSimplify::runOnFunction(Function &F) {
       &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
   MemorySSA *MSSA = nullptr;
   std::unique_ptr<MemorySSAUpdater> MSSAU;
-  if (EnableMSSALoopDependency) {
-    auto *MSSAAnalysis = getAnalysisIfAvailable<MemorySSAWrapperPass>();
-    if (MSSAAnalysis) {
-      MSSA = &MSSAAnalysis->getMSSA();
-      MSSAU = std::make_unique<MemorySSAUpdater>(MSSA);
-    }
+  auto *MSSAAnalysis = getAnalysisIfAvailable<MemorySSAWrapperPass>();
+  if (MSSAAnalysis) {
+    MSSA = &MSSAAnalysis->getMSSA();
+    MSSAU = std::make_unique<MemorySSAUpdater>(MSSA);
   }
 
   bool PreserveLCSSA = mustPreserveAnalysisID(LCSSAID);
@@ -872,9 +851,6 @@ PreservedAnalyses LoopSimplifyPass::run(Function &F,
   PreservedAnalyses PA;
   PA.preserve<DominatorTreeAnalysis>();
   PA.preserve<LoopAnalysis>();
-  PA.preserve<BasicAA>();
-  PA.preserve<GlobalsAA>();
-  PA.preserve<SCEVAA>();
   PA.preserve<ScalarEvolutionAnalysis>();
   PA.preserve<DependenceAnalysis>();
   if (MSSAAnalysis)
@@ -904,9 +880,8 @@ static void verifyLoop(Loop *L) {
   // Indirectbr can interfere with preheader and unique backedge insertion.
   if (!L->getLoopPreheader() || !L->getLoopLatch()) {
     bool HasIndBrPred = false;
-    for (pred_iterator PI = pred_begin(L->getHeader()),
-         PE = pred_end(L->getHeader()); PI != PE; ++PI)
-      if (isa<IndirectBrInst>((*PI)->getTerminator())) {
+    for (BasicBlock *Pred : predecessors(L->getHeader()))
+      if (isa<IndirectBrInst>(Pred->getTerminator())) {
         HasIndBrPred = true;
         break;
       }

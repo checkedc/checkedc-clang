@@ -10,8 +10,6 @@ import xml.etree.ElementTree as ET
 
 class TestGdbRemoteTargetXmlPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @llgs_test
     def test_g_target_xml_returns_correct_data(self):
         self.build()
@@ -27,7 +25,7 @@ class TestGdbRemoteTargetXmlPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
                     LENGTH),
             {   
                 "direction": "send", 
-                "regex": re.compile("^\$l(.+)#[0-9a-fA-F]{2}$"), 
+                "regex": re.compile("^\$l(.+)#[0-9a-fA-F]{2}$", flags=re.DOTALL),
                 "capture": {1: "target_xml"}
             }],
             True)
@@ -55,7 +53,7 @@ class TestGdbRemoteTargetXmlPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
         self.assertIsNotNone(context)
         q_info_registers = self.parse_register_info_packets(context)
 
-        self.assertTrue(len(target_xml_registers) == len(q_info_registers))
+        self.assertEqual(len(target_xml_registers), len(q_info_registers))
         for register in zip(target_xml_registers, q_info_registers):
             xml_info_reg = register[0]
             q_info_reg = register[1]
@@ -64,7 +62,7 @@ class TestGdbRemoteTargetXmlPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
             self.assertEqual(q_info_reg["format"], xml_info_reg.get("format"))
             self.assertEqual(q_info_reg["bitsize"], xml_info_reg.get("bitsize"))
 
-            if not self.getArchitecture() == 'aarch64':
+            if not self.isAArch64():
                 self.assertEqual(q_info_reg["offset"], xml_info_reg.get("offset"))
 
             self.assertEqual(q_info_reg["encoding"], xml_info_reg.get("encoding"))

@@ -20,8 +20,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_CODEGEN_LIVERANGECALC_H
-#define LLVM_LIB_CODEGEN_LIVERANGECALC_H
+#ifndef LLVM_CODEGEN_LIVERANGECALC_H
+#define LLVM_CODEGEN_LIVERANGECALC_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
@@ -31,7 +31,6 @@
 #include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/SlotIndexes.h"
-#include "llvm/MC/LaneBitmask.h"
 #include <utility>
 
 namespace llvm {
@@ -267,4 +266,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_LIB_CODEGEN_LIVERANGECALC_H
+#endif // LLVM_CODEGEN_LIVERANGECALC_H

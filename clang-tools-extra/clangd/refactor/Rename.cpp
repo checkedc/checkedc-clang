@@ -15,29 +15,38 @@
 #include "index/SymbolCollector.h"
 #include "support/Logger.h"
 #include "support/Trace.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ParentMapContext.h"
+#include "clang/AST/Stmt.h"
+#include "clang/Basic/CharInfo.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Tooling/Syntax/Tokens.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/JSON.h"
 #include <algorithm>
+#include <optional>
 
 namespace clang {
 namespace clangd {
 namespace {
 
-llvm::Optional<std::string> filePath(const SymbolLocation &Loc,
-                                     llvm::StringRef HintFilePath) {
+std::optional<std::string> filePath(const SymbolLocation &Loc,
+                                    llvm::StringRef HintFilePath) {
   if (!Loc)
-    return None;
+    return std::nullopt;
   auto Path = URI::resolve(Loc.FileURI, HintFilePath);
   if (!Path) {
     elog("Could not resolve URI {0}: {1}", Loc.FileURI, Path.takeError());
-    return None;
+    return std::nullopt;
   }
 
   return *Path;
@@ -52,27 +61,6 @@ bool isInMacroBody(const SourceManager &SM, SourceLocation Loc) {
   }
 
   return false;
-}
-
-// Query the index to find some other files where the Decl is referenced.
-llvm::Optional<std::string> getOtherRefFile(const Decl &D, StringRef MainFile,
-                                            const SymbolIndex &Index) {
-  RefsRequest Req;
-  // We limit the number of results, this is a correctness/performance
-  // tradeoff. We expect the number of symbol references in the current file
-  // is smaller than the limit.
-  Req.Limit = 100;
-  Req.IDs.insert(getSymbolID(&D));
-  llvm::Optional<std::string> OtherFile;
-  Index.refs(Req, [&](const Ref &R) {
-    if (OtherFile)
-      return;
-    if (auto RefFilePath = filePath(R.Location, /*HintFilePath=*/MainFile)) {
-      if (*RefFilePath != MainFile)
-        OtherFile = *RefFilePath;
-    }
-  });
-  return OtherFile;
 }
 
 // Canonical declarations help simplify the process of renaming. Examples:
@@ -112,14 +100,13 @@ const NamedDecl *canonicalRenameDecl(const NamedDecl *D) {
       return canonicalRenameDecl(Method->getParent());
     if (const FunctionDecl *InstantiatedMethod =
             Method->getInstantiatedFromMemberFunction())
-      Method = cast<CXXMethodDecl>(InstantiatedMethod);
+      return canonicalRenameDecl(InstantiatedMethod);
     // FIXME(kirillbobyrev): For virtual methods with
     // size_overridden_methods() > 1, this will not rename all functions it
     // overrides, because this code assumes there is a single canonical
     // declaration.
-    while (Method->isVirtual() && Method->size_overridden_methods())
-      Method = *Method->overridden_methods().begin();
-    return Method->getCanonicalDecl();
+    if (Method->isVirtual() && Method->size_overridden_methods())
+      return canonicalRenameDecl(*Method->overridden_methods().begin());
   }
   if (const auto *Function = dyn_cast<FunctionDecl>(D))
     if (const FunctionTemplateDecl *Template = Function->getPrimaryTemplate())
@@ -144,8 +131,11 @@ const NamedDecl *canonicalRenameDecl(const NamedDecl *D) {
   }
   if (const auto *VD = dyn_cast<VarDecl>(D)) {
     if (const VarDecl *OriginalVD = VD->getInstantiatedFromStaticDataMember())
-      VD = OriginalVD;
-    return VD->getCanonicalDecl();
+      return canonicalRenameDecl(OriginalVD);
+  }
+  if (const auto *UD = dyn_cast<UsingShadowDecl>(D)) {
+    if (const auto *TargetDecl = UD->getTargetDecl())
+      return canonicalRenameDecl(TargetDecl);
   }
   return dyn_cast<NamedDecl>(D->getCanonicalDecl());
 }
@@ -164,45 +154,60 @@ llvm::DenseSet<const NamedDecl *> locateDeclAt(ParsedAST &AST,
   llvm::DenseSet<const NamedDecl *> Result;
   for (const NamedDecl *D :
        targetDecl(SelectedNode->ASTNode,
-                  DeclRelation::Alias | DeclRelation::TemplatePattern)) {
+                  DeclRelation::Alias | DeclRelation::TemplatePattern,
+                  AST.getHeuristicResolver())) {
     Result.insert(canonicalRenameDecl(D));
   }
   return Result;
 }
 
-// By default, we exclude C++ standard symbols and protobuf symbols as rename
-// these symbols would change system/generated files which are unlikely to be
-// modified.
-bool isExcluded(const NamedDecl &RenameDecl) {
-  if (isProtoFile(RenameDecl.getLocation(),
-                  RenameDecl.getASTContext().getSourceManager()))
-    return true;
-  static const auto *StdSymbols = new llvm::DenseSet<llvm::StringRef>({
-#define SYMBOL(Name, NameSpace, Header) {#NameSpace #Name},
-#include "StdSymbolMap.inc"
-#undef SYMBOL
+void filterRenameTargets(llvm::DenseSet<const NamedDecl *> &Decls) {
+  // For something like
+  //     namespace ns { void foo(); }
+  //     void bar() { using ns::f^oo; foo(); }
+  // locateDeclAt() will return a UsingDecl and foo's actual declaration.
+  // For renaming, we're only interested in foo's declaration, so drop the other
+  // one. There should never be more than one UsingDecl here, otherwise the
+  // rename would be ambiguos anyway.
+  auto UD = std::find_if(Decls.begin(), Decls.end(), [](const NamedDecl *D) {
+    return llvm::isa<UsingDecl>(D);
   });
-  return StdSymbols->count(printQualifiedName(RenameDecl));
+  if (UD != Decls.end()) {
+    Decls.erase(UD);
+  }
+}
+
+// By default, we exclude symbols from system headers and protobuf symbols as
+// renaming these symbols would change system/generated files which are unlikely
+// to be good candidates for modification.
+bool isExcluded(const NamedDecl &RenameDecl) {
+  const auto &SM = RenameDecl.getASTContext().getSourceManager();
+  return SM.isInSystemHeader(RenameDecl.getLocation()) ||
+         isProtoFile(RenameDecl.getLocation(), SM);
 }
 
 enum class ReasonToReject {
   NoSymbolFound,
   NoIndexProvided,
   NonIndexable,
-  UsedOutsideFile, // for within-file rename only.
   UnsupportedSymbol,
   AmbiguousSymbol,
 
-  // name validation.
-  RenameToKeywords,
+  // name validation. FIXME: reconcile with InvalidName
   SameName,
 };
 
-llvm::Optional<ReasonToReject> renameable(const NamedDecl &RenameDecl,
-                                          StringRef MainFilePath,
-                                          const SymbolIndex *Index,
-                                          bool CrossFile) {
+std::optional<ReasonToReject> renameable(const NamedDecl &RenameDecl,
+                                         StringRef MainFilePath,
+                                         const SymbolIndex *Index,
+                                         const RenameOptions &Opts) {
   trace::Span Tracer("Renameable");
+  if (!Opts.RenameVirtual) {
+    if (const auto *S = llvm::dyn_cast<CXXMethodDecl>(&RenameDecl)) {
+      if (S->isVirtual())
+        return ReasonToReject::UnsupportedSymbol;
+    }
+  }
   // Filter out symbols that are unsupported in both rename modes.
   if (llvm::isa<NamespaceDecl>(&RenameDecl))
     return ReasonToReject::UnsupportedSymbol;
@@ -212,7 +217,7 @@ llvm::Optional<ReasonToReject> renameable(const NamedDecl &RenameDecl,
   }
   // function-local symbols is safe to rename.
   if (RenameDecl.getParentFunctionOrMethod())
-    return None;
+    return std::nullopt;
 
   if (isExcluded(RenameDecl))
     return ReasonToReject::UnsupportedSymbol;
@@ -234,39 +239,7 @@ llvm::Optional<ReasonToReject> renameable(const NamedDecl &RenameDecl,
           IsMainFileOnly))
     return ReasonToReject::NonIndexable;
 
-  if (!CrossFile) {
-    if (!DeclaredInMainFile)
-      // We are sure the symbol is used externally, bail out early.
-      return ReasonToReject::UsedOutsideFile;
-
-    // If the symbol is declared in the main file (which is not a header), we
-    // rename it.
-    if (!MainFileIsHeader)
-      return None;
-
-    if (!Index)
-      return ReasonToReject::NoIndexProvided;
-
-    auto OtherFile = getOtherRefFile(RenameDecl, MainFilePath, *Index);
-    // If the symbol is indexable and has no refs from other files in the index,
-    // we rename it.
-    if (!OtherFile)
-      return None;
-    // If the symbol is indexable and has refs from other files in the index,
-    // we disallow rename.
-    return ReasonToReject::UsedOutsideFile;
-  }
-
-  assert(CrossFile);
-
-  // FIXME: Renaming virtual methods requires to rename all overridens in
-  // subclasses, our index doesn't have this information.
-  // Note: Within-file rename does support this through the AST.
-  if (const auto *S = llvm::dyn_cast<CXXMethodDecl>(&RenameDecl)) {
-    if (S->isVirtual())
-      return ReasonToReject::UnsupportedSymbol;
-  }
-  return None;
+  return std::nullopt;
 }
 
 llvm::Error makeError(ReasonToReject Reason) {
@@ -276,16 +249,12 @@ llvm::Error makeError(ReasonToReject Reason) {
       return "there is no symbol at the given location";
     case ReasonToReject::NoIndexProvided:
       return "no index provided";
-    case ReasonToReject::UsedOutsideFile:
-      return "the symbol is used outside main file";
     case ReasonToReject::NonIndexable:
       return "symbol may be used in other files (not eligible for indexing)";
     case ReasonToReject::UnsupportedSymbol:
       return "symbol is not a supported kind (e.g. namespace, macro)";
     case ReasonToReject::AmbiguousSymbol:
       return "there are multiple symbols at the given location";
-    case ReasonToReject::RenameToKeywords:
-      return "the chosen name is a keyword";
     case ReasonToReject::SameName:
       return "new name is the same as the old name";
     }
@@ -303,32 +272,142 @@ std::vector<SourceLocation> findOccurrencesWithinFile(ParsedAST &AST,
 
   std::vector<SourceLocation> Results;
   for (Decl *TopLevelDecl : AST.getLocalTopLevelDecls()) {
-    findExplicitReferences(TopLevelDecl, [&](ReferenceLoc Ref) {
-      if (Ref.Targets.empty())
-        return;
-      for (const auto *Target : Ref.Targets) {
-        if (canonicalRenameDecl(Target) == &ND) {
-          Results.push_back(Ref.NameLoc);
-          return;
-        }
-      }
-    });
+    findExplicitReferences(
+        TopLevelDecl,
+        [&](ReferenceLoc Ref) {
+          if (Ref.Targets.empty())
+            return;
+          for (const auto *Target : Ref.Targets) {
+            if (canonicalRenameDecl(Target) == &ND) {
+              Results.push_back(Ref.NameLoc);
+              return;
+            }
+          }
+        },
+        AST.getHeuristicResolver());
   }
 
   return Results;
 }
 
+// Detect name conflict with othter DeclStmts in the same enclosing scope.
+const NamedDecl *lookupSiblingWithinEnclosingScope(ASTContext &Ctx,
+                                                   const NamedDecl &RenamedDecl,
+                                                   StringRef NewName) {
+  // Store Parents list outside of GetSingleParent, so that returned pointer is
+  // not invalidated.
+  DynTypedNodeList Storage(DynTypedNode::create(RenamedDecl));
+  auto GetSingleParent = [&](const DynTypedNode &Node) -> const DynTypedNode * {
+    Storage = Ctx.getParents(Node);
+    return (Storage.size() == 1) ? Storage.begin() : nullptr;
+  };
+
+  // We need to get to the enclosing scope: NamedDecl's parent is typically
+  // DeclStmt (or FunctionProtoTypeLoc in case of function arguments), so
+  // enclosing scope would be the second order parent.
+  const auto *Parent = GetSingleParent(DynTypedNode::create(RenamedDecl));
+  if (!Parent || !(Parent->get<DeclStmt>() || Parent->get<TypeLoc>()))
+    return nullptr;
+  Parent = GetSingleParent(*Parent);
+
+  // The following helpers check corresponding AST nodes for variable
+  // declarations with the name collision.
+  auto CheckDeclStmt = [&](const DeclStmt *DS,
+                           StringRef Name) -> const NamedDecl * {
+    if (!DS)
+      return nullptr;
+    for (const auto &Child : DS->getDeclGroup())
+      if (const auto *ND = dyn_cast<NamedDecl>(Child))
+        if (ND != &RenamedDecl && ND->getName() == Name)
+          return ND;
+    return nullptr;
+  };
+  auto CheckCompoundStmt = [&](const Stmt *S,
+                               StringRef Name) -> const NamedDecl * {
+    if (const auto *CS = dyn_cast_or_null<CompoundStmt>(S))
+      for (const auto *Node : CS->children())
+        if (const auto *Result = CheckDeclStmt(dyn_cast<DeclStmt>(Node), Name))
+          return Result;
+    return nullptr;
+  };
+  auto CheckConditionVariable = [&](const auto *Scope,
+                                    StringRef Name) -> const NamedDecl * {
+    if (!Scope)
+      return nullptr;
+    return CheckDeclStmt(Scope->getConditionVariableDeclStmt(), Name);
+  };
+
+  // CompoundStmt is the most common enclosing scope for function-local symbols
+  // In the simplest case we just iterate through sibling DeclStmts and check
+  // for collisions.
+  if (const auto *EnclosingCS = Parent->get<CompoundStmt>()) {
+    if (const auto *Result = CheckCompoundStmt(EnclosingCS, NewName))
+      return Result;
+    const auto *ScopeParent = GetSingleParent(*Parent);
+    // CompoundStmt may be found within if/while/for. In these cases, rename can
+    // collide with the init-statement variable decalaration, they should be
+    // checked.
+    if (const auto *Result =
+            CheckConditionVariable(ScopeParent->get<IfStmt>(), NewName))
+      return Result;
+    if (const auto *Result =
+            CheckConditionVariable(ScopeParent->get<WhileStmt>(), NewName))
+      return Result;
+    if (const auto *For = ScopeParent->get<ForStmt>())
+      if (const auto *Result = CheckDeclStmt(
+              dyn_cast_or_null<DeclStmt>(For->getInit()), NewName))
+        return Result;
+    // Also check if there is a name collision with function arguments.
+    if (const auto *Function = ScopeParent->get<FunctionDecl>())
+      for (const auto *Parameter : Function->parameters())
+        if (Parameter->getName() == NewName)
+          return Parameter;
+    return nullptr;
+  }
+
+  // When renaming a variable within init-statement within if/while/for
+  // condition, also check the CompoundStmt in the body.
+  if (const auto *EnclosingIf = Parent->get<IfStmt>()) {
+    if (const auto *Result = CheckCompoundStmt(EnclosingIf->getElse(), NewName))
+      return Result;
+    return CheckCompoundStmt(EnclosingIf->getThen(), NewName);
+  }
+  if (const auto *EnclosingWhile = Parent->get<WhileStmt>())
+    return CheckCompoundStmt(EnclosingWhile->getBody(), NewName);
+  if (const auto *EnclosingFor = Parent->get<ForStmt>()) {
+    // Check for conflicts with other declarations within initialization
+    // statement.
+    if (const auto *Result = CheckDeclStmt(
+            dyn_cast_or_null<DeclStmt>(EnclosingFor->getInit()), NewName))
+      return Result;
+    return CheckCompoundStmt(EnclosingFor->getBody(), NewName);
+  }
+  if (const auto *EnclosingFunction = Parent->get<FunctionDecl>()) {
+    // Check for conflicts with other arguments.
+    for (const auto *Parameter : EnclosingFunction->parameters())
+      if (Parameter != &RenamedDecl && Parameter->getName() == NewName)
+        return Parameter;
+    // FIXME: We don't modify all references to function parameters when
+    // renaming from forward declaration now, so using a name colliding with
+    // something in the definition's body is a valid transformation.
+    if (!EnclosingFunction->doesThisDeclarationHaveABody())
+      return nullptr;
+    return CheckCompoundStmt(EnclosingFunction->getBody(), NewName);
+  }
+
+  return nullptr;
+}
+
 // Lookup the declarations (if any) with the given Name in the context of
 // RenameDecl.
-const NamedDecl *lookupSiblingWithName(const ASTContext &Ctx,
-                                       const NamedDecl &RenamedDecl,
-                                       llvm::StringRef Name) {
-  trace::Span Tracer("LookupSiblingWithName");
-  const auto &II = Ctx.Idents.get(Name);
+const NamedDecl *lookupSiblingsWithinContext(ASTContext &Ctx,
+                                             const NamedDecl &RenamedDecl,
+                                             llvm::StringRef NewName) {
+  const auto &II = Ctx.Idents.get(NewName);
   DeclarationName LookupName(&II);
   DeclContextLookupResult LookupResult;
   const auto *DC = RenamedDecl.getDeclContext();
-  while (DC && DC->isTransparentContext())
+  while (DC->isTransparentContext())
     DC = DC->getParent();
   switch (DC->getDeclKind()) {
   // The enclosing DeclContext may not be the enclosing scope, it might have
@@ -356,10 +435,21 @@ const NamedDecl *lookupSiblingWithName(const ASTContext &Ctx,
   return nullptr;
 }
 
+const NamedDecl *lookupSiblingWithName(ASTContext &Ctx,
+                                       const NamedDecl &RenamedDecl,
+                                       llvm::StringRef NewName) {
+  trace::Span Tracer("LookupSiblingWithName");
+  if (const auto *Result =
+          lookupSiblingsWithinContext(Ctx, RenamedDecl, NewName))
+    return Result;
+  return lookupSiblingWithinEnclosingScope(Ctx, RenamedDecl, NewName);
+}
+
 struct InvalidName {
   enum Kind {
     Keywords,
     Conflict,
+    BadIdentifier,
   };
   Kind K;
   std::string Details;
@@ -370,35 +460,58 @@ std::string toString(InvalidName::Kind K) {
     return "Keywords";
   case InvalidName::Conflict:
     return "Conflict";
+  case InvalidName::BadIdentifier:
+    return "BadIdentifier";
   }
   llvm_unreachable("unhandled InvalidName kind");
 }
 
 llvm::Error makeError(InvalidName Reason) {
-  auto Message = [](InvalidName Reason) {
+  auto Message = [](const InvalidName &Reason) {
     switch (Reason.K) {
     case InvalidName::Keywords:
       return llvm::formatv("the chosen name \"{0}\" is a keyword",
                            Reason.Details);
     case InvalidName::Conflict:
       return llvm::formatv("conflict with the symbol in {0}", Reason.Details);
+    case InvalidName::BadIdentifier:
+      return llvm::formatv("the chosen name \"{0}\" is not a valid identifier",
+                           Reason.Details);
     }
     llvm_unreachable("unhandled InvalidName kind");
   };
   return error("invalid name: {0}", Message(Reason));
 }
 
+static bool mayBeValidIdentifier(llvm::StringRef Ident) {
+  assert(llvm::json::isUTF8(Ident));
+  if (Ident.empty())
+    return false;
+  // We don't check all the rules for non-ascii characters (most are allowed).
+  bool AllowDollar = true; // lenient
+  if (llvm::isASCII(Ident.front()) &&
+      !isAsciiIdentifierStart(Ident.front(), AllowDollar))
+    return false;
+  for (char C : Ident) {
+    if (llvm::isASCII(C) && !isAsciiIdentifierContinue(C, AllowDollar))
+      return false;
+  }
+  return true;
+}
+
 // Check if we can rename the given RenameDecl into NewName.
 // Return details if the rename would produce a conflict.
-llvm::Optional<InvalidName> checkName(const NamedDecl &RenameDecl,
-                                      llvm::StringRef NewName) {
+std::optional<InvalidName> checkName(const NamedDecl &RenameDecl,
+                                     llvm::StringRef NewName) {
   trace::Span Tracer("CheckName");
   static constexpr trace::Metric InvalidNameMetric(
       "rename_name_invalid", trace::Metric::Counter, "invalid_kind");
   auto &ASTCtx = RenameDecl.getASTContext();
-  llvm::Optional<InvalidName> Result;
+  std::optional<InvalidName> Result;
   if (isKeyword(NewName, ASTCtx.getLangOpts()))
     Result = InvalidName{InvalidName::Keywords, NewName.str()};
+  else if (!mayBeValidIdentifier(NewName))
+    Result = InvalidName{InvalidName::BadIdentifier, NewName.str()};
   else {
     // Name conflict detection.
     // Function conflicts are subtle (overloading), so ignore them.
@@ -456,6 +569,26 @@ Range toRange(const SymbolLocation &L) {
   return R;
 }
 
+// Walk down from a virtual method to overriding methods, we rename them as a
+// group. Note that canonicalRenameDecl() ensures we're starting from the base
+// method.
+void insertTransitiveOverrides(SymbolID Base, llvm::DenseSet<SymbolID> &IDs,
+                               const SymbolIndex &Index) {
+  RelationsRequest Req;
+  Req.Predicate = RelationKind::OverriddenBy;
+
+  llvm::DenseSet<SymbolID> Pending = {Base};
+  while (!Pending.empty()) {
+    Req.Subjects = std::move(Pending);
+    Pending.clear();
+
+    Index.relations(Req, [&](const SymbolID &, const Symbol &Override) {
+      if (IDs.insert(Override.ID).second)
+        Pending.insert(Override.ID);
+    });
+  }
+}
+
 // Return all rename occurrences (using the index) outside of the main file,
 // grouped by the absolute file path.
 llvm::Expected<llvm::StringMap<std::vector<Range>>>
@@ -466,6 +599,10 @@ findOccurrencesOutsideFile(const NamedDecl &RenameDecl,
   RefsRequest RQuest;
   RQuest.IDs.insert(getSymbolID(&RenameDecl));
 
+  if (const auto *MethodDecl = llvm::dyn_cast<CXXMethodDecl>(&RenameDecl))
+    if (MethodDecl->isVirtual())
+      insertTransitiveOverrides(*RQuest.IDs.begin(), RQuest.IDs, Index);
+
   // Absolute file path => rename occurrences in that file.
   llvm::StringMap<std::vector<Range>> AffectedFiles;
   bool HasMore = Index.refs(RQuest, [&](const Ref &R) {
@@ -474,7 +611,7 @@ findOccurrencesOutsideFile(const NamedDecl &RenameDecl,
     if ((R.Kind & RefKind::Spelled) == RefKind::Unknown)
       return;
     if (auto RefFilePath = filePath(R.Location, /*HintFilePath=*/MainFile)) {
-      if (*RefFilePath != MainFile)
+      if (!pathEqual(*RefFilePath, MainFile))
         AffectedFiles[*RefFilePath].push_back(toRange(R.Location));
     }
   });
@@ -509,10 +646,10 @@ findOccurrencesOutsideFile(const NamedDecl &RenameDecl,
 // index (background index) is relatively stale. We choose the dirty buffers
 // as the file content we rename on, and fallback to file content on disk if
 // there is no dirty buffer.
-llvm::Expected<FileEdits> renameOutsideFile(
-    const NamedDecl &RenameDecl, llvm::StringRef MainFilePath,
-    llvm::StringRef NewName, const SymbolIndex &Index, size_t MaxLimitFiles,
-    llvm::function_ref<llvm::Expected<std::string>(PathRef)> GetFileContent) {
+llvm::Expected<FileEdits>
+renameOutsideFile(const NamedDecl &RenameDecl, llvm::StringRef MainFilePath,
+                  llvm::StringRef NewName, const SymbolIndex &Index,
+                  size_t MaxLimitFiles, llvm::vfs::FileSystem &FS) {
   trace::Span Tracer("RenameOutsideFile");
   auto AffectedFiles = findOccurrencesOutsideFile(RenameDecl, MainFilePath,
                                                   Index, MaxLimitFiles);
@@ -522,13 +659,16 @@ llvm::Expected<FileEdits> renameOutsideFile(
   for (auto &FileAndOccurrences : *AffectedFiles) {
     llvm::StringRef FilePath = FileAndOccurrences.first();
 
-    auto AffectedFileCode = GetFileContent(FilePath);
-    if (!AffectedFileCode) {
-      elog("Fail to read file content: {0}", AffectedFileCode.takeError());
+    auto ExpBuffer = FS.getBufferForFile(FilePath);
+    if (!ExpBuffer) {
+      elog("Fail to read file content: Fail to open file {0}: {1}", FilePath,
+           ExpBuffer.getError().message());
       continue;
     }
+
+    auto AffectedFileCode = (*ExpBuffer)->getBuffer();
     auto RenameRanges =
-        adjustRenameRanges(*AffectedFileCode, RenameDecl.getNameAsString(),
+        adjustRenameRanges(AffectedFileCode, RenameDecl.getNameAsString(),
                            std::move(FileAndOccurrences.second),
                            RenameDecl.getASTContext().getLangOpts());
     if (!RenameRanges) {
@@ -540,7 +680,7 @@ llvm::Expected<FileEdits> renameOutsideFile(
                    FilePath);
     }
     auto RenameEdit =
-        buildRenameEdit(FilePath, *AffectedFileCode, *RenameRanges, NewName);
+        buildRenameEdit(FilePath, AffectedFileCode, *RenameRanges, NewName);
     if (!RenameEdit)
       return error("failed to rename in file {0}: {1}", FilePath,
                    RenameEdit.takeError());
@@ -591,28 +731,13 @@ void findNearMiss(
 } // namespace
 
 llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
+  assert(!RInputs.Index == !RInputs.FS &&
+         "Index and FS must either both be specified or both null.");
   trace::Span Tracer("Rename flow");
   const auto &Opts = RInputs.Opts;
   ParsedAST &AST = RInputs.AST;
   const SourceManager &SM = AST.getSourceManager();
   llvm::StringRef MainFileCode = SM.getBufferData(SM.getMainFileID());
-  auto GetFileContent = [&RInputs,
-                         &SM](PathRef AbsPath) -> llvm::Expected<std::string> {
-    llvm::Optional<std::string> DirtyBuffer;
-    if (RInputs.GetDirtyBuffer &&
-        (DirtyBuffer = RInputs.GetDirtyBuffer(AbsPath)))
-      return std::move(*DirtyBuffer);
-
-    auto Content =
-        SM.getFileManager().getVirtualFileSystem().getBufferForFile(AbsPath);
-    if (!Content)
-      return error("Fail to open file {0}: {1}", AbsPath,
-                   Content.getError().message());
-    if (!*Content)
-      return error("Got no buffer for file {0}", AbsPath);
-
-    return (*Content)->getBuffer().str();
-  };
   // Try to find the tokens adjacent to the cursor position.
   auto Loc = sourceLocationInMainFile(SM, RInputs.Pos);
   if (!Loc)
@@ -632,6 +757,7 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
     return makeError(ReasonToReject::UnsupportedSymbol);
 
   auto DeclsUnderCursor = locateDeclAt(AST, IdentifierToken->location());
+  filterRenameTargets(DeclsUnderCursor);
   if (DeclsUnderCursor.empty())
     return makeError(ReasonToReject::NoSymbolFound);
   if (DeclsUnderCursor.size() > 1)
@@ -644,10 +770,10 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
     return makeError(ReasonToReject::SameName);
   auto Invalid = checkName(RenameDecl, RInputs.NewName);
   if (Invalid)
-    return makeError(*Invalid);
+    return makeError(std::move(*Invalid));
 
-  auto Reject = renameable(RenameDecl, RInputs.MainFilePath, RInputs.Index,
-                           Opts.AllowCrossFile);
+  auto Reject =
+      renameable(RenameDecl, RInputs.MainFilePath, RInputs.Index, Opts);
   if (Reject)
     return makeError(*Reject);
 
@@ -663,16 +789,35 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
   auto MainFileRenameEdit = renameWithinFile(AST, RenameDecl, RInputs.NewName);
   if (!MainFileRenameEdit)
     return MainFileRenameEdit.takeError();
+
+  // Check the rename-triggering location is actually being renamed.
+  // This is a robustness check to avoid surprising rename results -- if the
+  // the triggering location is not actually the name of the node we identified
+  // (e.g. for broken code), then rename is likely not what users expect, so we
+  // reject this kind of rename.
+  auto StartOffset = positionToOffset(MainFileCode, CurrentIdentifier.start);
+  auto EndOffset = positionToOffset(MainFileCode, CurrentIdentifier.end);
+  if (!StartOffset)
+    return StartOffset.takeError();
+  if (!EndOffset)
+    return EndOffset.takeError();
+  if (llvm::none_of(
+          *MainFileRenameEdit,
+          [&StartOffset, &EndOffset](const clang::tooling::Replacement &R) {
+            return R.getOffset() == *StartOffset &&
+                   R.getLength() == *EndOffset - *StartOffset;
+          })) {
+    return makeError(ReasonToReject::NoSymbolFound);
+  }
   RenameResult Result;
   Result.Target = CurrentIdentifier;
   Edit MainFileEdits = Edit(MainFileCode, std::move(*MainFileRenameEdit));
-  llvm::for_each(MainFileEdits.asTextEdits(), [&Result](const TextEdit &TE) {
+  for (const TextEdit &TE : MainFileEdits.asTextEdits())
     Result.LocalChanges.push_back(TE.range);
-  });
 
   // return the main file edit if this is a within-file rename or the symbol
   // being renamed is function local.
-  if (!Opts.AllowCrossFile || RenameDecl.getParentFunctionOrMethod()) {
+  if (RenameDecl.getParentFunctionOrMethod()) {
     Result.GlobalChanges = FileEdits(
         {std::make_pair(RInputs.MainFilePath, std::move(MainFileEdits))});
     return Result;
@@ -681,7 +826,7 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
   // If the index is nullptr, we don't know the completeness of the result, so
   // we don't populate the field GlobalChanges.
   if (!RInputs.Index) {
-    assert(Result.GlobalChanges.empty() && Opts.AllowCrossFile);
+    assert(Result.GlobalChanges.empty());
     return Result;
   }
 
@@ -689,7 +834,7 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
       RenameDecl, RInputs.MainFilePath, RInputs.NewName, *RInputs.Index,
       Opts.LimitFiles == 0 ? std::numeric_limits<size_t>::max()
                            : Opts.LimitFiles,
-      GetFileContent);
+      *RInputs.FS);
   if (!OtherFilesEdits)
     return OtherFilesEdits.takeError();
   Result.GlobalChanges = *OtherFilesEdits;
@@ -708,7 +853,7 @@ llvm::Expected<Edit> buildRenameEdit(llvm::StringRef AbsFilePath,
   SPAN_ATTACH(Tracer, "rename_occurrences",
               static_cast<int64_t>(Occurrences.size()));
 
-  assert(std::is_sorted(Occurrences.begin(), Occurrences.end()));
+  assert(llvm::is_sorted(Occurrences));
   assert(std::unique(Occurrences.begin(), Occurrences.end()) ==
              Occurrences.end() &&
          "Occurrences must be unique");
@@ -766,31 +911,31 @@ llvm::Expected<Edit> buildRenameEdit(llvm::StringRef AbsFilePath,
 //          ranges onto candidates in a plausible way (e.g. guess that lines
 //          were inserted). If such a "near miss" is found, the rename is still
 //          possible
-llvm::Optional<std::vector<Range>>
+std::optional<std::vector<Range>>
 adjustRenameRanges(llvm::StringRef DraftCode, llvm::StringRef Identifier,
                    std::vector<Range> Indexed, const LangOptions &LangOpts) {
   trace::Span Tracer("AdjustRenameRanges");
   assert(!Indexed.empty());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
+  assert(llvm::is_sorted(Indexed));
   std::vector<Range> Lexed =
       collectIdentifierRanges(Identifier, DraftCode, LangOpts);
   llvm::sort(Lexed);
   return getMappedRanges(Indexed, Lexed);
 }
 
-llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
-                                                   ArrayRef<Range> Lexed) {
+std::optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
+                                                  ArrayRef<Range> Lexed) {
   trace::Span Tracer("GetMappedRanges");
   assert(!Indexed.empty());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
-  assert(std::is_sorted(Lexed.begin(), Lexed.end()));
+  assert(llvm::is_sorted(Indexed));
+  assert(llvm::is_sorted(Lexed));
 
   if (Indexed.size() > Lexed.size()) {
     vlog("The number of lexed occurrences is less than indexed occurrences");
     SPAN_ATTACH(
         Tracer, "error",
         "The number of lexed occurrences is less than indexed occurrences");
-    return llvm::None;
+    return std::nullopt;
   }
   // Fast check for the special subset case.
   if (std::includes(Indexed.begin(), Indexed.end(), Lexed.begin(), Lexed.end()))
@@ -798,7 +943,7 @@ llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
 
   std::vector<size_t> Best;
   size_t BestCost = std::numeric_limits<size_t>::max();
-  bool HasMultiple = 0;
+  bool HasMultiple = false;
   std::vector<size_t> ResultStorage;
   int Fuel = 10000;
   findNearMiss(ResultStorage, Indexed, Lexed, 0, Fuel,
@@ -817,12 +962,12 @@ llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
   if (HasMultiple) {
     vlog("The best near miss is not unique.");
     SPAN_ATTACH(Tracer, "error", "The best near miss is not unique");
-    return llvm::None;
+    return std::nullopt;
   }
   if (Best.empty()) {
     vlog("Didn't find a near miss.");
     SPAN_ATTACH(Tracer, "error", "Didn't find a near miss");
-    return llvm::None;
+    return std::nullopt;
   }
   std::vector<Range> Mapped;
   for (auto I : Best)
@@ -849,8 +994,8 @@ llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
 size_t renameRangeAdjustmentCost(ArrayRef<Range> Indexed, ArrayRef<Range> Lexed,
                                  ArrayRef<size_t> MappedIndex) {
   assert(Indexed.size() == MappedIndex.size());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
-  assert(std::is_sorted(Lexed.begin(), Lexed.end()));
+  assert(llvm::is_sorted(Indexed));
+  assert(llvm::is_sorted(Lexed));
 
   int LastLine = -1;
   int LastDLine = 0, LastDColumn = 0;

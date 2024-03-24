@@ -94,7 +94,7 @@ namespace PR31606 {
 
   struct A : Base {
     using Base::Base;
-    bool operator==(A const &) const; // expected-note {{no known conversion from 'PR31606::B' to 'const PR31606::A' for 1st argument}}
+    bool operator==(A const &) const; // expected-note {{no known conversion from 'B' to 'const A' for 1st argument}}
   };
 
   struct B : Base {
@@ -141,4 +141,25 @@ namespace PR47555 {
     constexpr B b = 0;
   };
   template void f<int>();
+}
+
+namespace PR48545 {
+  struct B {
+      void f();
+  private:
+      B(int, int = 0);
+  };
+  struct D : B { using B::B; };
+  void B::f() {
+      D{0};
+      D{0, 0};
+      D(0);
+      D(0, 0);
+      D u = {0};
+      D v = {0, 0};
+      D w{0};
+      D x{0, 0};
+      D y(0);
+      D z(0, 0);
+  }
 }

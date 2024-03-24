@@ -5,24 +5,24 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file builds on the ADT/GraphTraits.h file to build a generic breadth
-// first graph iterator.  This file exposes the following functions/types:
-//
-// bf_begin/bf_end/bf_iterator
-//   * Normal breadth-first iteration - visit a graph level-by-level.
-//
+///
+/// \file
+/// This file builds on the ADT/GraphTraits.h file to build a generic breadth
+/// first graph iterator.  This file exposes the following functions/types:
+///
+/// bf_begin/bf_end/bf_iterator
+///   * Normal breadth-first iteration - visit a graph level-by-level.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_BREADTHFIRSTITERATOR_H
 #define LLVM_ADT_BREADTHFIRSTITERATOR_H
 
 #include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/iterator_range.h"
 #include <iterator>
+#include <optional>
 #include <queue>
 #include <utility>
 
@@ -44,41 +44,44 @@ template <class GraphT,
           class SetType =
               bf_iterator_default_set<typename GraphTraits<GraphT>::NodeRef>,
           class GT = GraphTraits<GraphT>>
-class bf_iterator
-    : public std::iterator<std::forward_iterator_tag, typename GT::NodeRef>,
-      public bf_iterator_storage<SetType> {
-  using super = std::iterator<std::forward_iterator_tag, typename GT::NodeRef>;
+class bf_iterator : public bf_iterator_storage<SetType> {
+public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = typename GT::NodeRef;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
 
+private:
   using NodeRef = typename GT::NodeRef;
   using ChildItTy = typename GT::ChildIteratorType;
 
   // First element is the node reference, second is the next child to visit.
-  using QueueElement = std::pair<NodeRef, Optional<ChildItTy>>;
+  using QueueElement = std::pair<NodeRef, std::optional<ChildItTy>>;
 
   // Visit queue - used to maintain BFS ordering.
-  // Optional<> because we need markers for levels.
-  std::queue<Optional<QueueElement>> VisitQueue;
+  // std::optional<> because we need markers for levels.
+  std::queue<std::optional<QueueElement>> VisitQueue;
 
   // Current level.
-  unsigned Level;
+  unsigned Level = 0;
 
-private:
   inline bf_iterator(NodeRef Node) {
     this->Visited.insert(Node);
     Level = 0;
 
     // Also, insert a dummy node as marker.
-    VisitQueue.push(QueueElement(Node, None));
-    VisitQueue.push(None);
+    VisitQueue.push(QueueElement(Node, std::nullopt));
+    VisitQueue.push(std::nullopt);
   }
 
   inline bf_iterator() = default;
 
   inline void toNext() {
-    Optional<QueueElement> Head = VisitQueue.front();
-    QueueElement H = Head.getValue();
+    std::optional<QueueElement> Head = VisitQueue.front();
+    QueueElement H = *Head;
     NodeRef Node = H.first;
-    Optional<ChildItTy> &ChildIt = H.second;
+    std::optional<ChildItTy> &ChildIt = H.second;
 
     if (!ChildIt)
       ChildIt.emplace(GT::child_begin(Node));
@@ -87,14 +90,14 @@ private:
 
       // Already visited?
       if (this->Visited.insert(Next).second)
-        VisitQueue.push(QueueElement(Next, None));
+        VisitQueue.push(QueueElement(Next, std::nullopt));
     }
     VisitQueue.pop();
 
     // Go to the next element skipping markers if needed.
     if (!VisitQueue.empty()) {
       Head = VisitQueue.front();
-      if (Head != None)
+      if (Head != std::nullopt)
         return;
       Level += 1;
       VisitQueue.pop();
@@ -102,13 +105,11 @@ private:
       // Don't push another marker if this is the last
       // element.
       if (!VisitQueue.empty())
-        VisitQueue.push(None);
+        VisitQueue.push(std::nullopt);
     }
   }
 
 public:
-  using pointer = typename super::pointer;
-
   // Provide static begin and end methods as our public "constructors"
   static bf_iterator begin(const GraphT &G) {
     return bf_iterator(GT::getEntryNode(G));

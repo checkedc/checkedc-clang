@@ -13,10 +13,6 @@
 using namespace lldb;
 using namespace lldb_private;
 
-OptionGroupArchitecture::OptionGroupArchitecture() : m_arch_str() {}
-
-OptionGroupArchitecture::~OptionGroupArchitecture() {}
-
 static constexpr OptionDefinition g_option_table[] = {
     {LLDB_OPT_SET_1, false, "arch", 'a', OptionParser::eRequiredArgument,
      nullptr, {}, 0, eArgTypeArchitecture,
@@ -24,7 +20,7 @@ static constexpr OptionDefinition g_option_table[] = {
 };
 
 llvm::ArrayRef<OptionDefinition> OptionGroupArchitecture::GetDefinitions() {
-  return llvm::makeArrayRef(g_option_table);
+  return llvm::ArrayRef(g_option_table);
 }
 
 bool OptionGroupArchitecture::GetArchitecture(Platform *platform,

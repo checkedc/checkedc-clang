@@ -590,7 +590,7 @@ define <2 x float> @frintn_2s(<2 x float> %A) nounwind {
 ;CHECK-NOT: ld1
 ;CHECK: frintn.2s v0, v0
 ;CHECK-NEXT: ret
-	%tmp3 = call <2 x float> @llvm.aarch64.neon.frintn.v2f32(<2 x float> %A)
+	%tmp3 = call <2 x float> @llvm.roundeven.v2f32(<2 x float> %A)
 	ret <2 x float> %tmp3
 }
 
@@ -599,7 +599,7 @@ define <4 x float> @frintn_4s(<4 x float> %A) nounwind {
 ;CHECK-NOT: ld1
 ;CHECK: frintn.4s v0, v0
 ;CHECK-NEXT: ret
-	%tmp3 = call <4 x float> @llvm.aarch64.neon.frintn.v4f32(<4 x float> %A)
+	%tmp3 = call <4 x float> @llvm.roundeven.v4f32(<4 x float> %A)
 	ret <4 x float> %tmp3
 }
 
@@ -608,13 +608,13 @@ define <2 x double> @frintn_2d(<2 x double> %A) nounwind {
 ;CHECK-NOT: ld1
 ;CHECK: frintn.2d v0, v0
 ;CHECK-NEXT: ret
-	%tmp3 = call <2 x double> @llvm.aarch64.neon.frintn.v2f64(<2 x double> %A)
+	%tmp3 = call <2 x double> @llvm.roundeven.v2f64(<2 x double> %A)
 	ret <2 x double> %tmp3
 }
 
-declare <2 x float> @llvm.aarch64.neon.frintn.v2f32(<2 x float>) nounwind readnone
-declare <4 x float> @llvm.aarch64.neon.frintn.v4f32(<4 x float>) nounwind readnone
-declare <2 x double> @llvm.aarch64.neon.frintn.v2f64(<2 x double>) nounwind readnone
+declare <2 x float> @llvm.roundeven.v2f32(<2 x float>) nounwind readnone
+declare <4 x float> @llvm.roundeven.v4f32(<4 x float>) nounwind readnone
+declare <2 x double> @llvm.roundeven.v2f64(<2 x double>) nounwind readnone
 
 ; FALLBACK-NOT: remark{{.*}}frintp_2s
 define <2 x float> @frintp_2s(<2 x float> %A) nounwind {
@@ -857,19 +857,19 @@ define <2 x double> @ucvtf_2dc(<2 x i64> %A) nounwind {
 ;CHECK-LABEL: autogen_SD28458:
 ;CHECK: fcvt
 ;CHECK: ret
-define void @autogen_SD28458(<8 x double> %val.f64, <8 x float>* %addr.f32) {
+define void @autogen_SD28458(<8 x double> %val.f64, ptr %addr.f32) {
   %Tr53 = fptrunc <8 x double> %val.f64 to <8 x float>
-  store <8 x float> %Tr53, <8 x float>* %addr.f32
+  store <8 x float> %Tr53, ptr %addr.f32
   ret void
 }
 
 ;CHECK-LABEL: autogen_SD19225:
 ;CHECK: fcvt
 ;CHECK: ret
-define void @autogen_SD19225(<8 x double>* %addr.f64, <8 x float>* %addr.f32) {
-  %A = load <8 x float>, <8 x float>* %addr.f32
+define void @autogen_SD19225(ptr %addr.f64, ptr %addr.f32) {
+  %A = load <8 x float>, ptr %addr.f32
   %Tr53 = fpext <8 x float> %A to <8 x double>
-  store <8 x double> %Tr53, <8 x double>* %addr.f64
+  store <8 x double> %Tr53, ptr %addr.f64
   ret void
 }
 

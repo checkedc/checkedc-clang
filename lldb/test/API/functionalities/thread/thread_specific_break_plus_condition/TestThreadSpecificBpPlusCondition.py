@@ -13,14 +13,12 @@ from lldbsuite.test import lldbutil
 
 class ThreadSpecificBreakPlusConditionTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     # test frequently times out or hangs
     @skipIfDarwin
     # hits break in another thread in testrun
     @add_test_categories(['pyapi'])
-    @expectedFailureAll(oslist=['ios', 'watchos', 'tvos', 'bridgeos'], archs=['armv7', 'armv7k'], bugnumber='rdar://problem/34563348') # Two threads seem to end up with the same my_value when built for armv7.
     @expectedFlakeyNetBSD
+    @skipIfWindows # This test is flaky on Windows
     def test_python(self):
         """Test that we obey thread conditioned breakpoints."""
         self.build()
@@ -69,6 +67,6 @@ class ThreadSpecificBreakPlusConditionTestCase(TestBase):
         process.Continue()
 
         next_stop_state = process.GetState()
-        self.assertTrue(
-            next_stop_state == lldb.eStateExited,
+        self.assertEqual(
+            next_stop_state, lldb.eStateExited,
             "We should have not hit the breakpoint again.")

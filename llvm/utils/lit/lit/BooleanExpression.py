@@ -4,36 +4,40 @@ class BooleanExpression:
     # A simple evaluator of boolean expressions.
     #
     # Grammar:
-    #   expr       :: or_expr
-    #   or_expr    :: and_expr ('||' and_expr)*
-    #   and_expr   :: not_expr ('&&' not_expr)*
-    #   not_expr   :: '!' not_expr
-    #                 '(' or_expr ')'
-    #                 identifier
-    #   identifier :: [-+=._a-zA-Z0-9]+
+    #   expr         :: or_expr
+    #   or_expr      :: and_expr ('||' and_expr)*
+    #   and_expr     :: not_expr ('&&' not_expr)*
+    #   not_expr     :: '!' not_expr
+    #                   '(' or_expr ')'
+    #                   match_expr
+    #   match_expr   :: braced_regex
+    #                   identifier
+    #                   braced_regex match_expr
+    #                   identifier match_expr
+    #   identifier   :: [-+=._a-zA-Z0-9]+
+    #   braced_regex :: '{{' python_regex '}}'
 
     # Evaluates `string` as a boolean expression.
     # Returns True or False. Throws a ValueError on syntax error.
     #
     # Variables in `variables` are true.
-    # Substrings of `triple` are true.
+    # Regexes that match any variable in `variables` are true.
     # 'true' is true.
     # All other identifiers are false.
     @staticmethod
-    def evaluate(string, variables, triple=""):
+    def evaluate(string, variables):
         try:
-            parser = BooleanExpression(string, set(variables), triple)
+            parser = BooleanExpression(string, set(variables))
             return parser.parseAll()
         except ValueError as e:
             raise ValueError(str(e) + ('\nin expression: %r' % string))
 
     #####
 
-    def __init__(self, string, variables, triple=""):
+    def __init__(self, string, variables):
         self.tokens = BooleanExpression.tokenize(string)
         self.variables = variables
         self.variables.add('true')
-        self.triple = triple
         self.value = None
         self.token = None
 
@@ -41,7 +45,7 @@ class BooleanExpression:
     END = object()
 
     # Tokenization pattern.
-    Pattern = re.compile(r'\A\s*([()]|[-+=._a-zA-Z0-9]+|&&|\|\||!)\s*(.*)\Z')
+    Pattern = re.compile(r'\A\s*([()]|&&|\|\||!|(?:[-+=._a-zA-Z0-9]+|\{\{.+?\}\})+)\s*(.*)\Z')
 
     @staticmethod
     def tokenize(string):
@@ -80,11 +84,23 @@ class BooleanExpression:
                              (self.quote(t), self.quote(self.token)))
 
     @staticmethod
-    def isIdentifier(token):
+    def isMatchExpression(token):
         if (token is BooleanExpression.END or token == '&&' or token == '||' or
             token == '!' or token == '(' or token == ')'):
             return False
         return True
+
+    def parseMATCH(self):
+        regex = ''
+        for part in filter(None, re.split(r'(\{\{.+?\}\})', self.token)):
+            if part.startswith('{{'):
+                assert part.endswith('}}')
+                regex += '(?:{})'.format(part[2:-2])
+            else:
+                regex += re.escape(part)
+        regex = re.compile(regex)
+        self.value = any(regex.fullmatch(var) for var in self.variables)
+        self.token = next(self.tokens)
 
     def parseNOT(self):
         if self.accept('!'):
@@ -93,13 +109,11 @@ class BooleanExpression:
         elif self.accept('('):
             self.parseOR()
             self.expect(')')
-        elif not BooleanExpression.isIdentifier(self.token):
-            raise ValueError("expected: '!' or '(' or identifier\nhave: %s" %
+        elif not BooleanExpression.isMatchExpression(self.token):
+            raise ValueError("expected: '!', '(', '{{', or identifier\nhave: %s" %
                              self.quote(self.token))
         else:
-            self.value = (self.token in self.variables or
-                          self.token in self.triple)
-            self.token = next(self.tokens)
+            self.parseMATCH()
 
     def parseAND(self):
         self.parseNOT()
@@ -143,21 +157,30 @@ class TestBooleanExpression(unittest.TestCase):
         self.assertTrue(BooleanExpression.evaluate('under_score', variables))
         self.assertTrue(BooleanExpression.evaluate('e=quals', variables))
         self.assertTrue(BooleanExpression.evaluate('d1g1ts', variables))
+        self.assertTrue(BooleanExpression.evaluate('{{its.+}}', variables))
+        self.assertTrue(BooleanExpression.evaluate('{{false-[lo]+-true}}', variables))
+        self.assertTrue(BooleanExpression.evaluate('{{(true|false)-lol-(true|false)}}', variables))
+        self.assertTrue(BooleanExpression.evaluate('d1g{{[0-9]}}ts', variables))
+        self.assertTrue(BooleanExpression.evaluate('d1g{{[0-9]}}t{{[a-z]}}', variables))
+        self.assertTrue(BooleanExpression.evaluate('{{d}}1g{{[0-9]}}t{{[a-z]}}', variables))
+        self.assertTrue(BooleanExpression.evaluate('d1{{(g|1)+}}ts', variables))
 
         self.assertFalse(BooleanExpression.evaluate('false', variables))
         self.assertFalse(BooleanExpression.evaluate('True', variables))
         self.assertFalse(BooleanExpression.evaluate('true-ish', variables))
         self.assertFalse(BooleanExpression.evaluate('not_true', variables))
         self.assertFalse(BooleanExpression.evaluate('tru', variables))
+        self.assertFalse(BooleanExpression.evaluate('{{its-true.+}}', variables))
 
-    def test_triple(self):
-        triple = 'arch-vendor-os'
-        self.assertTrue(BooleanExpression.evaluate('arch-', {}, triple))
-        self.assertTrue(BooleanExpression.evaluate('ar', {}, triple))
-        self.assertTrue(BooleanExpression.evaluate('ch-vend', {}, triple))
-        self.assertTrue(BooleanExpression.evaluate('-vendor-', {}, triple))
-        self.assertTrue(BooleanExpression.evaluate('-os', {}, triple))
-        self.assertFalse(BooleanExpression.evaluate('arch-os', {}, triple))
+    def test_matching(self):
+        expr1 = 'linux && (target={{aarch64-.+}} || target={{x86_64-.+}})'
+        self.assertTrue(BooleanExpression.evaluate(expr1, {'linux', 'target=x86_64-unknown-linux-gnu'}))
+        self.assertFalse(BooleanExpression.evaluate(expr1, {'linux', 'target=i386-unknown-linux-gnu'}))
+
+        expr2 = 'use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}} && !no-exceptions'
+        self.assertTrue(BooleanExpression.evaluate(expr2, {'use_system_cxx_lib', 'target=arm64-apple-macosx10.12'}))
+        self.assertFalse(BooleanExpression.evaluate(expr2, {'use_system_cxx_lib', 'target=arm64-apple-macosx10.12', 'no-exceptions'}))
+        self.assertFalse(BooleanExpression.evaluate(expr2, {'use_system_cxx_lib', 'target=arm64-apple-macosx10.15'}))
 
     def test_operators(self):
         self.assertTrue(BooleanExpression.evaluate('true || true', {}))
@@ -206,17 +229,17 @@ class TestBooleanExpression(unittest.TestCase):
                             "in expression: 'true and true'")
 
         self.checkException("|| true",
-                            "expected: '!' or '(' or identifier\n" +
+                            "expected: '!', '(', '{{', or identifier\n" +
                             "have: '||'\n" +
                             "in expression: '|| true'")
 
         self.checkException("true &&",
-                            "expected: '!' or '(' or identifier\n" +
+                            "expected: '!', '(', '{{', or identifier\n" +
                             "have: <end of expression>\n" +
                             "in expression: 'true &&'")
 
         self.checkException("",
-                            "expected: '!' or '(' or identifier\n" +
+                            "expected: '!', '(', '{{', or identifier\n" +
                             "have: <end of expression>\n" +
                             "in expression: ''")
 
@@ -244,9 +267,18 @@ class TestBooleanExpression(unittest.TestCase):
                             "in expression: 'true (true)'")
 
         self.checkException("( )",
-                            "expected: '!' or '(' or identifier\n" +
+                            "expected: '!', '(', '{{', or identifier\n" +
                             "have: ')'\n" +
                             "in expression: '( )'")
+
+        self.checkException("abc{{def",
+                            "couldn't parse text: '{{def'\n" +
+                            "in expression: 'abc{{def'")
+
+        self.checkException("{{}}",
+                            "couldn't parse text: '{{}}'\n" +
+                            "in expression: '{{}}'")
+
 
 if __name__ == '__main__':
     unittest.main()

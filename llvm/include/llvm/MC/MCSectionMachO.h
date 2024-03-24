@@ -59,19 +59,19 @@ public:
   /// appear after a .section directive in a mach-o flavored .s file.  If
   /// successful, this fills in the specified Out parameters and returns an
   /// empty string.  When an invalid section specifier is present, this returns
-  /// a string indicating the problem. If no TAA was parsed, TAA is not altered,
+  /// an Error indicating the problem. If no TAA was parsed, TAA is not altered,
   /// and TAAWasSet becomes false.
-  static std::string ParseSectionSpecifier(StringRef Spec,       // In.
-                                           StringRef &Segment,   // Out.
-                                           StringRef &Section,   // Out.
-                                           unsigned  &TAA,       // Out.
-                                           bool      &TAAParsed, // Out.
-                                           unsigned  &StubSize); // Out.
+  static Error ParseSectionSpecifier(StringRef Spec,      // In.
+                                     StringRef &Segment,  // Out.
+                                     StringRef &Section,  // Out.
+                                     unsigned &TAA,       // Out.
+                                     bool &TAAParsed,     // Out.
+                                     unsigned &StubSize); // Out.
 
-  void PrintSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
+  void printSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
                             raw_ostream &OS,
                             const MCExpr *Subsection) const override;
-  bool UseCodeAlign() const override;
+  bool useCodeAlign() const override;
   bool isVirtualSection() const override;
 
   static bool classof(const MCSection *S) {

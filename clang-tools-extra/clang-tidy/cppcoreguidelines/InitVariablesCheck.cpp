@@ -12,12 +12,11 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cppcoreguidelines {
+namespace clang::tidy::cppcoreguidelines {
 
 namespace {
 AST_MATCHER(VarDecl, isLocalVarDecl) { return Node.isLocalVarDecl(); }
@@ -27,7 +26,8 @@ InitVariablesCheck::InitVariablesCheck(StringRef Name,
                                        ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
-                                               utils::IncludeSorter::IS_LLVM)),
+                                               utils::IncludeSorter::IS_LLVM),
+                      areDiagsSelfContained()),
       MathHeader(Options.get("MathHeader", "<math.h>")) {}
 
 void InitVariablesCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
@@ -78,10 +78,14 @@ void InitVariablesCheck::check(const MatchFinder::MatchResult &Result) {
     return;
 
   QualType TypePtr = MatchedDecl->getType();
-  const char *InitializationString = nullptr;
+  std::optional<const char *> InitializationString;
   bool AddMathInclude = false;
 
-  if (TypePtr->isIntegerType())
+  if (TypePtr->isEnumeralType())
+    InitializationString = nullptr;
+  else if (TypePtr->isBooleanType())
+    InitializationString = " = false";
+  else if (TypePtr->isIntegerType())
     InitializationString = " = 0";
   else if (TypePtr->isFloatingType()) {
     InitializationString = " = NAN";
@@ -96,17 +100,16 @@ void InitVariablesCheck::check(const MatchFinder::MatchResult &Result) {
   if (InitializationString) {
     auto Diagnostic =
         diag(MatchedDecl->getLocation(), "variable %0 is not initialized")
-        << MatchedDecl
-        << FixItHint::CreateInsertion(
-               MatchedDecl->getLocation().getLocWithOffset(
-                   MatchedDecl->getName().size()),
-               InitializationString);
+        << MatchedDecl;
+    if (*InitializationString != nullptr)
+      Diagnostic << FixItHint::CreateInsertion(
+          MatchedDecl->getLocation().getLocWithOffset(
+              MatchedDecl->getName().size()),
+          *InitializationString);
     if (AddMathInclude) {
       Diagnostic << IncludeInserter.createIncludeInsertion(
           Source.getFileID(MatchedDecl->getBeginLoc()), MathHeader);
     }
   }
 }
-} // namespace cppcoreguidelines
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cppcoreguidelines

@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class ObjCDynamicValueTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -41,17 +39,17 @@ class ObjCDynamicValueTestCase(TestBase):
         process = target.LaunchSimple(
             None, None, self.get_process_working_directory())
 
-        self.assertEquals(process.GetState(), lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
 
         var = self.frame().FindVariable("foo")
         var_ptr_type = var.GetType()
         var_pte_type = var_ptr_type.GetPointeeType()
-        self.assertTrue(
-            var_ptr_type.GetNumberOfDirectBaseClasses() == 1,
+        self.assertEqual(
+            var_ptr_type.GetNumberOfDirectBaseClasses(), 1,
             "Foo * has one base class")
-        self.assertTrue(
-            var_pte_type.GetNumberOfDirectBaseClasses() == 1,
+        self.assertEqual(
+            var_pte_type.GetNumberOfDirectBaseClasses(), 1,
             "Foo has one base class")
 
         self.assertTrue(var_ptr_type.GetDirectBaseClassAtIndex(

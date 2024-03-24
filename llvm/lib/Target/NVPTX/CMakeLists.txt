@@ -12,6 +12,7 @@ add_public_tablegen_target(NVPTXCommonTableGen)
 
 set(NVPTXCodeGen_sources
   NVPTXAllocaHoisting.cpp
+  NVPTXAtomicLower.cpp
   NVPTXAsmPrinter.cpp
   NVPTXAssignValidGlobalNames.cpp
   NVPTXFrameLowering.cpp
@@ -53,6 +54,7 @@ add_llvm_target(NVPTXCodeGen
   SelectionDAG
   Support
   Target
+  TargetParser
   TransformUtils
   Vectorize
 

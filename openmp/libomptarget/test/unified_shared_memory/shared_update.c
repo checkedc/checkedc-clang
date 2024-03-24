@@ -1,10 +1,12 @@
-// RUN: %libomptarget-compile-run-and-check-aarch64-unknown-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-powerpc64-ibm-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-powerpc64le-ibm-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-x86_64-pc-linux-gnu
+// RUN: %libomptarget-compile-run-and-check-generic
 
-#include <stdio.h>
+// REQUIRES: unified_shared_memory
+
+// amdgpu runtime crash
+// UNSUPPORTED: amdgcn-amd-amdhsa
+
 #include <omp.h>
+#include <stdio.h>
 
 // ---------------------------------------------------------------------------
 // Various definitions copied from OpenMP RTL

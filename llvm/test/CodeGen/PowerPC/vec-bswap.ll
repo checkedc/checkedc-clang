@@ -1,10 +1,25 @@
 ; RUN: llc < %s -mtriple=powerpc64le-unknown-unknown -mcpu=pwr9 \
 ; RUN:   -verify-machineinstrs -ppc-asm-full-reg-names | FileCheck %s
-define dso_local void @test(i32* %Arr, i32 signext %Len) {
+
+; RUN: llc < %s -mtriple=powerpc64-ibm-aix-xcoff -mcpu=pwr9 \
+; RUN:   -verify-machineinstrs -vec-extabi | \
+; RUN:   FileCheck %s --check-prefixes=AIX,AIX64
+; RUN: llc < %s -mtriple=powerpc-ibm-aix-xcoff -mcpu=pwr9 \
+; RUN:   -verify-machineinstrs  -vec-extabi | \
+; RUN:   FileCheck %s --check-prefixes=AIX,AIX32
+
+define dso_local void @test(ptr %Arr, i32 signext %Len) {
 ; CHECK-LABEL: test:
-; CHECK:         lxvx [[REG:vs[0-9]+]], r{{[0-9]+}}, r{{[0-9]+}}
+; CHECK:         lxv [[REG:vs[0-9]+]], 0(r{{[0-9]+}})
 ; CHECK-NOT:     [[REG]]
 ; CHECK:         xxbrw vs{{[0-9]+}}, [[REG]]
+
+; AIX-LABEL:     test:
+; AIX64:         lxv [[REG64:[0-9]+]], {{[0-9]+}}({{[0-9]+}})
+; AIX32:         lxv [[REG32:[0-9]+]], {{[0-9]+}}({{[0-9]+}})
+; AIX64-NOT:     [[REG64]]
+; AIX64:         xxbrw {{[0-9]+}}, [[REG64]]
+; AIX32:         xxbrw {{[0-9]+}}, [[REG32]]
 entry:
   %cmp1 = icmp slt i32 0, %Len
   br i1 %cmp1, label %for.body.lr.ph, label %for.cond.cleanup
@@ -25,19 +40,15 @@ vector.body:                                      ; preds = %vector.body, %vecto
   %induction = add <4 x i32> %broadcast.splat, <i32 0, i32 1, i32 2, i32 3>
   %0 = add i32 %index, 0
   %1 = sext i32 %0 to i64
-  %2 = getelementptr inbounds i32, i32* %Arr, i64 %1
-  %3 = getelementptr inbounds i32, i32* %2, i32 0
-  %4 = bitcast i32* %3 to <4 x i32>*
-  %wide.load = load <4 x i32>, <4 x i32>* %4, align 4
-  %5 = call <4 x i32> @llvm.bswap.v4i32(<4 x i32> %wide.load)
-  %6 = sext i32 %0 to i64
-  %7 = getelementptr inbounds i32, i32* %Arr, i64 %6
-  %8 = getelementptr inbounds i32, i32* %7, i32 0
-  %9 = bitcast i32* %8 to <4 x i32>*
-  store <4 x i32> %5, <4 x i32>* %9, align 4
+  %2 = getelementptr inbounds i32, ptr %Arr, i64 %1
+  %wide.load = load <4 x i32>, ptr %2, align 4
+  %3 = call <4 x i32> @llvm.bswap.v4i32(<4 x i32> %wide.load)
+  %4 = sext i32 %0 to i64
+  %5 = getelementptr inbounds i32, ptr %Arr, i64 %4
+  store <4 x i32> %3, ptr %5, align 4
   %index.next = add i32 %index, 4
-  %10 = icmp eq i32 %index.next, %n.vec
-  br i1 %10, label %middle.block, label %vector.body
+  %6 = icmp eq i32 %index.next, %n.vec
+  br i1 %6, label %middle.block, label %vector.body
 
 middle.block:                                     ; preds = %vector.body
   %cmp.n = icmp eq i32 %Len, %n.vec
@@ -56,12 +67,12 @@ for.cond.cleanup:                                 ; preds = %for.cond.for.cond.c
 for.body:                                         ; preds = %for.inc, %scalar.ph
   %i.02 = phi i32 [ %bc.resume.val, %scalar.ph ], [ %inc, %for.inc ]
   %idxprom = sext i32 %i.02 to i64
-  %arrayidx = getelementptr inbounds i32, i32* %Arr, i64 %idxprom
-  %11 = load i32, i32* %arrayidx, align 4
-  %12 = call i32 @llvm.bswap.i32(i32 %11)
+  %arrayidx = getelementptr inbounds i32, ptr %Arr, i64 %idxprom
+  %7 = load i32, ptr %arrayidx, align 4
+  %8 = call i32 @llvm.bswap.i32(i32 %7)
   %idxprom1 = sext i32 %i.02 to i64
-  %arrayidx2 = getelementptr inbounds i32, i32* %Arr, i64 %idxprom1
-  store i32 %12, i32* %arrayidx2, align 4
+  %arrayidx2 = getelementptr inbounds i32, ptr %Arr, i64 %idxprom1
+  store i32 %8, ptr %arrayidx2, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
@@ -77,6 +88,10 @@ define dso_local <8 x i16> @test_halfword(<8 x i16> %a) local_unnamed_addr {
 ; CHECK-LABEL: test_halfword:
 ; CHECK:       xxbrh vs34, vs34
 ; CHECK-NEXT:  blr
+
+; AIX-LABEL:   test_halfword:
+; AIX:         xxbrh 34, 34
+; AIX-NEXT:    blr
 entry:
   %0 = call <8 x i16> @llvm.bswap.v8i16(<8 x i16> %a)
   ret <8 x i16> %0
@@ -86,6 +101,10 @@ define dso_local <2 x i64> @test_doubleword(<2 x i64> %a) local_unnamed_addr {
 ; CHECK-LABEL: test_doubleword:
 ; CHECK:       xxbrd vs34, vs34
 ; CHECK-NEXT:  blr
+
+; AIX-LABEL:   test_doubleword:
+; AIX:         xxbrd 34, 34
+; AIX-NEXT:    blr
 entry:
   %0 = call <2 x i64> @llvm.bswap.v2i64(<2 x i64> %a)
   ret <2 x i64> %0
@@ -95,6 +114,10 @@ define dso_local <1 x i128> @test_quadword(<1 x i128> %a) local_unnamed_addr {
 ; CHECK-LABEL: test_quadword:
 ; CHECK:       xxbrq vs34, vs34
 ; CHECK-NEXT:  blr
+
+; AIX-LABEL:   test_quadword:
+; AIX:         xxbrq 34, 34
+; AIX-NEXT:    blr
 entry:
   %0 = call <1 x i128> @llvm.bswap.v1i128(<1 x i128> %a)
   ret <1 x i128> %0

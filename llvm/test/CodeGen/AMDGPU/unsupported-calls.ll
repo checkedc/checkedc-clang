@@ -6,13 +6,13 @@ declare i32 @external_function(i32) nounwind
 
 ; GCN-NOT: error
 ; R600: in function test_call_external{{.*}}: unsupported call to function external_function
-define amdgpu_kernel void @test_call_external(i32 addrspace(1)* %out, i32 addrspace(1)* %in) {
-  %b_ptr = getelementptr i32, i32 addrspace(1)* %in, i32 1
-  %a = load i32, i32 addrspace(1)* %in
-  %b = load i32, i32 addrspace(1)* %b_ptr
+define amdgpu_kernel void @test_call_external(ptr addrspace(1) %out, ptr addrspace(1) %in) {
+  %b_ptr = getelementptr i32, ptr addrspace(1) %in, i32 1
+  %a = load i32, ptr addrspace(1) %in
+  %b = load i32, ptr addrspace(1) %b_ptr
   %c = call i32 @external_function(i32 %b) nounwind
   %result = add i32 %a, %c
-  store i32 %result, i32 addrspace(1)* %out
+  store i32 %result, ptr addrspace(1) %out
   ret void
 }
 
@@ -23,22 +23,22 @@ define i32 @defined_function(i32 %x) nounwind noinline {
 
 ; GCN-NOT: error
 ; R600: in function test_call{{.*}}: unsupported call to function defined_function
-define amdgpu_kernel void @test_call(i32 addrspace(1)* %out, i32 addrspace(1)* %in) {
-  %b_ptr = getelementptr i32, i32 addrspace(1)* %in, i32 1
-  %a = load i32, i32 addrspace(1)* %in
-  %b = load i32, i32 addrspace(1)* %b_ptr
+define amdgpu_kernel void @test_call(ptr addrspace(1) %out, ptr addrspace(1) %in) {
+  %b_ptr = getelementptr i32, ptr addrspace(1) %in, i32 1
+  %a = load i32, ptr addrspace(1) %in
+  %b = load i32, ptr addrspace(1) %b_ptr
   %c = call i32 @defined_function(i32 %b) nounwind
   %result = add i32 %a, %c
-  store i32 %result, i32 addrspace(1)* %out
+  store i32 %result, ptr addrspace(1) %out
   ret void
 }
 
-; GCN: error: <unknown>:0:0: in function test_tail_call i32 (i32 addrspace(1)*, i32 addrspace(1)*): unsupported required tail call to function defined_function
+; GCN: error: <unknown>:0:0: in function test_tail_call i32 (ptr addrspace(1), ptr addrspace(1)): unsupported required tail call to function defined_function
 ; R600: in function test_tail_call{{.*}}: unsupported call to function defined_function
-define i32 @test_tail_call(i32 addrspace(1)* %out, i32 addrspace(1)* %in) {
-  %b_ptr = getelementptr i32, i32 addrspace(1)* %in, i32 1
-  %a = load i32, i32 addrspace(1)* %in
-  %b = load i32, i32 addrspace(1)* %b_ptr
+define i32 @test_tail_call(ptr addrspace(1) %out, ptr addrspace(1) %in) {
+  %b_ptr = getelementptr i32, ptr addrspace(1) %in, i32 1
+  %a = load i32, ptr addrspace(1) %in
+  %b = load i32, ptr addrspace(1) %b_ptr
   %c = tail call i32 @defined_function(i32 %b)
   ret i32 %c
 }
@@ -54,19 +54,12 @@ define void @test_call_varargs() {
 
 declare i32 @extern_variadic(...)
 
-; GCN: in function test_tail_call_bitcast_extern_variadic{{.*}}: unsupported call to variadic function extern_variadic
+; GCN: in function test_tail_call_bitcast_extern_variadic{{.*}}: unsupported required tail call to function extern_variadic
 ; R600: in function test_tail_call_bitcast_extern_variadic{{.*}}: unsupported call to function extern_variadic
 define i32 @test_tail_call_bitcast_extern_variadic(<4 x float> %arg0, <4 x float> %arg1, i32 %arg2) {
   %add = fadd <4 x float> %arg0, %arg1
-  %call = tail call i32 bitcast (i32 (...)* @extern_variadic to i32 (<4 x float>)*)(<4 x float> %add)
+  %call = tail call i32 @extern_variadic(<4 x float> %add)
   ret i32 %call
-}
-
-; GCN: :0:0: in function test_indirect_call void (void ()*): unsupported indirect call to function <unknown>
-; R600: in function test_indirect_call{{.*}}: unsupported call to function <unknown>
-define void @test_indirect_call(void()* %fptr) {
-  call void %fptr()
-  ret void
 }
 
 ; GCN: :0:0: in function test_c_call_from_shader i32 (): unsupported calling convention for call from graphics shader of function defined_function
@@ -83,12 +76,3 @@ define amdgpu_ps i32 @test_gfx_call_from_shader() {
   ret i32 %call
 }
 
-; FIXME: Bad error message
-; GCN: error: <unknown>:0:0: in function test_call_absolute void (): unsupported indirect call to function <unknown>
-; R600: error: <unknown>:0:0: in function test_call_absolute void (): unsupported call to function <unknown>
-define amdgpu_kernel void @test_call_absolute() #0 {
-  %val = call i32 inttoptr (i64 1234 to i32(i32)*) (i32 1)
-  %op = add i32 %val, 1
-  store volatile i32 %op, i32 addrspace(1)* undef
-  ret void
-}

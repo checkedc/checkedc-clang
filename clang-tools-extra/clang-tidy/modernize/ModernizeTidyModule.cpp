@@ -15,6 +15,7 @@
 #include "DeprecatedHeadersCheck.h"
 #include "DeprecatedIosBaseAliasesCheck.h"
 #include "LoopConvertCheck.h"
+#include "MacroToEnumCheck.h"
 #include "MakeSharedCheck.h"
 #include "MakeUniqueCheck.h"
 #include "PassByValueCheck.h"
@@ -43,8 +44,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace modernize {
 
 class ModernizeModule : public ClangTidyModule {
@@ -59,6 +59,7 @@ public:
     CheckFactories.registerCheck<DeprecatedIosBaseAliasesCheck>(
         "modernize-deprecated-ios-base-aliases");
     CheckFactories.registerCheck<LoopConvertCheck>("modernize-loop-convert");
+    CheckFactories.registerCheck<MacroToEnumCheck>("modernize-macro-to-enum");
     CheckFactories.registerCheck<MakeSharedCheck>("modernize-make-shared");
     CheckFactories.registerCheck<MakeUniqueCheck>("modernize-make-unique");
     CheckFactories.registerCheck<PassByValueCheck>("modernize-pass-by-value");
@@ -128,5 +129,4 @@ static ClangTidyModuleRegistry::Add<ModernizeModule> X("modernize-module",
 // and thus register the ModernizeModule.
 volatile int ModernizeModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

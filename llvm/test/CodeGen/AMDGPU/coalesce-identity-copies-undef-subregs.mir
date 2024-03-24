@@ -15,17 +15,22 @@ tracksRegLiveness: true
 body:             |
   ; CHECK-LABEL: name: identity_copy_undef_subrange
   ; CHECK: bb.0:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $vgpr0
-  ; CHECK:   undef %0.sub1:vreg_64 = COPY $vgpr0
-  ; CHECK: bb.1:
-  ; CHECK:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
-  ; CHECK:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
-  ; CHECK:   S_BRANCH %bb.2
-  ; CHECK: bb.2:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   undef %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
-  ; CHECK:   S_BRANCH %bb.1
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.1
   bb.0:
     liveins: $vgpr0
 
@@ -51,19 +56,24 @@ tracksRegLiveness: true
 body:             |
   ; CHECK-LABEL: name: identity_copy_undef_subrange_other_uses0
   ; CHECK: bb.0:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $vgpr0
-  ; CHECK:   undef %0.sub1:vreg_64 = COPY $vgpr0
-  ; CHECK: bb.1:
-  ; CHECK:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
-  ; CHECK:   S_NOP 0, implicit undef %0.sub0
-  ; CHECK:   S_NOP 0, implicit undef %0.sub0
-  ; CHECK:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
-  ; CHECK:   S_BRANCH %bb.2
-  ; CHECK: bb.2:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   undef %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
-  ; CHECK:   S_BRANCH %bb.1
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_NOP 0, implicit undef %0.sub0
+  ; CHECK-NEXT:   S_NOP 0, implicit undef %0.sub0
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.1
   bb.0:
     liveins: $vgpr0
     undef %0.sub1:vreg_64 = COPY killed $vgpr0
@@ -89,17 +99,22 @@ tracksRegLiveness: true
 body:             |
   ; CHECK-LABEL: name: second_identity_copy
   ; CHECK: bb.0:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $vgpr0
-  ; CHECK:   undef %0.sub1:vreg_64 = COPY $vgpr0
-  ; CHECK: bb.1:
-  ; CHECK:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
-  ; CHECK:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
-  ; CHECK:   S_BRANCH %bb.2
-  ; CHECK: bb.2:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   undef %0.sub1:vreg_64 = nofpexcept V_MUL_F32_e32 0, %0.sub1, implicit $mode, implicit $exec
-  ; CHECK:   S_BRANCH %bb.1
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = nofpexcept V_MUL_F32_e32 0, %0.sub1, implicit $mode, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.1
   bb.0:
     liveins: $vgpr0
 
@@ -125,17 +140,22 @@ tracksRegLiveness: true
 body:             |
   ; CHECK-LABEL: name: second_identity_copy_undef_lane_outblock
   ; CHECK: bb.0:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $vgpr0
-  ; CHECK:   undef %0.sub1:vreg_64 = COPY $vgpr0
-  ; CHECK: bb.1:
-  ; CHECK:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
-  ; CHECK:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
-  ; CHECK:   S_BRANCH %bb.2
-  ; CHECK: bb.2:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   %0.sub1:vreg_64 = nofpexcept V_MUL_F32_e32 0, %0.sub1, implicit $mode, implicit $exec
-  ; CHECK:   S_BRANCH %bb.1
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   %0.sub1:vreg_64 = nofpexcept V_MUL_F32_e32 0, %0.sub1, implicit $mode, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.1
   bb.0:
     liveins: $vgpr0
 
@@ -162,19 +182,25 @@ tracksRegLiveness: true
 body:             |
   ; CHECK-LABEL: name: identity_copy_undef_subrange_null_vninfo_to_remove
   ; CHECK: bb.0:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $vgpr0
-  ; CHECK:   undef %0.sub1:vreg_64 = COPY $vgpr0
-  ; CHECK: bb.1:
-  ; CHECK:   successors: %bb.3(0x40000000), %bb.2(0x40000000)
-  ; CHECK:   S_CBRANCH_EXECNZ %bb.3, implicit $exec
-  ; CHECK: bb.2:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   S_NOP 0, implicit undef %0.sub0
-  ; CHECK:   undef %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
-  ; CHECK:   S_BRANCH %bb.1
-  ; CHECK: bb.3:
-  ; CHECK:   S_NOP 0, implicit undef %0.sub0
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.3(0x40000000), %bb.2(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.3, implicit $exec
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_NOP 0, implicit undef %0.sub0
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.1
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.3:
+  ; CHECK-NEXT:   S_NOP 0, implicit undef %0.sub0
   bb.0:
     liveins: $vgpr0
 
@@ -200,14 +226,18 @@ tracksRegLiveness: true
 body:             |
   ; CHECK-LABEL: name: undef_copy_self_loop0
   ; CHECK: bb.0:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $vgpr0
-  ; CHECK:   undef %0.sub1:vreg_64 = COPY $vgpr0
-  ; CHECK: bb.1:
-  ; CHECK:   successors: %bb.1(0x40000000), %bb.2(0x40000000)
-  ; CHECK:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
-  ; CHECK: bb.2:
-  ; CHECK:   S_NOP 0, implicit undef %0.sub0
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.1(0x40000000), %bb.2(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   S_NOP 0, implicit undef %0.sub0
   bb.0:
     liveins: $vgpr0
 
@@ -228,14 +258,18 @@ tracksRegLiveness: true
 body:             |
   ; CHECK-LABEL: name: undef_copy_self_loop1
   ; CHECK: bb.0:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $vgpr0
-  ; CHECK:   undef %0.sub1:vreg_64 = COPY $vgpr0
-  ; CHECK: bb.1:
-  ; CHECK:   successors: %bb.1(0x40000000), %bb.2(0x40000000)
-  ; CHECK:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
-  ; CHECK: bb.2:
-  ; CHECK:   S_NOP 0, implicit %0.sub1
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.1(0x40000000), %bb.2(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   S_NOP 0, implicit %0.sub1
   bb.0:
     liveins: $vgpr0
 
@@ -250,57 +284,170 @@ body:             |
 
 ...
 
-# FIXME: This testcase is broken
 # The coalescing of the %0 = %2 COPY in %bb.2 needs to prune the dead
 # phi range across %bb.1 after it is erased.
-# ---
-# name: prune_subrange_phi_value_0
-# tracksRegLiveness: true
-# body:             |
-#   bb.0:
-#     liveins: $vgpr0
+---
+name: prune_subrange_phi_value_0
+tracksRegLiveness: true
+body:             |
+  ; CHECK-LABEL: name: prune_subrange_phi_value_0
+  ; CHECK: bb.0:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %2.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_BRANCH %bb.1
+  bb.0:
+    liveins: $vgpr0
 
-#     undef %0.sub1:vreg_64 = COPY killed $vgpr0
+    undef %0.sub1:vreg_64 = COPY killed $vgpr0
 
-#   bb.1:
-#     successors: %bb.2, %bb.1
+  bb.1:
+    successors: %bb.2, %bb.1
 
-#     %1:vreg_64 = COPY killed %0
-#     %0:vreg_64 = COPY %1
-#     S_CBRANCH_EXECNZ %bb.1, implicit $exec
-#     S_BRANCH %bb.2
+    %1:vreg_64 = COPY killed %0
+    %0:vreg_64 = COPY %1
+    S_CBRANCH_EXECNZ %bb.1, implicit $exec
+    S_BRANCH %bb.2
 
-#   bb.2:
-#     undef %2.sub1:vreg_64 = COPY %0.sub1
-#     %0:vreg_64 = COPY killed %2
-#     S_BRANCH %bb.1
+  bb.2:
+    undef %2.sub1:vreg_64 = COPY %0.sub1
+    %0:vreg_64 = COPY killed %2
+    S_BRANCH %bb.1
 
-# ...
+...
+
+---
+name: prune_subrange_phi_value_0_0
+tracksRegLiveness: true
+body:             |
+  ; CHECK-LABEL: name: prune_subrange_phi_value_0_0
+  ; CHECK: bb.0:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_BRANCH %bb.1
+  bb.0:
+    liveins: $vgpr0
+
+    undef %0.sub1:vreg_64 = COPY killed $vgpr0
+
+  bb.1:
+    successors: %bb.2, %bb.1
+
+    %1:vreg_64 = COPY killed %0
+    %0:vreg_64 = COPY %1
+    S_CBRANCH_EXECNZ %bb.1, implicit $exec
+    S_BRANCH %bb.2
+
+  bb.2:
+    undef %0.sub1:vreg_64 = COPY %0.sub1
+    S_BRANCH %bb.1
+
+...
+
+---
+name: prune_subrange_phi_value_0_1
+tracksRegLiveness: true
+body:             |
+  ; CHECK-LABEL: name: prune_subrange_phi_value_0_1
+  ; CHECK: bb.0:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_BRANCH %bb.1
+  bb.0:
+    liveins: $vgpr0
+
+    undef %0.sub1:vreg_64 = COPY killed $vgpr0
+
+  bb.1:
+    successors: %bb.2, %bb.1
+
+    %1:vreg_64 = COPY killed %0
+    %0:vreg_64 = COPY %1
+    S_CBRANCH_EXECNZ %bb.1, implicit $exec
+    S_BRANCH %bb.2
+
+  bb.2:
+    S_BRANCH %bb.1
+
+...
 
 # Variant of testcase that asserts since there wasn't already an
 # incoming segment at the erased copy, and no valid end point.
-# ---
-# name:            prune_subrange_phi_value_1
-# tracksRegLiveness: true
-# body:             |
-#   bb.0:
-#     liveins: $vgpr0
+---
+name:            prune_subrange_phi_value_1
+tracksRegLiveness: true
+body:             |
+  ; CHECK-LABEL: name: prune_subrange_phi_value_1
+  ; CHECK: bb.0:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.1
+  bb.0:
+    liveins: $vgpr0
 
-#     undef %0.sub1:vreg_64 = COPY killed $vgpr0
+    undef %0.sub1:vreg_64 = COPY killed $vgpr0
 
-#   bb.1:
-#     successors: %bb.2, %bb.1
+  bb.1:
+    successors: %bb.2, %bb.1
 
-#     %0:vreg_64 = COPY killed %0
-#     S_CBRANCH_EXECNZ %bb.1, implicit $exec
-#     S_BRANCH %bb.2
+    %0:vreg_64 = COPY killed %0
+    S_CBRANCH_EXECNZ %bb.1, implicit $exec
+    S_BRANCH %bb.2
 
-#   bb.2:
-#     undef %1.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 killed %0.sub1, implicit $mode, implicit $exec
-#     %0:vreg_64 = COPY killed %1
-#     S_BRANCH %bb.1
+  bb.2:
+    undef %1.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 killed %0.sub1, implicit $mode, implicit $exec
+    %0:vreg_64 = COPY killed %1
+    S_BRANCH %bb.1
 
-# ...
+...
 
 ---
 name:            prune_subrange_phi_value_2
@@ -308,17 +455,22 @@ tracksRegLiveness: true
 body:             |
   ; CHECK-LABEL: name: prune_subrange_phi_value_2
   ; CHECK: bb.0:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   liveins: $vgpr0
-  ; CHECK:   undef %0.sub1:vreg_64 = COPY $vgpr0
-  ; CHECK: bb.1:
-  ; CHECK:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
-  ; CHECK:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
-  ; CHECK:   S_BRANCH %bb.2
-  ; CHECK: bb.2:
-  ; CHECK:   successors: %bb.1(0x80000000)
-  ; CHECK:   %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
-  ; CHECK:   S_BRANCH %bb.1
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT:   liveins: $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   undef %0.sub1:vreg_64 = COPY $vgpr0
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.1:
+  ; CHECK-NEXT:   successors: %bb.2(0x40000000), %bb.1(0x40000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   S_CBRANCH_EXECNZ %bb.1, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.2
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.2:
+  ; CHECK-NEXT:   successors: %bb.1(0x80000000)
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT:   %0.sub1:vreg_64 = nofpexcept V_CEIL_F32_e32 %0.sub1, implicit $mode, implicit $exec
+  ; CHECK-NEXT:   S_BRANCH %bb.1
   bb.0:
     liveins: $vgpr0
 

@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class SendSignalTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -20,7 +18,6 @@ class SendSignalTestCase(TestBase):
 
     @expectedFailureNetBSD(bugnumber='llvm.org/pr43959')
     @skipIfWindows  # Windows does not support signals
-    @skipIfReproducer # FIXME: Unexpected packet during (active) replay
     def test_with_run_command(self):
         """Test that lldb command 'process signal SIGUSR1' sends a signal to the inferior process."""
         self.build()
@@ -73,10 +70,6 @@ class SendSignalTestCase(TestBase):
         # Now continue:
         process.Continue()
 
-        # If running remote test, there should be a connected event
-        if lldb.remote_platform:
-            self.match_state(process_listener, lldb.eStateConnected)
-
         self.match_state(process_listener, lldb.eStateRunning)
 
         # Now signal the process, and make sure it stops:
@@ -92,9 +85,13 @@ class SendSignalTestCase(TestBase):
         self.assertTrue(
             thread.GetStopReasonDataCount() >= 1,
             "There was data in the event.")
-        self.assertTrue(
-            thread.GetStopReasonDataAtIndex(0) == lldbutil.get_signal_number('SIGUSR1'),
+        self.assertEqual(
+            thread.GetStopReasonDataAtIndex(0), lldbutil.get_signal_number('SIGUSR1'),
             "The stop signal was SIGUSR1")
+
+        self.match("statistics dump",
+                   [r'"signals": \[', r'"SIGUSR1": 1'])
+
 
     def match_state(self, process_listener, expected_state):
         num_seconds = 5
@@ -107,4 +104,4 @@ class SendSignalTestCase(TestBase):
         state = lldb.SBProcess.GetStateFromEvent(event)
         self.assertEquals(state, expected_state,
                         "It was the %s state." %
-                        lldb.SBDebugger_StateAsCString(expected_state))
+                        lldb.SBDebugger.StateAsCString(expected_state))

@@ -40,7 +40,7 @@ constexpr size_t AllocationMetadata::kMaxTraceLengthToCollect;
 void AllocationMetadata::RecordAllocation(uintptr_t AllocAddr,
                                           size_t AllocSize) {
   Addr = AllocAddr;
-  Size = AllocSize;
+  RequestedSize = AllocSize;
   IsDeallocated = false;
 
   AllocationTrace.ThreadID = getThreadID();
@@ -103,6 +103,10 @@ size_t AllocatorState::getNearestSlot(uintptr_t Ptr) const {
   if (Ptr % PageSize <= PageSize / 2)
     return addrToSlot(this, Ptr - PageSize); // Round down.
   return addrToSlot(this, Ptr + PageSize);   // Round up.
+}
+
+uintptr_t AllocatorState::internallyDetectedErrorFaultAddress() const {
+  return GuardedPagePoolEnd - 0x10;
 }
 
 } // namespace gwp_asan

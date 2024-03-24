@@ -6,7 +6,7 @@
 # RUN:   | FileCheck %s
 # RUN: ld.lld %t -o /dev/null
 
-# exits with return code 42 on linux
+## exits with return code 42 on linux
 .globl _start
 _start:
   mov $60, %rax
@@ -201,34 +201,40 @@ _start:
 # CHECK-NEXT:   }
 # CHECK-NEXT: ]
 
-# Test for the response file (POSIX quoting style)
+## Test for the response file (POSIX quoting style)
 # RUN: echo " -o %t2" > %t.responsefile
 # RUN: ld.lld %t --rsp-quoting=posix @%t.responsefile
 # RUN: llvm-readobj --file-headers --sections -l --symbols %t2 \
 # RUN:   | FileCheck %s
 
-# Test for the response file (Windows quoting style)
+## Test for the response file (Windows quoting style)
 # RUN: echo " c:\blah\foo" > %t.responsefile
 # RUN: not ld.lld --rsp-quoting=windows %t @%t.responsefile 2>&1 | FileCheck \
 # RUN:   %s --check-prefix=WINRSP
 # WINRSP: cannot open c:\blah\foo
 
-# Test for the response file (invalid quoting style)
+## Test for the response file (invalid quoting style)
 # RUN: not ld.lld --rsp-quoting=patatino %t 2>&1 | FileCheck %s \
 # RUN:   --check-prefix=INVRSP
 # INVRSP: invalid response file quoting: patatino
 
+## Test erroring on a recursive response file, but only once.
+# RUN: echo @%t.responsefile > %t.responsefile
+# RUN: not ld.lld %t @%t.responsefile 2>&1 | FileCheck %s --check-prefix=RECRSP
+# RECRSP: recursive expansion of: '{{.*}}.responsefile'
+# RECRSP-NOT: recursive expansion of
+
 # RUN: not ld.lld %t.foo -o /dev/null 2>&1 | \
-# RUN:  FileCheck --check-prefix=MISSING %s
-# MISSING: cannot open {{.*}}.foo: {{[Nn]}}o such file or directory
+# RUN:  FileCheck -DMSG=%errc_ENOENT --check-prefix=MISSING %s
+# MISSING: cannot open {{.*}}.foo: [[MSG]]
 
 # RUN: not ld.lld -o /dev/null 2>&1 | \
 # RUN:  FileCheck --check-prefix=NO_INPUT %s
 # NO_INPUT: ld.lld{{.*}}: no input files
 
 # RUN: not ld.lld %t.no.such.file -o /dev/null 2>&1 | \
-# RUN:  FileCheck --check-prefix=CANNOT_OPEN %s
-# CANNOT_OPEN: cannot open {{.*}}.no.such.file: {{[Nn]}}o such file or directory
+# RUN:  FileCheck -DMSG=%errc_ENOENT --check-prefix=CANNOT_OPEN %s
+# CANNOT_OPEN: cannot open {{.*}}.no.such.file: [[MSG]]
 
 # RUN: not ld.lld --foo 2>&1 | FileCheck --check-prefix=UNKNOWN %s
 # UNKNOWN: unknown argument '--foo'

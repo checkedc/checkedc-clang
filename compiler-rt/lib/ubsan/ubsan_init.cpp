@@ -12,13 +12,14 @@
 
 #include "ubsan_platform.h"
 #if CAN_SANITIZE_UB
-#include "ubsan_diag.h"
-#include "ubsan_init.h"
-#include "ubsan_flags.h"
 #include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_interface_internal.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_mutex.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
+#include "ubsan_diag.h"
+#include "ubsan_flags.h"
+#include "ubsan_init.h"
 
 using namespace __ubsan;
 
@@ -33,6 +34,11 @@ static void CommonInit() {
   InitializeSuppressions();
 }
 
+static void UbsanDie() {
+  if (common_flags()->print_module_map >= 1)
+    DumpProcessMap();
+}
+
 static void CommonStandaloneInit() {
   SanitizerToolName = GetSanititizerToolName();
   CacheBinaryName();
@@ -42,6 +48,10 @@ static void CommonStandaloneInit() {
   AndroidLogInit();
   InitializeCoverage(common_flags()->coverage, common_flags()->coverage_dir);
   CommonInit();
+
+  // Only add die callback when running in standalone mode to avoid printing
+  // the same information from multiple sanitizers' output
+  AddDieCallback(UbsanDie);
   Symbolizer::LateInitialize();
 }
 

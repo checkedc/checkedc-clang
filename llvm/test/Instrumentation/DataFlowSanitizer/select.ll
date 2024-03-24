@@ -1,81 +1,73 @@
-; RUN: opt < %s -dfsan -dfsan-track-select-control-flow=1 -S | FileCheck %s --check-prefix=TRACK_CONTROL_FLOW
-; RUN: opt < %s -dfsan -dfsan-track-select-control-flow=0 -S | FileCheck %s --check-prefix=NO_TRACK_CONTROL_FLOW
+; RUN: opt < %s -passes=dfsan -dfsan-track-select-control-flow=true -S | FileCheck %s --check-prefixes=CHECK,TRACK_CF
+; RUN: opt < %s -passes=dfsan -dfsan-track-select-control-flow=false -S | FileCheck %s --check-prefixes=CHECK,NO_TRACK_CF
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
+; CHECK: @__dfsan_arg_tls = external thread_local(initialexec) global [[TLS_ARR:\[100 x i64\]]]
+; CHECK: @__dfsan_retval_tls = external thread_local(initialexec) global [[TLS_ARR]]
 define i8 @select8(i1 %c, i8 %t, i8 %f) {
-  ; TRACK_CONTROL_FLOW: @"dfs$select8"
-  ; TRACK_CONTROL_FLOW: %1 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE:\[100 x i64\]]]* @__dfsan_arg_tls to i64), i64 4) to i16*), align [[ALIGN:2]]
-  ; TRACK_CONTROL_FLOW: %2 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i64), i64 2) to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: %3 = load i16, i16* bitcast ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: %4 = select i1 %c, i16 %2, i16 %1
-  ; TRACK_CONTROL_FLOW: %5 = icmp ne i16 %3, %4
-  ; TRACK_CONTROL_FLOW: %7 = call {{.*}} i16 @__dfsan_union(i16 {{.*}} %3, i16 {{.*}} %4)
-  ; TRACK_CONTROL_FLOW: %9 = phi i16 [ %7, {{.*}} ], [ %3, {{.*}} ]
-  ; TRACK_CONTROL_FLOW: %a = select i1 %c, i8 %t, i8 %f
-  ; TRACK_CONTROL_FLOW: store i16 %9, i16* bitcast ([100 x i64]* @__dfsan_retval_tls to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: ret i8 %a
-  
-  ; NO_TRACK_CONTROL_FLOW: @"dfs$select8"
-  ; NO_TRACK_CONTROL_FLOW: %1 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE:\[100 x i64\]]]* @__dfsan_arg_tls to i64), i64 4) to i16*), align [[ALIGN:2]]
-  ; NO_TRACK_CONTROL_FLOW: %2 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i64), i64 2) to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: %3 = load i16, i16* bitcast ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: %4 = select i1 %c, i16 %2, i16 %1
-  ; NO_TRACK_CONTROL_FLOW: %a = select i1 %c, i8 %t, i8 %f
-  ; NO_TRACK_CONTROL_FLOW: store i16 %4, i16* bitcast ([100 x i64]* @__dfsan_retval_tls to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: ret i8 %a
+  ; TRACK_CF: @select8.dfsan
+  ; TRACK_CF: %[[#R:]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 4) to ptr), align [[ALIGN:2]]
+  ; TRACK_CF: %[[#R+1]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 2) to ptr), align [[ALIGN]]
+  ; TRACK_CF: %[[#R+2]] = load i8, ptr @__dfsan_arg_tls, align [[ALIGN]]
+  ; TRACK_CF: %[[#R+3]] = select i1 %c, i8 %[[#R+1]], i8 %[[#R]]
+  ; TRACK_CF: %[[#RO:]] = or i8 %[[#R+2]], %[[#R+3]]
+  ; TRACK_CF: %a = select i1 %c, i8 %t, i8 %f
+  ; TRACK_CF: store i8 %[[#RO]], ptr @__dfsan_retval_tls, align [[ALIGN]]
+  ; TRACK_CF: ret i8 %a
+
+  ; NO_TRACK_CF: @select8.dfsan
+  ; NO_TRACK_CF: %[[#R:]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 4) to ptr), align [[ALIGN:2]]
+  ; NO_TRACK_CF: %[[#R+1]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 2) to ptr), align [[ALIGN]]
+  ; NO_TRACK_CF: %[[#R+2]] = load i8, ptr @__dfsan_arg_tls, align [[ALIGN]]
+  ; NO_TRACK_CF: %[[#R+3]] = select i1 %c, i8 %[[#R+1]], i8 %[[#R]]
+  ; NO_TRACK_CF: %a = select i1 %c, i8 %t, i8 %f
+  ; NO_TRACK_CF: store i8 %[[#R+3]], ptr @__dfsan_retval_tls, align [[ALIGN]]
+  ; NO_TRACK_CF: ret i8 %a
 
   %a = select i1 %c, i8 %t, i8 %f
   ret i8 %a
 }
 
 define i8 @select8e(i1 %c, i8 %tf) {
-  ; TRACK_CONTROL_FLOW: @"dfs$select8e"
-  ; TRACK_CONTROL_FLOW: %1 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i64), i64 2) to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: %2 = load i16, i16* bitcast ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: %3 = icmp ne i16 %2, %1
-  ; TRACK_CONTROL_FLOW: %5 = call {{.*}} i16 @__dfsan_union(i16 {{.*}} %2, i16 {{.*}} %1)
-  ; TRACK_CONTROL_FLOW: %7 = phi i16 [ %5, {{.*}} ], [ %2, {{.*}} ]
-  ; TRACK_CONTROL_FLOW: %a = select i1 %c, i8 %tf, i8 %tf
-  ; TRACK_CONTROL_FLOW: store i16 %7, i16* bitcast ([100 x i64]* @__dfsan_retval_tls to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: ret i8 %a
-  
-  ; NO_TRACK_CONTROL_FLOW: @"dfs$select8e"
-  ; NO_TRACK_CONTROL_FLOW: %1 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i64), i64 2) to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: %2 = load i16, i16* bitcast ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: %a = select i1 %c, i8 %tf, i8 %tf
-  ; NO_TRACK_CONTROL_FLOW: store i16 %1, i16* bitcast ([100 x i64]* @__dfsan_retval_tls to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: ret i8 %a
+  ; TRACK_CF: @select8e.dfsan
+  ; TRACK_CF: %[[#R:]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 2) to ptr), align [[ALIGN]]
+  ; TRACK_CF: %[[#R+1]] = load i8, ptr @__dfsan_arg_tls, align [[ALIGN]]
+  ; TRACK_CF: %[[#RO:]] = or i8 %[[#R+1]], %[[#R]]
+  ; TRACK_CF: %a = select i1 %c, i8 %tf, i8 %tf
+  ; TRACK_CF: store i8 %[[#RO]], ptr @__dfsan_retval_tls, align [[ALIGN]]
+  ; TRACK_CF: ret i8 %a
+
+  ; NO_TRACK_CF: @select8e.dfsan
+  ; NO_TRACK_CF: %[[#R:]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 2) to ptr), align [[ALIGN]]
+  ; NO_TRACK_CF: %[[#R+1]] = load i8, ptr @__dfsan_arg_tls, align [[ALIGN]]
+  ; NO_TRACK_CF: %a = select i1 %c, i8 %tf, i8 %tf
+  ; NO_TRACK_CF: store i8 %[[#R]], ptr @__dfsan_retval_tls, align [[ALIGN]]
+  ; NO_TRACK_CF: ret i8 %a
 
   %a = select i1 %c, i8 %tf, i8 %tf
   ret i8 %a
 }
 
 define <4 x i8> @select8v(<4 x i1> %c, <4 x i8> %t, <4 x i8> %f) {
-  ; TRACK_CONTROL_FLOW: @"dfs$select8v"
-  ; TRACK_CONTROL_FLOW: %1 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE:\[100 x i64\]]]* @__dfsan_arg_tls to i64), i64 4) to i16*), align [[ALIGN:2]]
-  ; TRACK_CONTROL_FLOW: %2 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i64), i64 2) to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: %3 = load i16, i16* bitcast ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: %4 = icmp ne i16 %2, %1
-  ; TRACK_CONTROL_FLOW: %6 = call {{.*}} i16 @__dfsan_union(i16 {{.*}} %2, i16 zeroext %1)
-  ; TRACK_CONTROL_FLOW: %8 = phi i16 [ %6, {{.*}} ], [ %2, {{.*}} ]
-  ; TRACK_CONTROL_FLOW: %9 = icmp ne i16 %3, %8
-  ; TRACK_CONTROL_FLOW: %11 = call {{.*}} i16 @__dfsan_union(i16 {{.*}} %3, i16 zeroext %8)
-  ; TRACK_CONTROL_FLOW: %13 = phi i16 [ %11, {{.*}} ], [ %3, {{.*}} ]
-  ; TRACK_CONTROL_FLOW: %a = select <4 x i1> %c, <4 x i8> %t, <4 x i8> %f
-  ; TRACK_CONTROL_FLOW: store i16 %13, i16* bitcast ([100 x i64]* @__dfsan_retval_tls to i16*), align [[ALIGN]]
-  ; TRACK_CONTROL_FLOW: ret <4 x i8> %a
+  ; TRACK_CF: @select8v.dfsan
+  ; TRACK_CF: %[[#R:]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 4) to ptr), align [[ALIGN:2]]
+  ; TRACK_CF: %[[#R+1]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 2) to ptr), align [[ALIGN]]
+  ; TRACK_CF: %[[#R+2]] = load i8, ptr @__dfsan_arg_tls, align [[ALIGN]]
+  ; TRACK_CF: %[[#R+3]] = or i8 %[[#R+1]], %[[#R]]
+  ; TRACK_CF: %[[#RO:]] = or i8 %[[#R+2]], %[[#R+3]]
+  ; TRACK_CF: %a = select <4 x i1> %c, <4 x i8> %t, <4 x i8> %f
+  ; TRACK_CF: store i8 %[[#RO]], ptr @__dfsan_retval_tls, align [[ALIGN]]
+  ; TRACK_CF: ret <4 x i8> %a
 
-  ; NO_TRACK_CONTROL_FLOW: @"dfs$select8v"
-  ; NO_TRACK_CONTROL_FLOW: %1 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE:\[100 x i64\]]]* @__dfsan_arg_tls to i64), i64 4) to i16*), align [[ALIGN:2]]
-  ; NO_TRACK_CONTROL_FLOW: %2 = load i16, i16* inttoptr (i64 add (i64 ptrtoint ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i64), i64 2) to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: %3 = load i16, i16* bitcast ([[ARGTLSTYPE]]* @__dfsan_arg_tls to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: %4 = icmp ne i16 %2, %1
-  ; NO_TRACK_CONTROL_FLOW: %6 = call {{.*}} i16 @__dfsan_union(i16 {{.*}} %2, i16 {{.*}} %1)
-  ; NO_TRACK_CONTROL_FLOW: %8 = phi i16 [ %6, {{.*}} ], [ %2, {{.*}} ]
-  ; NO_TRACK_CONTROL_FLOW: %a = select <4 x i1> %c, <4 x i8> %t, <4 x i8> %f
-  ; NO_TRACK_CONTROL_FLOW: store i16 %8, i16* bitcast ([100 x i64]* @__dfsan_retval_tls to i16*), align [[ALIGN]]
-  ; NO_TRACK_CONTROL_FLOW: ret <4 x i8> %a
+  ; NO_TRACK_CF: @select8v.dfsan
+  ; NO_TRACK_CF: %[[#R:]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 4) to ptr), align [[ALIGN:2]]
+  ; NO_TRACK_CF: %[[#R+1]] = load i8, ptr inttoptr (i64 add (i64 ptrtoint (ptr @__dfsan_arg_tls to i64), i64 2) to ptr), align [[ALIGN]]
+  ; NO_TRACK_CF: %[[#R+2]] = load i8, ptr @__dfsan_arg_tls, align [[ALIGN]]
+  ; NO_TRACK_CF: %[[#RO:]] = or i8 %[[#R+1]], %[[#R]]
+  ; NO_TRACK_CF: %a = select <4 x i1> %c, <4 x i8> %t, <4 x i8> %f
+  ; NO_TRACK_CF: store i8 %[[#RO]], ptr @__dfsan_retval_tls, align [[ALIGN]]
+  ; NO_TRACK_CF: ret <4 x i8> %a
 
   %a = select <4 x i1> %c, <4 x i8> %t, <4 x i8> %f
   ret <4 x i8> %a

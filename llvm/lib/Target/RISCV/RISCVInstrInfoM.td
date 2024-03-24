@@ -15,23 +15,27 @@
 // RISC-V specific DAG Nodes.
 //===----------------------------------------------------------------------===//
 
-def riscv_divw  : SDNode<"RISCVISD::DIVW",  SDTIntBinOp>;
-def riscv_divuw : SDNode<"RISCVISD::DIVUW", SDTIntBinOp>;
-def riscv_remuw : SDNode<"RISCVISD::REMUW", SDTIntBinOp>;
+def riscv_mulhsu : SDNode<"RISCVISD::MULHSU", SDTIntBinOp>;
+def riscv_divw  : SDNode<"RISCVISD::DIVW",  SDT_RISCVIntBinOpW>;
+def riscv_divuw : SDNode<"RISCVISD::DIVUW", SDT_RISCVIntBinOpW>;
+def riscv_remuw : SDNode<"RISCVISD::REMUW", SDT_RISCVIntBinOpW>;
 
 //===----------------------------------------------------------------------===//
 // Instructions
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtM] in {
-def MUL     : ALU_rr<0b0000001, 0b000, "mul">,
+let Predicates = [HasStdExtMOrZmmul] in {
+def MUL     : ALU_rr<0b0000001, 0b000, "mul", /*Commutable*/1>,
               Sched<[WriteIMul, ReadIMul, ReadIMul]>;
-def MULH    : ALU_rr<0b0000001, 0b001, "mulh">,
+def MULH    : ALU_rr<0b0000001, 0b001, "mulh", /*Commutable*/1>,
               Sched<[WriteIMul, ReadIMul, ReadIMul]>;
 def MULHSU  : ALU_rr<0b0000001, 0b010, "mulhsu">,
               Sched<[WriteIMul, ReadIMul, ReadIMul]>;
-def MULHU   : ALU_rr<0b0000001, 0b011, "mulhu">,
+def MULHU   : ALU_rr<0b0000001, 0b011, "mulhu", /*Commutable*/1>,
               Sched<[WriteIMul, ReadIMul, ReadIMul]>;
+} // Predicates = [HasStdExtMOrZmmul]
+
+let Predicates = [HasStdExtM] in {
 def DIV     : ALU_rr<0b0000001, 0b100, "div">,
               Sched<[WriteIDiv, ReadIDiv, ReadIDiv]>;
 def DIVU    : ALU_rr<0b0000001, 0b101, "divu">,
@@ -42,9 +46,12 @@ def REMU    : ALU_rr<0b0000001, 0b111, "remu">,
               Sched<[WriteIDiv, ReadIDiv, ReadIDiv]>;
 } // Predicates = [HasStdExtM]
 
-let Predicates = [HasStdExtM, IsRV64] in {
-def MULW    : ALUW_rr<0b0000001, 0b000, "mulw">,
+let Predicates = [HasStdExtMOrZmmul, IsRV64], IsSignExtendingOpW = 1 in {
+def MULW    : ALUW_rr<0b0000001, 0b000, "mulw", /*Commutable*/1>,
               Sched<[WriteIMul32, ReadIMul32, ReadIMul32]>;
+} // Predicates = [HasStdExtMOrZmmul, IsRV64]
+
+let Predicates = [HasStdExtM, IsRV64], IsSignExtendingOpW = 1 in {
 def DIVW    : ALUW_rr<0b0000001, 0b100, "divw">,
               Sched<[WriteIDiv32, ReadIDiv32, ReadIDiv32]>;
 def DIVUW   : ALUW_rr<0b0000001, 0b101, "divuw">,
@@ -59,21 +66,25 @@ def REMUW   : ALUW_rr<0b0000001, 0b111, "remuw">,
 // Pseudo-instructions and codegen patterns
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtM] in {
+let Predicates = [HasStdExtMOrZmmul] in {
 def : PatGprGpr<mul, MUL>;
 def : PatGprGpr<mulhs, MULH>;
 def : PatGprGpr<mulhu, MULHU>;
-// No ISDOpcode for mulhsu
+def : PatGprGpr<riscv_mulhsu, MULHSU>;
+} // Predicates = [HasStdExtMOrZmmul]
+
+let Predicates = [HasStdExtM] in {
 def : PatGprGpr<sdiv, DIV>;
 def : PatGprGpr<udiv, DIVU>;
 def : PatGprGpr<srem, REM>;
 def : PatGprGpr<urem, REMU>;
 } // Predicates = [HasStdExtM]
 
-let Predicates = [HasStdExtM, IsRV64] in {
-def : Pat<(sext_inreg (mul GPR:$rs1, GPR:$rs2), i32),
-          (MULW GPR:$rs1, GPR:$rs2)>;
+// Select W instructions if only the lower 32-bits of the result are used.
+let Predicates = [HasStdExtMOrZmmul, IsRV64] in
+def : PatGprGpr<binop_allwusers<mul>, MULW>;
 
+let Predicates = [HasStdExtM, IsRV64] in {
 def : PatGprGpr<riscv_divw, DIVW>;
 def : PatGprGpr<riscv_divuw, DIVUW>;
 def : PatGprGpr<riscv_remuw, REMUW>;
@@ -91,9 +102,15 @@ def : Pat<(and (riscv_remuw (assertzexti32 GPR:$rs1),
 // Although the sexti32 operands may not have originated from an i32 srem,
 // this pattern is safe as it is impossible for two sign extended inputs to
 // produce a result where res[63:32]=0 and res[31]=1.
-def : Pat<(srem (sexti32 GPR:$rs1), (sexti32 GPR:$rs2)),
-          (REMW GPR:$rs1, GPR:$rs2)>;
-def : Pat<(sext_inreg (srem (sexti32 GPR:$rs1),
-                            (sexti32 GPR:$rs2)), i32),
+def : Pat<(srem (sexti32 (i64 GPR:$rs1)), (sexti32 (i64 GPR:$rs2))),
           (REMW GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtM, IsRV64]
+
+let Predicates = [HasStdExtMOrZmmul, IsRV64, NotHasStdExtZba] in {
+// Special case for calculating the full 64-bit product of a 32x32 unsigned
+// multiply where the inputs aren't known to be zero extended. We can shift the
+// inputs left by 32 and use a MULHU. This saves two SRLIs needed to finish
+// zeroing the upper 32 bits.
+def : Pat<(i64 (mul (and GPR:$rs1, 0xffffffff), (and GPR:$rs2, 0xffffffff))),
+          (MULHU (SLLI GPR:$rs1, 32), (SLLI GPR:$rs2, 32))>;
+} // Predicates = [HasStdExtMOrZmmul, IsRV64, NotHasStdExtZba]

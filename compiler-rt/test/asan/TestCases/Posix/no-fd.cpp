@@ -1,6 +1,11 @@
 // RUN: %clangxx_asan -std=c++11 -O0 %s -o %t
-// RUN: %run %t 2>&1 | FileCheck %s
-// RUN: %env_asan_opts=debug=1,verbosity=2 %run %t 2>&1 | FileCheck %s
+
+// MallocNanoZone=0 disables initialization of the Nano MallocZone on Darwin.
+// Initialization of this zone can interfere with this test because the zone
+// might log which opens another file descriptor,
+// e.g. failing to setup the zone due to ASan taking the memory region it wants.
+// RUN: env MallocNanoZone=0 %run %t 2>&1 | FileCheck %s
+// RUN: env MallocNanoZone=0 %env_asan_opts=debug=1,verbosity=2 %run %t 2>&1 | FileCheck %s
 
 // Test ASan initialization
 
@@ -8,7 +13,7 @@
 // on them remaining closed across an execve(). This is not the case on newer
 // versions of Android. On PPC with ASLR turned on, this fails when linked with
 // lld - see https://bugs.llvm.org/show_bug.cgi?id=45076.
-// UNSUPPORTED: android, powerpc
+// UNSUPPORTED: android, target=powerpc{{.*}}
 
 #include <assert.h>
 #include <stdio.h>

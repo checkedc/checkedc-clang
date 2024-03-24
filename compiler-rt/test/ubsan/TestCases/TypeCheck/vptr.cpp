@@ -1,4 +1,4 @@
-// RUN: %clangxx -frtti -fsanitize=null,vptr -g %s -O3 -o %t -mllvm -enable-tail-merge=false
+// RUN: %clangxx -frtti -fsanitize=null,vptr -fno-sanitize-memory-param-retval -g %s -O3 -o %t -mllvm -enable-tail-merge=false
 // RUN: %env_ubsan_opts=halt_on_error=1 %run %t rT
 // RUN: %env_ubsan_opts=halt_on_error=1 %run %t mT
 // RUN: %env_ubsan_opts=halt_on_error=1 %run %t fT
@@ -11,17 +11,17 @@
 // RUN: %env_ubsan_opts=halt_on_error=1 %run %t rV
 // RUN: %env_ubsan_opts=halt_on_error=1 %run %t oV
 // RUN: %env_ubsan_opts=halt_on_error=1 %run %t zN
-// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t mS 2>&1 | FileCheck %s --check-prefix=CHECK-MEMBER --check-prefix=CHECK-%os-MEMBER --strict-whitespace
+// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t mS 2>&1 | FileCheck %s --check-prefix=CHECK-MEMBER --allow-unused-prefixes --check-prefix=CHECK-%os-MEMBER --strict-whitespace
 // RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t fS 2>&1 | FileCheck %s --check-prefix=CHECK-MEMFUN --strict-whitespace
-// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t cS 2>&1 | FileCheck %s --check-prefix=CHECK-DOWNCAST --check-prefix=CHECK-%os-DOWNCAST --strict-whitespace
-// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t mV 2>&1 | FileCheck %s --check-prefix=CHECK-MEMBER --check-prefix=CHECK-%os-MEMBER --strict-whitespace
+// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t cS 2>&1 | FileCheck %s --check-prefix=CHECK-DOWNCAST --allow-unused-prefixes --check-prefix=CHECK-%os-DOWNCAST --strict-whitespace
+// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t mV 2>&1 | FileCheck %s --check-prefix=CHECK-MEMBER --allow-unused-prefixes --check-prefix=CHECK-%os-MEMBER --strict-whitespace
 // RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t fV 2>&1 | FileCheck %s --check-prefix=CHECK-MEMFUN --strict-whitespace
-// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t cV 2>&1 | FileCheck %s --check-prefix=CHECK-DOWNCAST --check-prefix=CHECK-%os-DOWNCAST --strict-whitespace
-// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t oU 2>&1 | FileCheck %s --check-prefix=CHECK-OFFSET --check-prefix=CHECK-%os-OFFSET --strict-whitespace
-// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t m0 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-MEMBER --check-prefix=CHECK-%os-NULL-MEMBER --strict-whitespace
-// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t m0 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-MEMBER --check-prefix=CHECK-%os-NULL-MEMBER --strict-whitespace
+// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t cV 2>&1 | FileCheck %s --check-prefix=CHECK-DOWNCAST --allow-unused-prefixes --check-prefix=CHECK-%os-DOWNCAST --strict-whitespace
+// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t oU 2>&1 | FileCheck %s --check-prefix=CHECK-OFFSET --allow-unused-prefixes --check-prefix=CHECK-%os-OFFSET --strict-whitespace
+// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t m0 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-MEMBER --allow-unused-prefixes --check-prefix=CHECK-%os-NULL-MEMBER --strict-whitespace
+// RUN: %env_ubsan_opts=halt_on_error=1:print_stacktrace=1 not %run %t m0 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-MEMBER --allow-unused-prefixes --check-prefix=CHECK-%os-NULL-MEMBER --strict-whitespace
 // RUN: %env_ubsan_opts=halt_on_error=1 not %run %t nN 2>&1 | FileCheck %s --check-prefix=CHECK-NULL-MEMFUN --strict-whitespace
-// RUN: %env_ubsan_opts=print_stacktrace=1 %run %t dT 2>&1 | FileCheck %s --check-prefix=CHECK-DYNAMIC --check-prefix=CHECK-%os-DYNAMIC --strict-whitespace
+// RUN: %env_ubsan_opts=print_stacktrace=1 %run %t dT 2>&1 | FileCheck %s --check-prefix=CHECK-DYNAMIC --allow-unused-prefixes --check-prefix=CHECK-%os-DYNAMIC --strict-whitespace
 
 // RUN: (echo "vptr_check:S"; echo "vptr_check:T"; echo "vptr_check:U") > %t.supp
 // RUN: %env_ubsan_opts=halt_on_error=1:suppressions='"%t.supp"' %run %t mS
@@ -37,13 +37,13 @@
 // RUN: %env_ubsan_opts=halt_on_error=1:suppressions='"%t.loc-supp"' not %run %t x- 2>&1 | FileCheck %s --check-prefix=CHECK-LOC-SUPPRESS
 
 // REQUIRES: stable-runtime, cxxabi
-// UNSUPPORTED: windows-msvc
+// UNSUPPORTED: target={{.*windows-msvc.*}}
 // Suppressions file not pushed to the device.
 // UNSUPPORTED: android
 // Compilation error
-// UNSUPPORTED: openbsd
+// UNSUPPORTED: target={{.*openbsd.*}}
 // Compilation error
-// UNSUPPORTED: freebsd
+// UNSUPPORTED: target={{.*freebsd.*}}
 #include <new>
 #include <typeinfo>
 #include <assert.h>

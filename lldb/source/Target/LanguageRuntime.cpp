@@ -104,8 +104,7 @@ public:
   ExceptionBreakpointResolver(lldb::LanguageType language, bool catch_bp,
                               bool throw_bp)
       : BreakpointResolver(nullptr, BreakpointResolver::ExceptionResolver),
-        m_language(language), m_language_runtime(nullptr), m_catch_bp(catch_bp),
-        m_throw_bp(throw_bp) {}
+        m_language(language), m_catch_bp(catch_bp), m_throw_bp(throw_bp) {}
 
   ~ExceptionBreakpointResolver() override = default;
 
@@ -195,7 +194,7 @@ protected:
 
   lldb::BreakpointResolverSP m_actual_resolver_sp;
   lldb::LanguageType m_language;
-  LanguageRuntime *m_language_runtime;
+  LanguageRuntime *m_language_runtime = nullptr;
   bool m_catch_bp;
   bool m_throw_bp;
 };
@@ -257,6 +256,25 @@ BreakpointSP LanguageRuntime::CreateExceptionBreakpoint(
   }
 
   return exc_breakpt_sp;
+}
+
+UnwindPlanSP
+LanguageRuntime::GetRuntimeUnwindPlan(Thread &thread, RegisterContext *regctx,
+                                      bool &behaves_like_zeroth_frame) {
+  ProcessSP process_sp = thread.GetProcess();
+  if (!process_sp.get())
+    return UnwindPlanSP();
+  if (process_sp->GetDisableLangRuntimeUnwindPlans() == true)
+    return UnwindPlanSP();
+  for (const lldb::LanguageType lang_type : Language::GetSupportedLanguages()) {
+    if (LanguageRuntime *runtime = process_sp->GetLanguageRuntime(lang_type)) {
+      UnwindPlanSP plan_sp = runtime->GetRuntimeUnwindPlan(
+          process_sp, regctx, behaves_like_zeroth_frame);
+      if (plan_sp.get())
+        return plan_sp;
+    }
+  }
+  return UnwindPlanSP();
 }
 
 void LanguageRuntime::InitializeCommands(CommandObject *parent) {

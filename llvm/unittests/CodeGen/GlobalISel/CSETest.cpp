@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "GISelMITest.h"
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
 #include "gtest/gtest.h"
 
@@ -59,12 +60,12 @@ TEST_F(AArch64GISelMITest, TestCSE) {
 
   // Make sure buildConstant with a vector type doesn't crash, and the elements
   // CSE.
-  auto Splat0 = CSEB.buildConstant(LLT::vector(2, s32), 0);
+  auto Splat0 = CSEB.buildConstant(LLT::fixed_vector(2, s32), 0);
   EXPECT_EQ(TargetOpcode::G_BUILD_VECTOR, Splat0->getOpcode());
   EXPECT_EQ(Splat0.getReg(1), Splat0.getReg(2));
   EXPECT_EQ(&*MIBCst, MRI->getVRegDef(Splat0.getReg(1)));
 
-  auto FSplat = CSEB.buildFConstant(LLT::vector(2, s32), 1.0);
+  auto FSplat = CSEB.buildFConstant(LLT::fixed_vector(2, s32), 1.0);
   EXPECT_EQ(TargetOpcode::G_BUILD_VECTOR, FSplat->getOpcode());
   EXPECT_EQ(FSplat.getReg(1), FSplat.getReg(2));
   EXPECT_EQ(&*MIBFP0, MRI->getVRegDef(FSplat.getReg(1)));
@@ -73,6 +74,26 @@ TEST_F(AArch64GISelMITest, TestCSE) {
   auto MIBUnmerge = CSEB.buildUnmerge({s32, s32}, Copies[0]);
   auto MIBUnmerge2 = CSEB.buildUnmerge({s32, s32}, Copies[0]);
   EXPECT_TRUE(&*MIBUnmerge == &*MIBUnmerge2);
+
+  // Check G_BUILD_VECTOR
+  Register Reg1 = MRI->createGenericVirtualRegister(s32);
+  Register Reg2 = MRI->createGenericVirtualRegister(s32);
+  auto BuildVec1 =
+      CSEB.buildBuildVector(LLT::fixed_vector(4, 32), {Reg1, Reg2, Reg1, Reg2});
+  auto BuildVec2 =
+      CSEB.buildBuildVector(LLT::fixed_vector(4, 32), {Reg1, Reg2, Reg1, Reg2});
+  EXPECT_EQ(TargetOpcode::G_BUILD_VECTOR, BuildVec1->getOpcode());
+  EXPECT_EQ(TargetOpcode::G_BUILD_VECTOR, BuildVec2->getOpcode());
+  EXPECT_TRUE(&*BuildVec1 == &*BuildVec2);
+
+  // Check G_BUILD_VECTOR_TRUNC
+  auto BuildVecTrunc1 = CSEB.buildBuildVectorTrunc(LLT::fixed_vector(4, 16),
+                                                   {Reg1, Reg2, Reg1, Reg2});
+  auto BuildVecTrunc2 = CSEB.buildBuildVectorTrunc(LLT::fixed_vector(4, 16),
+                                                   {Reg1, Reg2, Reg1, Reg2});
+  EXPECT_EQ(TargetOpcode::G_BUILD_VECTOR_TRUNC, BuildVecTrunc1->getOpcode());
+  EXPECT_EQ(TargetOpcode::G_BUILD_VECTOR_TRUNC, BuildVecTrunc2->getOpcode());
+  EXPECT_TRUE(&*BuildVecTrunc1 == &*BuildVecTrunc2);
 
   // Check G_IMPLICIT_DEF
   auto Undef0 = CSEB.buildUndef(s32);
@@ -106,6 +127,13 @@ TEST_F(AArch64GISelMITest, TestCSE) {
                                      {Copies[0], static_cast<uint64_t>(1)});
   EXPECT_EQ(&*ExtractMIB, &*ExtractMIB1);
   EXPECT_NE(&*ExtractMIB, &*ExtractMIB2);
+
+
+  auto SextInRegMIB = CSEB.buildSExtInReg(s16, Copies[0], 0);
+  auto SextInRegMIB1 = CSEB.buildSExtInReg(s16, Copies[0], 0);
+  auto SextInRegMIB2 = CSEB.buildSExtInReg(s16, Copies[0], 1);
+  EXPECT_EQ(&*SextInRegMIB, &*SextInRegMIB1);
+  EXPECT_NE(&*SextInRegMIB, &*SextInRegMIB2);
 }
 
 TEST_F(AArch64GISelMITest, TestCSEConstantConfig) {
@@ -161,6 +189,48 @@ TEST_F(AArch64GISelMITest, TestCSEImmediateNextCSE) {
   auto MIBCst3 = CSEB.buildConstant(s32, 2);
   EXPECT_TRUE(&*MIBCst2 == &*MIBCst3);
   EXPECT_TRUE(CSEB.getInsertPt() == CSEB.getMBB().end());
+}
+
+TEST_F(AArch64GISelMITest, TestConstantFoldCTL) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT s32 = LLT::scalar(32);
+
+  GISelCSEInfo CSEInfo;
+  CSEInfo.setCSEConfig(std::make_unique<CSEConfigConstantOnly>());
+  CSEInfo.analyze(*MF);
+  B.setCSEInfo(&CSEInfo);
+  CSEMIRBuilder CSEB(B.getState());
+  auto Cst8 = CSEB.buildConstant(s32, 8);
+  auto *CtlzDef = &*CSEB.buildCTLZ(s32, Cst8);
+  EXPECT_TRUE(CtlzDef->getOpcode() == TargetOpcode::G_CONSTANT);
+  EXPECT_TRUE(CtlzDef->getOperand(1).getCImm()->getZExtValue() == 28);
+
+  // Test vector.
+  auto Cst16 = CSEB.buildConstant(s32, 16);
+  auto Cst32 = CSEB.buildConstant(s32, 32);
+  auto Cst64 = CSEB.buildConstant(s32, 64);
+  LLT VecTy = LLT::fixed_vector(4, s32);
+  auto BV = CSEB.buildBuildVector(VecTy, {Cst8.getReg(0), Cst16.getReg(0),
+                                          Cst32.getReg(0), Cst64.getReg(0)});
+  CSEB.buildCTLZ(VecTy, BV);
+
+  auto CheckStr = R"(
+  ; CHECK: [[CST8:%[0-9]+]]:_(s32) = G_CONSTANT i32 8
+  ; CHECK: [[CST28:%[0-9]+]]:_(s32) = G_CONSTANT i32 28
+  ; CHECK: [[CST16:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
+  ; CHECK: [[CST32:%[0-9]+]]:_(s32) = G_CONSTANT i32 32
+  ; CHECK: [[CST64:%[0-9]+]]:_(s32) = G_CONSTANT i32 64
+  ; CHECK: [[BV1:%[0-9]+]]:_(<4 x s32>) = G_BUILD_VECTOR [[CST8]]:_(s32), [[CST16]]:_(s32), [[CST32]]:_(s32), [[CST64]]:_(s32)
+  ; CHECK: [[CST27:%[0-9]+]]:_(s32) = G_CONSTANT i32 27
+  ; CHECK: [[CST26:%[0-9]+]]:_(s32) = G_CONSTANT i32 26
+  ; CHECK: [[CST25:%[0-9]+]]:_(s32) = G_CONSTANT i32 25
+  ; CHECK: [[BV2:%[0-9]+]]:_(<4 x s32>) = G_BUILD_VECTOR [[CST28]]:_(s32), [[CST27]]:_(s32), [[CST26]]:_(s32), [[CST25]]:_(s32)
+  )";
+
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
 }
 
 } // namespace

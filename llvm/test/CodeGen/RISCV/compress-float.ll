@@ -24,25 +24,25 @@
 ; RUN:   | llvm-objdump -d --triple=riscv32 --mattr=+c,+f,+d -M no-aliases - \
 ; RUN:   | FileCheck -check-prefix=RV32IFDC %s
 
-; This acts as a sanity check for the codegen instruction compression path,
-; verifying that the assembled file contains compressed instructions when
+; This acts as a basic correctness check for the codegen instruction compression
+; path, verifying that the assembled file contains compressed instructions when
 ; expected. Handling of the compressed ISA is implemented so the same
 ; transformation patterns should be used whether compressing an input .s file or
-; compressing codegen output. This file contains sanity checks using
+; compressing codegen output. This file contains basic functionality tests using
 ; instructions which also require one of the floating point extensions.
 
-define float @float_load(float *%a) #0 {
+define float @float_load(ptr %a) #0 {
 ; RV32IFDC-LABEL: <float_load>:
 ; RV32IFDC:         c.flw fa0, 0(a0)
 ; RV32IFDC-NEXT:    c.jr ra
-  %1 = load volatile float, float* %a
+  %1 = load volatile float, ptr %a
   ret float %1
 }
 
-define double @double_load(double *%a) #0 {
+define double @double_load(ptr %a) #0 {
 ; RV32IFDC-LABEL: <double_load>:
 ; RV32IFDC:         c.fld fa0, 0(a0)
 ; RV32IFDC-NEXT:    c.jr ra
-  %1 = load volatile double, double* %a
+  %1 = load volatile double, ptr %a
   ret double %1
 }

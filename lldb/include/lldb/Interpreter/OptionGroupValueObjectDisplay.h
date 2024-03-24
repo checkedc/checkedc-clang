@@ -18,15 +18,14 @@ namespace lldb_private {
 
 class OptionGroupValueObjectDisplay : public OptionGroup {
 public:
-  OptionGroupValueObjectDisplay();
+  OptionGroupValueObjectDisplay() = default;
 
-  ~OptionGroupValueObjectDisplay() override;
+  ~OptionGroupValueObjectDisplay() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override;
 
   Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_value,
                         ExecutionContext *execution_context) override;
-  Status SetOptionValue(uint32_t, const char *, ExecutionContext *) = delete;
 
   void OptionParsingStarting(ExecutionContext *execution_context) override;
 
@@ -44,7 +43,8 @@ public:
       lldb::TypeSummaryImplSP summary_sp = lldb::TypeSummaryImplSP());
 
   bool show_types : 1, show_location : 1, flat_output : 1, use_objc : 1,
-      use_synth : 1, be_raw : 1, ignore_cap : 1, run_validator : 1;
+      use_synth : 1, be_raw : 1, ignore_cap : 1, run_validator : 1,
+      max_depth_is_default : 1;
 
   uint32_t no_summary_depth;
   uint32_t max_depth;

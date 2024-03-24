@@ -1,5 +1,7 @@
 ; RUN: llc -mtriple=armeb-linux-gnueabihf -O2 -mattr=+read-tp-hard %s -o - | FileCheck %s -check-prefix=CHECK-HARD
 ; RUN: llc -mtriple=armeb-linux-gnueabihf -O2 %s -o - | FileCheck %s -check-prefix=CHECK-SOFT
+; RUN: llc -mtriple=thumbv7-linux-gnueabihf -O2 -mattr=+read-tp-hard %s -o - | FileCheck %s -check-prefix=CHECK-HARD
+; RUN: llc -mtriple=thumbv7-linux-gnueabihf -O2 %s -o - | FileCheck %s -check-prefix=CHECK-SOFT
 
 
 ; __thread int counter;
@@ -12,7 +14,7 @@
 
 define void @foo() local_unnamed_addr #0 {
 entry:
-  store i32 5, i32* @counter, align 4
+  store i32 5, ptr @counter, align 4
   ret void
 }
 

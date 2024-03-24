@@ -11,16 +11,24 @@
 //===----------------------------------------------------------------------===//
 #include <algorithm>
 
+// This ensures that including both internal sanitizer_common headers
+// and the interface headers does not lead to compilation failures.
+// Both may be included in unit tests, where googletest transitively
+// pulls in sanitizer interface headers.
+// The headers are specifically included using relative paths,
+// because a compiler may use a different mismatching version
+// of sanitizer headers.
+#include "../../../include/sanitizer/asan_interface.h"
+#include "../../../include/sanitizer/msan_interface.h"
+#include "../../../include/sanitizer/tsan_interface.h"
+#include "gtest/gtest.h"
 #include "sanitizer_common/sanitizer_allocator_internal.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_file.h"
 #include "sanitizer_common/sanitizer_flags.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_platform.h"
-
 #include "sanitizer_pthread_wrappers.h"
-
-#include "gtest/gtest.h"
 
 namespace __sanitizer {
 
@@ -85,6 +93,25 @@ TEST(SanitizerCommon, MmapAlignedOrDieOnFatalError) {
       }
     }
   }
+}
+
+TEST(SanitizerCommon, Mprotect) {
+  uptr PageSize = GetPageSizeCached();
+  u8 *mem = reinterpret_cast<u8 *>(MmapOrDie(PageSize, "MprotectTest"));
+  for (u8 *p = mem; p < mem + PageSize; ++p) ++(*p);
+
+  MprotectReadOnly(reinterpret_cast<uptr>(mem), PageSize);
+  for (u8 *p = mem; p < mem + PageSize; ++p) EXPECT_EQ(1u, *p);
+  EXPECT_DEATH(++mem[0], "");
+  EXPECT_DEATH(++mem[PageSize / 2], "");
+  EXPECT_DEATH(++mem[PageSize - 1], "");
+
+  MprotectNoAccess(reinterpret_cast<uptr>(mem), PageSize);
+  volatile u8 t;
+  (void)t;
+  EXPECT_DEATH(t = mem[0], "");
+  EXPECT_DEATH(t = mem[PageSize / 2], "");
+  EXPECT_DEATH(t = mem[PageSize - 1], "");
 }
 
 TEST(SanitizerCommon, InternalMmapVectorRoundUpCapacity) {
@@ -295,8 +322,8 @@ const std::vector<int> kSortAndDedupTests[] = {
     {1, 2, 1, 1, 2, 1, 1, 1, 2, 2},
     {1, 3, 3, 2, 3, 1, 3, 1, 4, 4, 2, 1, 4, 1, 1, 2, 2},
 };
-INSTANTIATE_TEST_CASE_P(SortAndDedupTest, SortAndDedupTest,
-                        ::testing::ValuesIn(kSortAndDedupTests));
+INSTANTIATE_TEST_SUITE_P(SortAndDedupTest, SortAndDedupTest,
+                         ::testing::ValuesIn(kSortAndDedupTests));
 
 #if SANITIZER_LINUX && !SANITIZER_ANDROID
 TEST(SanitizerCommon, FindPathToBinary) {
@@ -350,7 +377,7 @@ TEST(SanitizerCommon, RemoveANSIEscapeSequencesFromString) {
 }
 
 TEST(SanitizerCommon, InternalScopedString) {
-  InternalScopedString str(10);
+  InternalScopedString str;
   EXPECT_EQ(0U, str.length());
   EXPECT_STREQ("", str.data());
 
@@ -364,20 +391,37 @@ TEST(SanitizerCommon, InternalScopedString) {
   EXPECT_STREQ("foo1234", str.data());
 
   str.append("%d", x);
-  EXPECT_EQ(9U, str.length());
-  EXPECT_STREQ("foo123412", str.data());
+  EXPECT_EQ(11U, str.length());
+  EXPECT_STREQ("foo12341234", str.data());
 
   str.clear();
   EXPECT_EQ(0U, str.length());
   EXPECT_STREQ("", str.data());
-
-  str.append("0123456789");
-  EXPECT_EQ(9U, str.length());
-  EXPECT_STREQ("012345678", str.data());
 }
 
-#if SANITIZER_LINUX || SANITIZER_FREEBSD || \
-  SANITIZER_MAC || SANITIZER_IOS
+TEST(SanitizerCommon, InternalScopedStringLarge) {
+  InternalScopedString str;
+  std::string expected;
+  for (int i = 0; i < 1000; ++i) {
+    std::string append(i, 'a' + i % 26);
+    expected += append;
+    str.append("%s", append.c_str());
+    EXPECT_EQ(expected, str.data());
+  }
+}
+
+TEST(SanitizerCommon, InternalScopedStringLargeFormat) {
+  InternalScopedString str;
+  std::string expected;
+  for (int i = 0; i < 1000; ++i) {
+    std::string append(i, 'a' + i % 26);
+    expected += append;
+    str.append("%s", append.c_str());
+    EXPECT_EQ(expected, str.data());
+  }
+}
+
+#if SANITIZER_LINUX || SANITIZER_FREEBSD || SANITIZER_APPLE || SANITIZER_IOS
 TEST(SanitizerCommon, GetRandom) {
   u8 buffer_1[32], buffer_2[32];
   for (bool blocking : { false, true }) {
@@ -461,12 +505,9 @@ TEST(SanitizerCommon, ReservedAddressRangeUnmap) {
   EXPECT_DEATH(address_range.Unmap(base_addr + (PageSize * 2), PageSize), ".*");
 }
 
-// Windows has no working ReadBinaryName.
-#if !SANITIZER_WINDOWS
 TEST(SanitizerCommon, ReadBinaryNameCached) {
   char buf[256];
   EXPECT_NE((uptr)0, ReadBinaryNameCached(buf, sizeof(buf)));
 }
-#endif
 
 }  // namespace __sanitizer

@@ -6,77 +6,49 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/errno.h"
-
-#include "src/__support/common.h"
-#include "src/errno/llvmlibc_errno.h"
 #include "src/time/mktime.h"
+#include "src/__support/common.h"
+#include "src/time/time_utils.h"
+
+#include <limits.h>
 
 namespace __llvm_libc {
 
-constexpr int SecondsPerMin = 60;
-constexpr int MinutesPerHour = 60;
-constexpr int HoursPerDay = 24;
-constexpr int DaysPerWeek = 7;
-constexpr int MonthsPerYear = 12;
-constexpr int DaysPerNonLeapYear = 365;
-constexpr int TimeYearBase = 1900;
-constexpr int EpochYear = 1970;
-constexpr int EpochWeekDay = 4;
-// The latest time that can be represented in this form is 03:14:07 UTC on
-// Tuesday, 19 January 2038 (corresponding to 2,147,483,647 seconds since the
-// start of the epoch). This means that systems using a 32-bit time_t type are
-// susceptible to the Year 2038 problem.
-constexpr int EndOf32BitEpochYear = 2038;
+using __llvm_libc::time_utils::TimeConstants;
 
-constexpr int NonLeapYearDaysInMonth[] = {31 /* Jan */, 28, 31, 30, 31, 30,
-                                          31,           31, 30, 31, 30, 31};
+static constexpr int NON_LEAP_YEAR_DAYS_IN_MONTH[] = {31, 28, 31, 30, 31, 30,
+                                                      31, 31, 30, 31, 30, 31};
 
-constexpr bool isLeapYear(const time_t year) {
+// Returns number of years from (1, year).
+static constexpr int64_t get_num_of_leap_years_before(int64_t year) {
+  return (year / 4) - (year / 100) + (year / 400);
+}
+
+// Returns True if year is a leap year.
+static constexpr bool is_leap_year(const int64_t year) {
   return (((year) % 4) == 0 && (((year) % 100) != 0 || ((year) % 400) == 0));
 }
 
-// POSIX.1-2017 requires this.
-static inline time_t outOfRange() {
-  llvmlibc_errno = EOVERFLOW;
-  return static_cast<time_t>(-1);
-}
-
-LLVM_LIBC_FUNCTION(time_t, mktime, (struct tm * t1)) {
+LLVM_LIBC_FUNCTION(time_t, mktime, (struct tm * tm_out)) {
   // Unlike most C Library functions, mktime doesn't just die on bad input.
-  // TODO(rtenneti); Handle leap seconds. Handle out of range time and date
-  // values that don't overflow or underflow.
-  // TODO (rtenneti): Implement the following suggestion Siva: "As we start
-  // accumulating the seconds, we should be able to check if the next amount of
-  // seconds to be added can lead to an overflow. If it does, return the
-  // overflow value. If not keep accumulating. The benefit is that, we don't
-  // have to validate every input, and also do not need the special cases for
-  // sizeof(time_t) == 4".
-  if (t1->tm_sec < 0 || t1->tm_sec > (SecondsPerMin - 1))
-    return outOfRange();
-  if (t1->tm_min < 0 || t1->tm_min > (MinutesPerHour - 1))
-    return outOfRange();
-  if (t1->tm_hour < 0 || t1->tm_hour > (HoursPerDay - 1))
-    return outOfRange();
-  time_t tmYearFromBase = t1->tm_year + TimeYearBase;
-
-  if (tmYearFromBase < EpochYear)
-    return outOfRange();
+  // TODO(rtenneti); Handle leap seconds.
+  int64_t tm_year_from_base = tm_out->tm_year + TimeConstants::TIME_YEAR_BASE;
 
   // 32-bit end-of-the-world is 03:14:07 UTC on 19 January 2038.
-  if (sizeof(time_t) == 4 && tmYearFromBase >= EndOf32BitEpochYear) {
-    if (tmYearFromBase > EndOf32BitEpochYear)
-      return outOfRange();
-    if (t1->tm_mon > 0)
-      return outOfRange();
-    if (t1->tm_mday > 19)
-      return outOfRange();
-    if (t1->tm_hour > 3)
-      return outOfRange();
-    if (t1->tm_min > 14)
-      return outOfRange();
-    if (t1->tm_sec > 7)
-      return outOfRange();
+  if (sizeof(time_t) == 4 &&
+      tm_year_from_base >= TimeConstants::END_OF32_BIT_EPOCH_YEAR) {
+    if (tm_year_from_base > TimeConstants::END_OF32_BIT_EPOCH_YEAR)
+      return time_utils::out_of_range();
+    if (tm_out->tm_mon > 0)
+      return time_utils::out_of_range();
+    if (tm_out->tm_mday > 19)
+      return time_utils::out_of_range();
+    if (tm_out->tm_hour > 3)
+      return time_utils::out_of_range();
+    if (tm_out->tm_min > 14)
+      return time_utils::out_of_range();
+    if (tm_out->tm_sec > 7)
+      return time_utils::out_of_range();
   }
 
   // Years are ints.  A 32-bit year will fit into a 64-bit time_t.
@@ -85,42 +57,61 @@ LLVM_LIBC_FUNCTION(time_t, mktime, (struct tm * t1)) {
                 "ILP64 is unimplemented.  This implementation requires "
                 "32-bit integers.");
 
-  if (t1->tm_mon < 0 || t1->tm_mon > (MonthsPerYear - 1))
-    return outOfRange();
-  bool tmYearIsLeap = isLeapYear(tmYearFromBase);
-  time_t daysInMonth = NonLeapYearDaysInMonth[t1->tm_mon];
-  // Add one day if it is a leap year and the month is February.
-  if (tmYearIsLeap && t1->tm_mon == 1)
-    ++daysInMonth;
-  if (t1->tm_mday < 1 || t1->tm_mday > daysInMonth)
-    return outOfRange();
+  // Calculate number of months and years from tm_mon.
+  int64_t month = tm_out->tm_mon;
+  if (month < 0 || month >= TimeConstants::MONTHS_PER_YEAR - 1) {
+    int64_t years = month / 12;
+    month %= 12;
+    if (month < 0) {
+      years--;
+      month += 12;
+    }
+    tm_year_from_base += years;
+  }
+  bool tm_year_is_leap = is_leap_year(tm_year_from_base);
 
-  time_t totalDays = t1->tm_mday - 1;
-  for (int i = 0; i < t1->tm_mon; ++i)
-    totalDays += NonLeapYearDaysInMonth[i];
+  // Calculate total number of days based on the month and the day (tm_mday).
+  int64_t total_days = tm_out->tm_mday - 1;
+  for (int64_t i = 0; i < month; ++i)
+    total_days += NON_LEAP_YEAR_DAYS_IN_MONTH[i];
   // Add one day if it is a leap year and the month is after February.
-  if (tmYearIsLeap && t1->tm_mon > 1)
-    totalDays++;
-  t1->tm_yday = totalDays;
-  totalDays += (tmYearFromBase - EpochYear) * DaysPerNonLeapYear;
+  if (tm_year_is_leap && month > 1)
+    total_days++;
 
-  // Add an extra day for each leap year, starting with 1972
-  for (time_t year = EpochYear + 2; year < tmYearFromBase;) {
-    if (isLeapYear(year)) {
-      totalDays += 1;
-      year += 4;
-    } else {
-      year++;
+  // Calculate total numbers of days based on the year.
+  total_days += (tm_year_from_base - TimeConstants::EPOCH_YEAR) *
+                TimeConstants::DAYS_PER_NON_LEAP_YEAR;
+  if (tm_year_from_base >= TimeConstants::EPOCH_YEAR) {
+    total_days += get_num_of_leap_years_before(tm_year_from_base - 1) -
+                  get_num_of_leap_years_before(TimeConstants::EPOCH_YEAR);
+  } else if (tm_year_from_base >= 1) {
+    total_days -= get_num_of_leap_years_before(TimeConstants::EPOCH_YEAR) -
+                  get_num_of_leap_years_before(tm_year_from_base - 1);
+  } else {
+    // Calculate number of leap years until 0th year.
+    total_days -= get_num_of_leap_years_before(TimeConstants::EPOCH_YEAR) -
+                  get_num_of_leap_years_before(0);
+    if (tm_year_from_base <= 0) {
+      total_days -= 1; // Subtract 1 for 0th year.
+      // Calculate number of leap years until -1 year
+      if (tm_year_from_base < 0) {
+        total_days -= get_num_of_leap_years_before(-tm_year_from_base) -
+                      get_num_of_leap_years_before(1);
+      }
     }
   }
 
-  t1->tm_wday = (EpochWeekDay + totalDays) % DaysPerWeek;
-  if (t1->tm_wday < 0)
-    t1->tm_wday += DaysPerWeek;
   // TODO(rtenneti): Need to handle timezone and update of tm_isdst.
-  return t1->tm_sec + t1->tm_min * SecondsPerMin +
-         t1->tm_hour * MinutesPerHour * SecondsPerMin +
-         totalDays * HoursPerDay * MinutesPerHour * SecondsPerMin;
+  int64_t seconds = tm_out->tm_sec +
+                    tm_out->tm_min * TimeConstants::SECONDS_PER_MIN +
+                    tm_out->tm_hour * TimeConstants::SECONDS_PER_HOUR +
+                    total_days * TimeConstants::SECONDS_PER_DAY;
+
+  // Update the tm structure's year, month, day, etc. from seconds.
+  if (time_utils::update_from_seconds(seconds, tm_out) < 0)
+    return time_utils::out_of_range();
+
+  return static_cast<time_t>(seconds);
 }
 
 } // namespace __llvm_libc

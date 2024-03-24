@@ -8,7 +8,7 @@
 ; RUN: llc < %s -mtriple=x86_64-apple-darwin -mcpu=knl | FileCheck %s -check-prefixes=X64,X64-KNL
 ; RUN: llc < %s -mtriple=x86_64-apple-darwin -mcpu=skx | FileCheck %s -check-prefixes=X64,X64-SKX
 
-declare <16 x float> @func_float16_ptr(<16 x float>, <16 x float> *)
+declare <16 x float> @func_float16_ptr(<16 x float>, ptr)
 declare <16 x float> @func_float16(<16 x float>, <16 x float>)
 declare i32 @func_int(i32, i32)
 
@@ -79,8 +79,8 @@ define <16 x float> @testf16_inp(<16 x float> %a, <16 x float> %b) nounwind {
 ; X64-NEXT:    retq
   %y = alloca <16 x float>, align 64
   %x = fadd <16 x float> %a, %b
-  %1 = call intel_ocl_bicc <16 x float> @func_float16_ptr(<16 x float> %x, <16 x float>* %y)
-  %2 = load <16 x float>, <16 x float>* %y, align 16
+  %1 = call intel_ocl_bicc <16 x float> @func_float16_ptr(<16 x float> %x, ptr %y)
+  %2 = load <16 x float>, ptr %y, align 16
   %3 = fadd <16 x float> %2, %1
   ret <16 x float> %3
 }
@@ -160,8 +160,8 @@ define <16 x float> @testf16_regs(<16 x float> %a, <16 x float> %b) nounwind {
 ; X64-NEXT:    retq
   %y = alloca <16 x float>, align 64
   %x = fadd <16 x float> %a, %b
-  %1 = call intel_ocl_bicc <16 x float> @func_float16_ptr(<16 x float> %x, <16 x float>* %y)
-  %2 = load <16 x float>, <16 x float>* %y, align 16
+  %1 = call intel_ocl_bicc <16 x float> @func_float16_ptr(<16 x float> %x, ptr %y)
+  %2 = load <16 x float>, ptr %y, align 16
   %3 = fadd <16 x float> %1, %b
   %4 = fadd <16 x float> %2, %3
   ret <16 x float> %4
@@ -190,44 +190,44 @@ define intel_ocl_bicc <16 x float> @test_prolog_epilog(<16 x float> %a, <16 x fl
 ; WIN64-KNL-NEXT:    kmovw %k6, {{[-0-9]+}}(%r{{[sb]}}p) # 2-byte Spill
 ; WIN64-KNL-NEXT:    kmovw %k5, {{[-0-9]+}}(%r{{[sb]}}p) # 2-byte Spill
 ; WIN64-KNL-NEXT:    kmovw %k4, {{[-0-9]+}}(%r{{[sb]}}p) # 2-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm21, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm20, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm19, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm18, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm17, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm16, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm15, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm14, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm13, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm12, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm11, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm10, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm9, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm8, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm7, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-KNL-NEXT:    vmovaps %zmm6, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm21, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm20, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm19, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm18, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm17, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm16, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm15, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm14, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm13, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm12, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm11, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm10, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm9, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm8, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm7, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-KNL-NEXT:    vmovups %zmm6, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
 ; WIN64-KNL-NEXT:    andq $-64, %rsp
 ; WIN64-KNL-NEXT:    vmovaps %zmm1, {{[0-9]+}}(%rsp)
 ; WIN64-KNL-NEXT:    vmovaps %zmm0, {{[0-9]+}}(%rsp)
 ; WIN64-KNL-NEXT:    leaq {{[0-9]+}}(%rsp), %rcx
 ; WIN64-KNL-NEXT:    leaq {{[0-9]+}}(%rsp), %rdx
 ; WIN64-KNL-NEXT:    callq func_float16
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm6 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm7 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm8 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm9 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm10 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm11 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm12 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm13 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm14 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm15 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm16 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm17 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm18 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm19 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm20 # 64-byte Reload
-; WIN64-KNL-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm21 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm6 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm7 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm8 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm9 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm10 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm11 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm12 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm13 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm14 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm15 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm16 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm17 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm18 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm19 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm20 # 64-byte Reload
+; WIN64-KNL-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm21 # 64-byte Reload
 ; WIN64-KNL-NEXT:    kmovw {{[-0-9]+}}(%r{{[sb]}}p), %k4 # 2-byte Reload
 ; WIN64-KNL-NEXT:    kmovw {{[-0-9]+}}(%r{{[sb]}}p), %k5 # 2-byte Reload
 ; WIN64-KNL-NEXT:    kmovw {{[-0-9]+}}(%r{{[sb]}}p), %k6 # 2-byte Reload
@@ -245,44 +245,44 @@ define intel_ocl_bicc <16 x float> @test_prolog_epilog(<16 x float> %a, <16 x fl
 ; WIN64-SKX-NEXT:    kmovq %k6, {{[-0-9]+}}(%r{{[sb]}}p) # 8-byte Spill
 ; WIN64-SKX-NEXT:    kmovq %k5, {{[-0-9]+}}(%r{{[sb]}}p) # 8-byte Spill
 ; WIN64-SKX-NEXT:    kmovq %k4, {{[-0-9]+}}(%r{{[sb]}}p) # 8-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm21, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm20, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm19, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm18, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm17, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm16, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm15, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm14, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm13, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm12, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm11, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm10, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm9, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm8, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm7, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
-; WIN64-SKX-NEXT:    vmovaps %zmm6, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm21, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm20, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm19, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm18, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm17, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm16, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm15, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm14, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm13, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm12, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm11, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm10, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm9, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm8, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm7, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
+; WIN64-SKX-NEXT:    vmovups %zmm6, {{[-0-9]+}}(%r{{[sb]}}p) # 64-byte Spill
 ; WIN64-SKX-NEXT:    andq $-64, %rsp
 ; WIN64-SKX-NEXT:    vmovaps %zmm1, {{[0-9]+}}(%rsp)
 ; WIN64-SKX-NEXT:    vmovaps %zmm0, {{[0-9]+}}(%rsp)
 ; WIN64-SKX-NEXT:    leaq {{[0-9]+}}(%rsp), %rcx
 ; WIN64-SKX-NEXT:    leaq {{[0-9]+}}(%rsp), %rdx
 ; WIN64-SKX-NEXT:    callq func_float16
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm6 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm7 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm8 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm9 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm10 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm11 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm12 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm13 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm14 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm15 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm16 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm17 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm18 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm19 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm20 # 64-byte Reload
-; WIN64-SKX-NEXT:    vmovaps {{[-0-9]+}}(%r{{[sb]}}p), %zmm21 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm6 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm7 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm8 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm9 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm10 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm11 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm12 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm13 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm14 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm15 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm16 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm17 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm18 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm19 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm20 # 64-byte Reload
+; WIN64-SKX-NEXT:    vmovups {{[-0-9]+}}(%r{{[sb]}}p), %zmm21 # 64-byte Reload
 ; WIN64-SKX-NEXT:    kmovq {{[-0-9]+}}(%r{{[sb]}}p), %k4 # 8-byte Reload
 ; WIN64-SKX-NEXT:    kmovq {{[-0-9]+}}(%r{{[sb]}}p), %k5 # 8-byte Reload
 ; WIN64-SKX-NEXT:    kmovq {{[-0-9]+}}(%r{{[sb]}}p), %k6 # 8-byte Reload

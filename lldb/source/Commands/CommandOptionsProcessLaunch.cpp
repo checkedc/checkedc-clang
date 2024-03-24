@@ -12,6 +12,8 @@
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandCompletions.h"
+#include "lldb/Interpreter/CommandObject.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Platform.h"
@@ -30,7 +32,7 @@ Status CommandOptionsProcessLaunch::SetOptionValue(
     uint32_t option_idx, llvm::StringRef option_arg,
     ExecutionContext *execution_context) {
   Status error;
-  const int short_option = m_getopt_table[option_idx].val;
+  const int short_option = g_process_launch_options[option_idx].short_option;
 
   switch (short_option) {
   case 's': // Stop at program entry point
@@ -130,7 +132,7 @@ Status CommandOptionsProcessLaunch::SetOptionValue(
       launch_info.SetShell(HostInfo::GetDefaultShell());
     break;
 
-  case 'v':
+  case 'E':
     launch_info.GetEnvironment().insert(option_arg);
     break;
 
@@ -143,5 +145,5 @@ Status CommandOptionsProcessLaunch::SetOptionValue(
 }
 
 llvm::ArrayRef<OptionDefinition> CommandOptionsProcessLaunch::GetDefinitions() {
-  return llvm::makeArrayRef(g_process_launch_options);
+  return llvm::ArrayRef(g_process_launch_options);
 }

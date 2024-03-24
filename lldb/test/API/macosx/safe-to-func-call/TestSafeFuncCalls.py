@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class TestSafeFuncCalls(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipUnlessDarwin
     @add_test_categories(['pyapi'])
     def test_with_python_api(self):
@@ -49,6 +47,6 @@ class TestSafeFuncCalls(TestBase):
 
         self.assertTrue(main_thread.SafeToCallFunctions(),
                         "It is safe to call functions on the main thread")
-        self.assertTrue(
-            select_thread.SafeToCallFunctions() == False,
+        self.assertEqual(
+            select_thread.SafeToCallFunctions(), False,
             "It is not safe to call functions on the select thread")

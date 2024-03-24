@@ -10,10 +10,9 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_UNIQUEPTRRESETRELEASECHECK_H
 
 #include "../ClangTidyCheck.h"
+#include "../utils/IncludeInserter.h"
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 /// Find and replace `unique_ptr::reset(release())` with `std::move()`.
 ///
@@ -28,8 +27,7 @@ namespace misc {
 /// be `std::unique_ptr<Foo>*`.
 class UniqueptrResetReleaseCheck : public ClangTidyCheck {
 public:
-  UniqueptrResetReleaseCheck(StringRef Name, ClangTidyContext *Context)
-      : ClangTidyCheck(Name, Context) {}
+  UniqueptrResetReleaseCheck(StringRef Name, ClangTidyContext *Context);
 
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
     // Only register the matchers for C++11; the functionality currently does
@@ -37,12 +35,16 @@ public:
     // provide any benefit to other languages, despite being benign.
     return LangOpts.CPlusPlus11;
   }
+  void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
+                           Preprocessor *ModuleExpanderPP) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+  void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
+
+private:
+  utils::IncludeInserter Inserter;
 };
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MISC_UNIQUEPTRRESETRELEASECHECK_H

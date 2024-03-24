@@ -22,7 +22,13 @@
 # DIS:      1000: auipc gp, 3
 # DIS-NEXT:       addi gp, gp, -2048
 
-# ERR: error: relocation R_RISCV_PCREL_HI20 cannot be used against symbol __global_pointer$; recompile with -fPIC
+# ERR: error: relocation R_RISCV_PCREL_HI20 cannot be used against symbol '__global_pointer$'; recompile with -fPIC
+
+## -r mode does not define __global_pointer$.
+# RUN: ld.lld -r %t.64.o -o %t.64.ro
+# RUN: llvm-readelf -s %t.64.ro | FileCheck --check-prefix=RELOCATABLE %s
+
+# RELOCATABLE: 0000000000000000 0 NOTYPE GLOBAL DEFAULT UND __global_pointer$
 
 lla gp, __global_pointer$
 

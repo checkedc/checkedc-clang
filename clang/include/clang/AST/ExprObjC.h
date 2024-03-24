@@ -27,8 +27,6 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
@@ -41,6 +39,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace clang {
 
@@ -55,7 +54,7 @@ class ObjCStringLiteral : public Expr {
 
 public:
   ObjCStringLiteral(StringLiteral *SL, QualType T, SourceLocation L)
-      : Expr(ObjCStringLiteralClass, T, VK_RValue, OK_Ordinary), String(SL),
+      : Expr(ObjCStringLiteralClass, T, VK_PRValue, OK_Ordinary), String(SL),
         AtLoc(L) {
     setDependence(ExprDependence::None);
   }
@@ -91,7 +90,7 @@ class ObjCBoolLiteralExpr : public Expr {
 
 public:
   ObjCBoolLiteralExpr(bool val, QualType Ty, SourceLocation l)
-      : Expr(ObjCBoolLiteralExprClass, Ty, VK_RValue, OK_Ordinary), Value(val),
+      : Expr(ObjCBoolLiteralExprClass, Ty, VK_PRValue, OK_Ordinary), Value(val),
         Loc(l) {
     setDependence(ExprDependence::None);
   }
@@ -134,7 +133,7 @@ public:
   friend class ASTStmtReader;
 
   ObjCBoxedExpr(Expr *E, QualType T, ObjCMethodDecl *method, SourceRange R)
-      : Expr(ObjCBoxedExprClass, T, VK_RValue, OK_Ordinary), SubExpr(E),
+      : Expr(ObjCBoxedExprClass, T, VK_PRValue, OK_Ordinary), SubExpr(E),
         BoxingMethod(method), Range(R) {
     setDependence(computeDependence(this));
   }
@@ -272,7 +271,7 @@ struct ObjCDictionaryElement {
 
   /// The number of elements this pack expansion will expand to, if
   /// this is a pack expansion and is known.
-  Optional<unsigned> NumExpansions;
+  std::optional<unsigned> NumExpansions;
 
   /// Determines whether this dictionary element is a pack expansion.
   bool isPackExpansion() const { return EllipsisLoc.isValid(); }
@@ -362,7 +361,8 @@ public:
   ObjCDictionaryElement getKeyValueElement(unsigned Index) const {
     assert((Index < NumElements) && "Arg access out of range!");
     const KeyValuePair &KV = getTrailingObjects<KeyValuePair>()[Index];
-    ObjCDictionaryElement Result = { KV.Key, KV.Value, SourceLocation(), None };
+    ObjCDictionaryElement Result = {KV.Key, KV.Value, SourceLocation(),
+                                    std::nullopt};
     if (HasPackExpansions) {
       const ExpansionData &Expansion =
           getTrailingObjects<ExpansionData>()[Index];
@@ -458,7 +458,7 @@ class ObjCSelectorExpr : public Expr {
 public:
   ObjCSelectorExpr(QualType T, Selector selInfo, SourceLocation at,
                    SourceLocation rp)
-      : Expr(ObjCSelectorExprClass, T, VK_RValue, OK_Ordinary),
+      : Expr(ObjCSelectorExprClass, T, VK_PRValue, OK_Ordinary),
         SelName(selInfo), AtLoc(at), RParenLoc(rp) {
     setDependence(ExprDependence::None);
   }
@@ -511,7 +511,7 @@ public:
 
   ObjCProtocolExpr(QualType T, ObjCProtocolDecl *protocol, SourceLocation at,
                    SourceLocation protoLoc, SourceLocation rp)
-      : Expr(ObjCProtocolExprClass, T, VK_RValue, OK_Ordinary),
+      : Expr(ObjCProtocolExprClass, T, VK_PRValue, OK_Ordinary),
         TheProtocol(protocol), AtLoc(at), ProtoLoc(protoLoc), RParenLoc(rp) {
     setDependence(ExprDependence::None);
   }
@@ -1415,11 +1415,10 @@ public:
   SourceLocation getSelectorLoc(unsigned Index) const {
     assert(Index < getNumSelectorLocs() && "Index out of range!");
     if (hasStandardSelLocs())
-      return getStandardSelectorLoc(Index, getSelector(),
-                                   getSelLocsKind() == SelLoc_StandardWithSpace,
-                               llvm::makeArrayRef(const_cast<Expr**>(getArgs()),
-                                                  getNumArgs()),
-                                   RBracLoc);
+      return getStandardSelectorLoc(
+          Index, getSelector(), getSelLocsKind() == SelLoc_StandardWithSpace,
+          llvm::ArrayRef(const_cast<Expr **>(getArgs()), getNumArgs()),
+          RBracLoc);
     return getStoredSelLocs()[Index];
   }
 
@@ -1638,8 +1637,8 @@ public:
   ObjCBridgedCastExpr(SourceLocation LParenLoc, ObjCBridgeCastKind Kind,
                       CastKind CK, SourceLocation BridgeKeywordLoc,
                       TypeSourceInfo *TSInfo, Expr *Operand)
-      : ExplicitCastExpr(ObjCBridgedCastExprClass, TSInfo->getType(), VK_RValue,
-                         CK, Operand, 0, false, TSInfo),
+      : ExplicitCastExpr(ObjCBridgedCastExprClass, TSInfo->getType(),
+                         VK_PRValue, CK, Operand, 0, false, TSInfo),
         LParenLoc(LParenLoc), BridgeKeywordLoc(BridgeKeywordLoc), Kind(Kind) {}
 
   /// Construct an empty Objective-C bridged cast.
@@ -1692,7 +1691,7 @@ class ObjCAvailabilityCheckExpr : public Expr {
 public:
   ObjCAvailabilityCheckExpr(VersionTuple VersionToCheck, SourceLocation AtLoc,
                             SourceLocation RParen, QualType Ty)
-      : Expr(ObjCAvailabilityCheckExprClass, Ty, VK_RValue, OK_Ordinary),
+      : Expr(ObjCAvailabilityCheckExprClass, Ty, VK_PRValue, OK_Ordinary),
         VersionToCheck(VersionToCheck), AtLoc(AtLoc), RParen(RParen) {
     setDependence(ExprDependence::None);
   }
@@ -1706,7 +1705,7 @@ public:
 
   /// This may be '*', in which case this should fold to true.
   bool hasVersion() const { return !VersionToCheck.empty(); }
-  VersionTuple getVersion() { return VersionToCheck; }
+  VersionTuple getVersion() const { return VersionToCheck; }
 
   child_range children() {
     return child_range(child_iterator(), child_iterator());

@@ -12,7 +12,9 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/TextDiagnostic.h"
+#include "clang/Tooling/NodeIntrospection.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 using namespace clang::ast_matchers::dynamic;
@@ -48,8 +50,6 @@ bool HelpQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
         "    AsIs                            "
         "Print and match the AST as clang sees it.  This mode is the "
         "default.\n"
-        "    IgnoreImplicitCastsAndParentheses  "
-        "Omit implicit casts and parens in matching and dumping.\n"
         "    IgnoreUnlessSpelledInSource     "
         "Omit AST nodes unless spelled in the source.\n"
         "  set output <feature>              "
@@ -68,6 +68,8 @@ bool HelpQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
         "Diagnostic location for bound nodes.\n"
         "  detailed-ast                      "
         "Detailed AST output for bound nodes.\n"
+        "  srcloc                            "
+        "Source locations and ranges for bound nodes.\n"
         "  dump                              "
         "Detailed AST output for bound nodes (alias of detailed-ast).\n\n";
   return true;
@@ -88,6 +90,90 @@ struct CollectBoundNodes : MatchFinder::MatchCallback {
   }
 };
 
+void dumpLocations(llvm::raw_ostream &OS, DynTypedNode Node, ASTContext &Ctx,
+                   const DiagnosticsEngine &Diags, SourceManager const &SM) {
+  auto Locs = clang::tooling::NodeIntrospection::GetLocations(Node);
+
+  auto PrintLocations = [](llvm::raw_ostream &OS, auto Iter, auto End) {
+    auto CommonEntry = Iter->first;
+    auto Scout = Iter;
+    SmallVector<std::string> LocationStrings;
+    while (Scout->first == CommonEntry) {
+      LocationStrings.push_back(
+          tooling::LocationCallFormatterCpp::format(*Iter->second));
+      if (Scout == End)
+        break;
+      ++Scout;
+      if (Scout->first == CommonEntry)
+        ++Iter;
+    }
+    llvm::sort(LocationStrings);
+    for (auto &LS : LocationStrings) {
+      OS << " * \"" << LS << "\"\n";
+    }
+    return Iter;
+  };
+
+  TextDiagnostic TD(OS, Ctx.getLangOpts(), &Diags.getDiagnosticOptions());
+
+  for (auto Iter = Locs.LocationAccessors.begin();
+       Iter != Locs.LocationAccessors.end(); ++Iter) {
+    if (!Iter->first.isValid())
+      continue;
+
+    TD.emitDiagnostic(FullSourceLoc(Iter->first, SM), DiagnosticsEngine::Note,
+                      "source locations here", std::nullopt, std::nullopt);
+
+    Iter = PrintLocations(OS, Iter, Locs.LocationAccessors.end());
+    OS << '\n';
+  }
+
+  for (auto Iter = Locs.RangeAccessors.begin();
+       Iter != Locs.RangeAccessors.end(); ++Iter) {
+
+    if (!Iter->first.getBegin().isValid())
+      continue;
+
+    if (SM.getPresumedLineNumber(Iter->first.getBegin()) !=
+        SM.getPresumedLineNumber(Iter->first.getEnd()))
+      continue;
+
+    TD.emitDiagnostic(
+        FullSourceLoc(Iter->first.getBegin(), SM), DiagnosticsEngine::Note,
+        "source ranges here " + Iter->first.printToString(SM),
+        CharSourceRange::getTokenRange(Iter->first), std::nullopt);
+
+    Iter = PrintLocations(OS, Iter, Locs.RangeAccessors.end());
+  }
+  for (auto Iter = Locs.RangeAccessors.begin();
+       Iter != Locs.RangeAccessors.end(); ++Iter) {
+
+    if (!Iter->first.getBegin().isValid())
+      continue;
+
+    if (SM.getPresumedLineNumber(Iter->first.getBegin()) ==
+        SM.getPresumedLineNumber(Iter->first.getEnd()))
+      continue;
+
+    TD.emitDiagnostic(
+        FullSourceLoc(Iter->first.getBegin(), SM), DiagnosticsEngine::Note,
+        "source range " + Iter->first.printToString(SM) + " starting here...",
+        CharSourceRange::getTokenRange(Iter->first), std::nullopt);
+
+    auto ColNum = SM.getPresumedColumnNumber(Iter->first.getEnd());
+    auto LastLineLoc = Iter->first.getEnd().getLocWithOffset(-(ColNum - 1));
+
+    TD.emitDiagnostic(FullSourceLoc(Iter->first.getEnd(), SM),
+                      DiagnosticsEngine::Note, "... ending here",
+                      CharSourceRange::getTokenRange(
+                          SourceRange(LastLineLoc, Iter->first.getEnd())),
+                      std::nullopt);
+
+    Iter = PrintLocations(OS, Iter, Locs.RangeAccessors.end());
+  }
+  OS << "\n";
+}
+
 } // namespace
 
 bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
@@ -98,7 +184,7 @@ bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
     std::vector<BoundNodes> Matches;
     DynTypedMatcher MaybeBoundMatcher = Matcher;
     if (QS.BindRoot) {
-      llvm::Optional<DynTypedMatcher> M = Matcher.tryBind("root");
+      std::optional<DynTypedMatcher> M = Matcher.tryBind("root");
       if (M)
         MaybeBoundMatcher = *M;
     }
@@ -108,8 +194,10 @@ bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
       return false;
     }
 
-    AST->getASTContext().getParentMapContext().setTraversalKind(QS.TK);
-    Finder.matchAST(AST->getASTContext());
+    auto &Ctx = AST->getASTContext();
+    const auto &SM = Ctx.getSourceManager();
+    Ctx.getParentMapContext().setTraversalKind(QS.TK);
+    Finder.matchAST(Ctx);
 
     if (QS.PrintMatcher) {
       SmallVector<StringRef, 4> Lines;
@@ -145,7 +233,7 @@ bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
             TD.emitDiagnostic(
                 FullSourceLoc(R.getBegin(), AST->getSourceManager()),
                 DiagnosticsEngine::Note, "\"" + BI->first + "\" binds here",
-                CharSourceRange::getTokenRange(R), None);
+                CharSourceRange::getTokenRange(R), std::nullopt);
           }
         }
         if (QS.PrintOutput) {
@@ -159,6 +247,13 @@ bool MatchQuery::run(llvm::raw_ostream &OS, QuerySession &QS) const {
           ASTDumper Dumper(OS, Ctx, AST->getDiagnostics().getShowColors());
           Dumper.SetTraversalKind(QS.TK);
           Dumper.Visit(BI->second);
+          OS << "\n";
+        }
+        if (QS.SrcLocOutput) {
+          OS << "\n  \"" << BI->first << "\" Source locations\n";
+          OS << "  " << std::string(19 + BI->first.size(), '-') << '\n';
+
+          dumpLocations(OS, BI->second, Ctx, AST->getDiagnostics(), SM);
           OS << "\n";
         }
       }

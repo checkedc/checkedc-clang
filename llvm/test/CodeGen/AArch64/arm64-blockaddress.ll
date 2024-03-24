@@ -1,4 +1,5 @@
-; RUN: llc < %s -mtriple=arm64-apple-ios | FileCheck %s
+; RUN: llc < %s -mtriple=arm64-apple-ios | FileCheck %s --check-prefix=CHECK-IOS
+; RUN: llc < %s -mtriple=arm64-apple-ios -global-isel | FileCheck %s --check-prefix=CHECK-IOS
 ; RUN: llc < %s -mtriple=arm64-linux-gnu | FileCheck %s --check-prefix=CHECK-LINUX
 ; RUN: llc < %s -mtriple=arm64-linux-gnu -code-model=large| FileCheck %s --check-prefix=CHECK-LARGE
 
@@ -6,9 +7,11 @@
 
 define i64 @t() nounwind ssp {
 entry:
-; CHECK-LABEL: t:
-; CHECK: adrp [[REG:x[0-9]+]], Ltmp0@PAGE
-; CHECK: add {{x[0-9]+}}, [[REG]], Ltmp0@PAGEOFF
+; CHECK-IOS: lCPI0_0:
+; CHECK-IOS:     .quad Ltmp0
+; CHECK-IOS-LABEL: _t:
+; CHECK-IOS: adrp x[[TMP:[0-9]+]], lCPI0_0@PAGE
+; CHECK-IOS: ldr {{x[0-9]+}}, [x[[TMP]], lCPI0_0@PAGEOFF]
 
 ; CHECK-LINUX-LABEL: t:
 ; CHECK-LINUX: adrp [[REG:x[0-9]+]], .Ltmp0
@@ -21,10 +24,10 @@ entry:
 ; CHECK-LARGE: movk [[ADDR_REG]], #:abs_g3:[[DEST_LBL]]
 
   %recover = alloca i64, align 8
-  store volatile i64 ptrtoint (i8* blockaddress(@t, %mylabel) to i64), i64* %recover, align 8
+  store volatile i64 ptrtoint (ptr blockaddress(@t, %mylabel) to i64), ptr %recover, align 8
   br label %mylabel
 
 mylabel:
-  %tmp = load volatile i64, i64* %recover, align 8
+  %tmp = load volatile i64, ptr %recover, align 8
   ret i64 %tmp
 }

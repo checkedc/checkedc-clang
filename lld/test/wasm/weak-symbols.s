@@ -4,6 +4,8 @@
 # RUN: wasm-ld --export-dynamic -o %t.wasm %t.o %t1.o %t2.o
 # RUN: obj2yaml %t.wasm | FileCheck %s
 
+.functype weakFn () -> (i32)
+
 .globl  _start
 _start:
   .functype _start () -> ()
@@ -11,7 +13,6 @@ _start:
   drop
   end_function
 
-.functype weakFn () -> (i32)
 .size weakGlobal, 4
 
 # CHECK:      --- !WASM
@@ -35,11 +36,11 @@ _start:
 # CHECK-NEXT:         ElemType:        FUNCREF
 # CHECK-NEXT:         Limits:
 # CHECK-NEXT:           Flags:           [ HAS_MAX ]
-# CHECK-NEXT:           Initial:         0x2
+# CHECK-NEXT:           Minimum:         0x2
 # CHECK-NEXT:           Maximum:         0x2
 # CHECK-NEXT:   - Type:            MEMORY
 # CHECK-NEXT:     Memories:
-# CHECK-NEXT:       - Initial:         0x2
+# CHECK-NEXT:       - Minimum:         0x2
 # CHECK-NEXT:   - Type:            GLOBAL
 # CHECK-NEXT:     Globals:
 # CHECK-NEXT:       - Index:           0

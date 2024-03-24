@@ -16,9 +16,9 @@ bar:
     .tabletype bar, funcref
 
 table1:
-    .tabletype table1, funcref
+    .tabletype table1, funcref, 42
 table2:
-    .tabletype table2, funcref
+    .tabletype table2, funcref, 42, 100
 
 # Table instructions
 
@@ -29,8 +29,6 @@ table2:
 #      CHECK:	table.size	table1
 #      CHECK:	table.copy	table1, table2
 # CHECK-NEXT:	end_function
-# CHECK-NEXT:.Ltmp0:
-# CHECK-NEXT:	.size	copy_tables, .Ltmp0-copy_tables
 copy_tables:
     .functype copy_tables (i32, i32) -> ()
     local.get 0
@@ -48,8 +46,6 @@ copy_tables:
 # CHECK-NEXT:	local.get	0
 #      CHECK:	table.get	foo
 # CHECK-NEXT:	end_function
-# CHECK-NEXT: .Ltmp1:
-# CHECK-NEXT:	.size	table_get, .Ltmp1-table_get
 table_get:
     .functype table_get (i32) -> (externref)
     local.get 0
@@ -64,8 +60,6 @@ table_get:
 # CHECK-NEXT:	local.get	1
 #      CHECK:	table.set	foo
 # CHECK-NEXT:	end_function
-# CHECK-NEXT: .Ltmp2:
-# CHECK-NEXT:	.size	table_set, .Ltmp2-table_set
 table_set:
     .functype table_set (i32, externref) -> ()
     local.get 0
@@ -84,8 +78,6 @@ table_set:
 # CHECK-NEXT:	local.get	0
 # CHECK-NEXT:	i32.add
 # CHECK-NEXT:	end_function
-# CHECK-NEXT: .Ltmp3:
-# CHECK-NEXT:	.size	table_grow, .Ltmp3-table_grow
 table_grow:
     .functype table_grow (i32) -> (i32)
     i32.const 0
@@ -106,8 +98,6 @@ table_grow:
 # CHECK-NEXT:	local.get	1
 #      CHECK:	table.fill	table1
 # CHECK-NEXT:	end_function
-# CHECK-NEXT: .Ltmp4:
-# CHECK-NEXT:	.size	table_fill, .Ltmp4-table_fill
 table_fill:
     .functype table_fill (i32, i32) -> ()
     local.get 0
@@ -124,19 +114,21 @@ table_fill:
 # BIN-NEXT:      - Index:           0
 # BIN-NEXT:        ElemType:        EXTERNREF
 # BIN-NEXT:        Limits:
-# BIN-NEXT:          Initial:         0x0
+# BIN-NEXT:          Minimum:         0x0
 # BIN-NEXT:      - Index:           1
 # BIN-NEXT:        ElemType:        FUNCREF
 # BIN-NEXT:        Limits:
-# BIN-NEXT:          Initial:         0x0
+# BIN-NEXT:          Minimum:         0x0
 # BIN-NEXT:      - Index:           2
 # BIN-NEXT:        ElemType:        FUNCREF
 # BIN-NEXT:        Limits:
-# BIN-NEXT:          Initial:         0x0
+# BIN-NEXT:          Minimum:         0x2A
 # BIN-NEXT:      - Index:           3
 # BIN-NEXT:        ElemType:        FUNCREF
 # BIN-NEXT:        Limits:
-# BIN-NEXT:          Initial:         0x0
+# BIN-NEXT:          Flags:           [ HAS_MAX ]
+# BIN-NEXT:          Minimum:         0x2A
+# BIN-NEXT:          Maximum:         0x64
 
 #      BIN:  - Type:            CODE
 # BIN-NEXT:    Relocations:

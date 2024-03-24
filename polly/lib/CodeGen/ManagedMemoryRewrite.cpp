@@ -26,20 +26,21 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
+using namespace llvm;
 using namespace polly;
 
 static cl::opt<bool> RewriteAllocas(
     "polly-acc-rewrite-allocas",
     cl::desc(
         "Ask the managed memory rewriter to also rewrite alloca instructions"),
-    cl::Hidden, cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool> IgnoreLinkageForGlobals(
     "polly-acc-rewrite-ignore-linkage-for-globals",
     cl::desc(
         "By default, we only rewrite globals with internal linkage. This flag "
         "enables rewriting of globals regardless of linkage"),
-    cl::Hidden, cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 #define DEBUG_TYPE "polly-acc-rewrite-managed-memory"
 namespace {
@@ -162,7 +163,7 @@ static void rewriteOldValToNew(Instruction *Inst, Value *OldVal, Value *NewVal,
 // in an expression.
 // We need this auxiliary function, because if we have a
 // `Constant` that is a user of `V`, we need to recurse into the
-// `Constant`s uses to gather the root instruciton.
+// `Constant`s uses to gather the root instruction.
 static void getInstructionUsersOfValue(Value *V,
                                        SmallVector<Instruction *, 4> &Owners) {
   if (auto *I = dyn_cast<Instruction>(V)) {
@@ -179,7 +180,7 @@ static void
 replaceGlobalArray(Module &M, const DataLayout &DL, GlobalVariable &Array,
                    SmallPtrSet<GlobalVariable *, 4> &ReplacedGlobals) {
   // We only want arrays.
-  ArrayType *ArrayTy = dyn_cast<ArrayType>(Array.getType()->getElementType());
+  ArrayType *ArrayTy = dyn_cast<ArrayType>(Array.getValueType());
   if (!ArrayTy)
     return;
   Type *ElemTy = ArrayTy->getElementType();
@@ -255,7 +256,8 @@ replaceGlobalArray(Module &M, const DataLayout &DL, GlobalVariable &Array,
 
     Builder.SetInsertPoint(UserOfArrayInst);
     // <ty>** -> <ty>*
-    Value *ArrPtrLoaded = Builder.CreateLoad(ReplacementToArr, "arrptr.load");
+    Value *ArrPtrLoaded =
+        Builder.CreateLoad(ElemPtrTy, ReplacementToArr, "arrptr.load");
     // <ty>* -> [ty]*
     Value *ArrPtrLoadedBitcasted = Builder.CreateBitCast(
         ArrPtrLoaded, ArrayTy->getPointerTo(), "arrptr.bitcast");
@@ -296,8 +298,7 @@ static void rewriteAllocaAsManagedMemory(AllocaInst *Alloca,
 
   Function *MallocManagedFn =
       getOrCreatePollyMallocManaged(*Alloca->getModule());
-  const uint64_t Size =
-      DL.getTypeAllocSize(Alloca->getType()->getElementType());
+  const uint64_t Size = DL.getTypeAllocSize(Alloca->getAllocatedType());
   Value *SizeVal = Builder.getInt64(Size);
   Value *RawManagedMem = Builder.CreateCall(MallocManagedFn, {SizeVal});
   Value *Bitcasted = Builder.CreateBitCast(RawManagedMem, Alloca->getType());
@@ -347,7 +348,7 @@ static void replaceAllUsesAndConstantUses(Value *Old, Value *New,
     rewriteOldValToNew(I, Old, New, Builder);
 }
 
-class ManagedMemoryRewritePass : public ModulePass {
+class ManagedMemoryRewritePass final : public ModulePass {
 public:
   static char ID;
   GPUArch Architecture;

@@ -63,10 +63,10 @@
 #include "llvm/Transforms/Scalar/SpeculativeExecution.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
@@ -210,8 +210,8 @@ bool SpeculativeExecutionPass::runOnBasicBlock(BasicBlock &B) {
   return false;
 }
 
-static unsigned ComputeSpeculationCost(const Instruction *I,
-                                       const TargetTransformInfo &TTI) {
+static InstructionCost ComputeSpeculationCost(const Instruction *I,
+                                              const TargetTransformInfo &TTI) {
   switch (Operator::getOpcode(I)) {
     case Instruction::GetElementPtr:
     case Instruction::Add:
@@ -252,10 +252,11 @@ static unsigned ComputeSpeculationCost(const Instruction *I,
     case Instruction::ShuffleVector:
     case Instruction::ExtractValue:
     case Instruction::InsertValue:
-      return TTI.getUserCost(I, TargetTransformInfo::TCK_SizeAndLatency);
+      return TTI.getInstructionCost(I, TargetTransformInfo::TCK_SizeAndLatency);
 
     default:
-      return UINT_MAX; // Disallow anything not explicitly listed.
+      return InstructionCost::getInvalid(); // Disallow anything not explicitly
+                                            // listed.
   }
 }
 
@@ -265,14 +266,16 @@ bool SpeculativeExecutionPass::considerHoistingFromTo(
   const auto AllPrecedingUsesFromBlockHoisted = [&NotHoisted](const User *U) {
     // Debug variable has special operand to check it's not hoisted.
     if (const auto *DVI = dyn_cast<DbgVariableIntrinsic>(U)) {
-      if (const auto *I =
-              dyn_cast_or_null<Instruction>(DVI->getVariableLocation()))
-        if (NotHoisted.count(I) == 0)
-          return true;
-      return false;
+      return all_of(DVI->location_ops(), [&NotHoisted](Value *V) {
+        if (const auto *I = dyn_cast_or_null<Instruction>(V)) {
+          if (!NotHoisted.contains(I))
+            return true;
+        }
+        return false;
+      });
     }
 
-    // Usially debug label instrinsic corresponds to label in LLVM IR. In these
+    // Usially debug label intrinsic corresponds to label in LLVM IR. In these
     // cases we should not move it here.
     // TODO: Possible special processing needed to detect it is related to a
     // hoisted instruction.
@@ -288,17 +291,17 @@ bool SpeculativeExecutionPass::considerHoistingFromTo(
     return true;
   };
 
-  unsigned TotalSpeculationCost = 0;
+  InstructionCost TotalSpeculationCost = 0;
   unsigned NotHoistedInstCount = 0;
   for (const auto &I : FromBlock) {
-    const unsigned Cost = ComputeSpeculationCost(&I, *TTI);
-    if (Cost != UINT_MAX && isSafeToSpeculativelyExecute(&I) &&
+    const InstructionCost Cost = ComputeSpeculationCost(&I, *TTI);
+    if (Cost.isValid() && isSafeToSpeculativelyExecute(&I) &&
         AllPrecedingUsesFromBlockHoisted(&I)) {
       TotalSpeculationCost += Cost;
       if (TotalSpeculationCost > SpecExecMaxSpeculationCost)
         return false;  // too much to hoist
     } else {
-      // Debug info instrinsics should not be counted for threshold.
+      // Debug info intrinsics should not be counted for threshold.
       if (!isa<DbgInfoIntrinsic>(I))
         NotHoistedInstCount++;
       if (NotHoistedInstCount > SpecExecMaxNotHoisted)
@@ -340,7 +343,6 @@ PreservedAnalyses SpeculativeExecutionPass::run(Function &F,
   if (!Changed)
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
-  PA.preserve<GlobalsAA>();
   PA.preserveSet<CFGAnalyses>();
   return PA;
 }

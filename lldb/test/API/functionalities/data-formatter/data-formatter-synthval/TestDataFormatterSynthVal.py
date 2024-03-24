@@ -2,9 +2,6 @@
 Test lldb data formatter subsystem.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,14 +10,13 @@ from lldbsuite.test import lldbutil
 
 class DataFormatterSynthValueTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
         # Find the line number to break at.
         self.line = line_number('main.cpp', 'break here')
 
+    @expectedFailureAll(bugnumber="llvm.org/pr50814", compiler="gcc")
     def test_with_run_command(self):
         """Test using Python synthetic children provider to provide a value."""
         self.build()
@@ -66,10 +62,10 @@ class DataFormatterSynthValueTestCase(TestBase):
                 "x_val = %s; y_val = %s; z_val = %s; q_val = %s" %
                 (x_val(), y_val(), z_val(), q_val()))
 
-        self.assertFalse(x_val() == 3, "x == 3 before synthetics")
-        self.assertFalse(y_val() == 4, "y == 4 before synthetics")
-        self.assertFalse(z_val() == 7, "z == 7 before synthetics")
-        self.assertFalse(q_val() == 8, "q == 8 before synthetics")
+        self.assertNotEqual(x_val(), 3, "x == 3 before synthetics")
+        self.assertNotEqual(y_val(), 4, "y == 4 before synthetics")
+        self.assertNotEqual(z_val(), 7, "z == 7 before synthetics")
+        self.assertNotEqual(q_val(), 8, "q == 8 before synthetics")
 
         # now set up the synth
         self.runCmd("script from myIntSynthProvider import *")
@@ -82,10 +78,10 @@ class DataFormatterSynthValueTestCase(TestBase):
                 "x_val = %s; y_val = %s; z_val = %s; q_val = %s" %
                 (x_val(), y_val(), z_val(), q_val()))
 
-        self.assertTrue(x_val() == 3, "x != 3 after synthetics")
-        self.assertTrue(y_val() == 4, "y != 4 after synthetics")
-        self.assertTrue(z_val() == 7, "z != 7 after synthetics")
-        self.assertTrue(q_val() == 8, "q != 8 after synthetics")
+        self.assertEqual(x_val(), 3, "x != 3 after synthetics")
+        self.assertEqual(y_val(), 4, "y != 4 after synthetics")
+        self.assertEqual(z_val(), 7, "z != 7 after synthetics")
+        self.assertEqual(q_val(), 8, "q != 8 after synthetics")
 
         self.expect("frame variable x", substrs=['3'])
         self.expect(

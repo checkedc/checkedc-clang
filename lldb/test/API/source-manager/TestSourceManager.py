@@ -9,7 +9,8 @@ o test_modify_source_file_while_debugging:
   Test the caching mechanism of the source manager.
 """
 
-from __future__ import print_function
+import os
+import stat
 
 import lldb
 from lldbsuite.test.decorators import *
@@ -25,8 +26,6 @@ def ansi_color_surround_regex(inner_regex_text):
     return "\033\\[3[0-7]m%s\033\\[0m" % inner_regex_text
 
 class SourceManagerTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     NO_DEBUG_INFO_TESTCASE = True
 
@@ -146,10 +145,6 @@ class SourceManagerTestCase(TestBase):
         main_c_hidden = os.path.join(hidden, "main-copy.c")
         os.rename(self.file, main_c_hidden)
 
-        if self.TraceOn():
-            system([["ls"]])
-            system([["ls", "hidden"]])
-
         # Set source remapping with invalid replace path and verify we get an
         # error
         self.expect(
@@ -172,7 +167,6 @@ class SourceManagerTestCase(TestBase):
                     substrs=['Hello world'])
 
     @skipIf(oslist=["windows"], bugnumber="llvm.org/pr44431")
-    @skipIfReproducer # VFS is a snapshot.
     def test_modify_source_file_while_debugging(self):
         """Modify a source file while debugging the executable."""
         self.build()
@@ -204,7 +198,6 @@ class SourceManagerTestCase(TestBase):
             SOURCE_DISPLAYED_CORRECTLY,
             substrs=['Hello world'])
 
-        
         # The '-b' option shows the line table locations from the debug information
         # that indicates valid places to set source level breakpoints.
 
@@ -230,6 +223,11 @@ class SourceManagerTestCase(TestBase):
         new_content = original_content.replace('Hello world', 'Hello lldb', 1)
 
         # Modify the source code file.
+        # If the source was read only, the copy will also be read only.
+        # Run "chmod u+w" on it first so we can modify it.
+        statinfo = os.stat(self.file)
+        os.chmod(self.file, statinfo.st_mode | stat.S_IWUSR)
+
         with io.open(self.file, 'w', newline='\n') as f:
             time.sleep(1)
             f.write(new_content)
@@ -270,3 +268,19 @@ class SourceManagerTestCase(TestBase):
                     substrs=['stopped',
                              'main-copy.c:%d' % self.line,
                              'stop reason = breakpoint'])
+
+    def test_artificial_source_location(self):
+        src_file = 'artificial_location.c'
+        d = {'C_SOURCES': src_file }
+        self.build(dictionary=d)
+
+        lldbutil.run_to_source_breakpoint(
+            self, 'main',
+            lldb.SBFileSpec(src_file, False))
+
+        self.expect("run", RUN_SUCCEEDED,
+                    substrs=['stop reason = breakpoint', '%s:%d' % (src_file,0),
+                             'Note: this address is compiler-generated code in '
+                             'function', 'that has no source code associated '
+                             'with it.'])
+

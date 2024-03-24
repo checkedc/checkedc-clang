@@ -14,8 +14,11 @@
 #include "../modernize/AvoidCArraysCheck.h"
 #include "../modernize/UseOverrideCheck.h"
 #include "../readability/MagicNumbersCheck.h"
+#include "AvoidConstOrRefDataMembersCheck.h"
+#include "AvoidDoWhileCheck.h"
 #include "AvoidGotoCheck.h"
 #include "AvoidNonConstGlobalVariablesCheck.h"
+#include "AvoidReferenceCoroutineParametersCheck.h"
 #include "InitVariablesCheck.h"
 #include "InterfacesGlobalInitCheck.h"
 #include "MacroUsageCheck.h"
@@ -35,9 +38,9 @@
 #include "ProTypeVarargCheck.h"
 #include "SlicingCheck.h"
 #include "SpecialMemberFunctionsCheck.h"
+#include "VirtualClassDestructorCheck.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace cppcoreguidelines {
 
 /// A module containing checks of the C++ Core Guidelines
@@ -46,12 +49,18 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<modernize::AvoidCArraysCheck>(
         "cppcoreguidelines-avoid-c-arrays");
+    CheckFactories.registerCheck<AvoidConstOrRefDataMembersCheck>(
+        "cppcoreguidelines-avoid-const-or-ref-data-members");
+    CheckFactories.registerCheck<AvoidDoWhileCheck>(
+        "cppcoreguidelines-avoid-do-while");
     CheckFactories.registerCheck<AvoidGotoCheck>(
         "cppcoreguidelines-avoid-goto");
     CheckFactories.registerCheck<readability::MagicNumbersCheck>(
         "cppcoreguidelines-avoid-magic-numbers");
     CheckFactories.registerCheck<AvoidNonConstGlobalVariablesCheck>(
         "cppcoreguidelines-avoid-non-const-global-variables");
+    CheckFactories.registerCheck<AvoidReferenceCoroutineParametersCheck>(
+        "cppcoreguidelines-avoid-reference-coroutine-parameters");
     CheckFactories.registerCheck<modernize::UseOverrideCheck>(
         "cppcoreguidelines-explicit-virtual-functions");
     CheckFactories.registerCheck<InitVariablesCheck>(
@@ -94,6 +103,8 @@ public:
     CheckFactories.registerCheck<SlicingCheck>("cppcoreguidelines-slicing");
     CheckFactories.registerCheck<misc::UnconventionalAssignOperatorCheck>(
         "cppcoreguidelines-c-copy-assignment-signature");
+    CheckFactories.registerCheck<VirtualClassDestructorCheck>(
+        "cppcoreguidelines-virtual-class-destructor");
   }
 
   ClangTidyOptions getModuleOptions() override {
@@ -101,10 +112,7 @@ public:
     ClangTidyOptions::OptionMap &Opts = Options.CheckOptions;
 
     Opts["cppcoreguidelines-non-private-member-variables-in-classes."
-         "IgnoreClassesWithAllMemberVariablesBeingPublic"] = "1";
-
-    Opts["cppcoreguidelines-explicit-virtual-functions."
-         "IgnoreDestructors"] = "1";
+         "IgnoreClassesWithAllMemberVariablesBeingPublic"] = "true";
 
     return Options;
   }
@@ -120,5 +128,4 @@ static ClangTidyModuleRegistry::Add<CppCoreGuidelinesModule>
 // and thus register the CppCoreGuidelinesModule.
 volatile int CppCoreGuidelinesModuleAnchorSource = 0;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

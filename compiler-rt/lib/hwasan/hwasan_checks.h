@@ -13,6 +13,7 @@
 #ifndef HWASAN_CHECKS_H
 #define HWASAN_CHECKS_H
 
+#include "hwasan_allocator.h"
 #include "hwasan_mapping.h"
 #include "sanitizer_common/sanitizer_common.h"
 
@@ -35,6 +36,15 @@ __attribute__((always_inline)) static void SigTrap(uptr p) {
       "int3\n"
       "nopl %c0(%%rax)\n" ::"n"(0x40 + X),
       "D"(p));
+#elif SANITIZER_RISCV64
+  // Put pointer into x10
+  // addiw contains immediate of 0x40 + X, where 0x40 is magic number and X
+  // encodes access size
+  register uptr x10 asm("x10") = p;
+  asm volatile(
+      "ebreak\n"
+      "addiw x0, x0, %1\n" ::"r"(x10),
+      "I"(0x40 + X));
 #else
   // FIXME: not always sigill.
   __builtin_trap();
@@ -55,6 +65,14 @@ __attribute__((always_inline)) static void SigTrap(uptr p, uptr size) {
       "int3\n"
       "nopl %c0(%%rax)\n" ::"n"(0x40 + X),
       "D"(p), "S"(size));
+#elif SANITIZER_RISCV64
+  // Put access size into x11
+  register uptr x10 asm("x10") = p;
+  register uptr x11 asm("x11") = size;
+  asm volatile(
+      "ebreak\n"
+      "addiw x0, x0, %2\n" ::"r"(x10),
+      "r"(x11), "I"(0x40 + X));
 #else
   __builtin_trap();
 #endif
@@ -70,7 +88,7 @@ __attribute__((always_inline, nodebug)) static bool PossiblyShortTagMatches(
     return false;
   if ((ptr & (kShadowAlignment - 1)) + sz > mem_tag)
     return false;
-#ifndef __aarch64__
+#if !defined(__aarch64__) && !(SANITIZER_RISCV64)
   ptr = UntagAddr(ptr);
 #endif
   return *(u8 *)(ptr | (kShadowAlignment - 1)) == ptr_tag;
@@ -81,6 +99,8 @@ enum class AccessType { Load, Store };
 
 template <ErrorAction EA, AccessType AT, unsigned LogSize>
 __attribute__((always_inline, nodebug)) static void CheckAddress(uptr p) {
+  if (!InTaggableRegion(p))
+    return;
   uptr ptr_raw = p & ~kAddressTagMask;
   tag_t mem_tag = *(tag_t *)MemToShadow(ptr_raw);
   if (UNLIKELY(!PossiblyShortTagMatches(mem_tag, p, 1 << LogSize))) {
@@ -94,7 +114,7 @@ __attribute__((always_inline, nodebug)) static void CheckAddress(uptr p) {
 template <ErrorAction EA, AccessType AT>
 __attribute__((always_inline, nodebug)) static void CheckAddressSized(uptr p,
                                                                       uptr sz) {
-  if (sz == 0)
+  if (sz == 0 || !InTaggableRegion(p))
     return;
   tag_t ptr_tag = GetTagFromPointer(p);
   uptr ptr_raw = p & ~kAddressTagMask;

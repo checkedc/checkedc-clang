@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+// IWYU pragma: no_include <__stddef_max_align_t.h>
 
 namespace gwp_asan {
 // This class is the primary implementation of the allocator portion of GWP-
@@ -66,11 +67,6 @@ public:
   // allocate.
   void iterate(void *Base, size_t Size, iterate_callback Cb, void *Arg);
 
-  // This function is used to signal the allocator to indefinitely stop
-  // functioning, as a crash has occurred. This stops the allocator from
-  // servicing any further allocations permanently.
-  void stop();
-
   // Return whether the allocation should be randomly chosen for sampling.
   GWP_ASAN_ALWAYS_INLINE bool shouldSample() {
     // NextSampleCounter == 0 means we "should regenerate the counter".
@@ -93,10 +89,13 @@ public:
     return State.pointerIsMine(Ptr);
   }
 
-  // Allocate memory in a guarded slot, and return a pointer to the new
-  // allocation. Returns nullptr if the pool is empty, the requested size is too
-  // large for this pool to handle, or the requested size is zero.
-  void *allocate(size_t Size);
+  // Allocate memory in a guarded slot, with the specified `Alignment`. Returns
+  // nullptr if the pool is empty, if the alignnment is not a power of two, or
+  // if the size/alignment makes the allocation too large for this pool to
+  // handle. By default, uses strong alignment (i.e. `max_align_t`), see
+  // http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2293.htm for discussion of
+  // alignment issues in the standard.
+  void *allocate(size_t Size, size_t Alignment = alignof(max_align_t));
 
   // Deallocate memory in a guarded slot. The provided pointer must have been
   // allocated using this pool. This will set the guarded slot as inaccessible.
@@ -110,6 +109,24 @@ public:
 
   // Returns a pointer to the AllocatorState region.
   const AllocatorState *getAllocatorState() const { return &State; }
+
+  // Functions that the signal handler is responsible for calling, while
+  // providing the SEGV pointer, prior to dumping the crash, and after dumping
+  // the crash (in recoverable mode only).
+  void preCrashReport(void *Ptr);
+  void postCrashReportRecoverableOnly(void *Ptr);
+
+  // Exposed as protected for testing.
+protected:
+  // Returns the actual allocation size required to service an allocation with
+  // the provided Size and Alignment.
+  static size_t getRequiredBackingSize(size_t Size, size_t Alignment,
+                                       size_t PageSize);
+
+  // Returns the provided pointer that meets the specified alignment, depending
+  // on whether it's left or right aligned.
+  static uintptr_t alignUp(uintptr_t Ptr, size_t Alignment);
+  static uintptr_t alignDown(uintptr_t Ptr, size_t Alignment);
 
 private:
   // Name of actively-occupied slot mappings.
@@ -169,7 +186,7 @@ private:
   // Raise a SEGV and set the corresponding fields in the Allocator's State in
   // order to tell the crash handler what happened. Used when errors are
   // detected internally (Double Free, Invalid Free).
-  void trapOnAddress(uintptr_t Address, Error E);
+  void raiseInternallyDetectedError(uintptr_t Address, Error E);
 
   static GuardedPoolAllocator *getSingleton();
 
@@ -180,6 +197,10 @@ private:
 
   // A mutex to protect the guarded slot and metadata pool for this class.
   Mutex PoolMutex;
+  // Some unwinders can grab the libdl lock. In order to provide atfork
+  // protection, we need to ensure that we allow an unwinding thread to release
+  // the libdl lock before forking.
+  Mutex BacktraceMutex;
   // Record the number allocations that we've sampled. We store this amount so
   // that we don't randomly choose to recycle a slot that previously had an
   // allocation before all the slots have been utilised.

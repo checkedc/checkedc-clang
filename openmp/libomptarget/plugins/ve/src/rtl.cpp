@@ -83,11 +83,8 @@ public:
       } else {
         DP("Found symbol %s successfully in target image (addr: %p)\n",
            SymbolName, reinterpret_cast<void *>(SymbolTargetAddr));
-        Entry = { reinterpret_cast<void *>(SymbolTargetAddr),
-                  i->name,
-                  i->size,
-                  i->flags,
-                  0 };
+        Entry = {reinterpret_cast<void *>(SymbolTargetAddr), i->name, i->size,
+                 i->flags, 0};
       }
 
       T.push_back(Entry);
@@ -177,7 +174,6 @@ static int target_run_function_wait(uint32_t DeviceID, uint64_t FuncAddr,
   }
   return OFFLOAD_SUCCESS;
 }
-
 
 // Return the number of available devices of the type supported by the
 // target RTL.
@@ -334,9 +330,16 @@ __tgt_target_table *__tgt_rtl_load_binary(int32_t ID,
 // used to generate a table of target variables to pass to
 // __tgt_rtl_run_region(). The __tgt_rtl_data_alloc() returns NULL in
 // case an error occurred on the target device.
-void *__tgt_rtl_data_alloc(int32_t ID, int64_t Size, void *HostPtr) {
+void *__tgt_rtl_data_alloc(int32_t ID, int64_t Size, void *HostPtr,
+                           int32_t kind) {
   int ret;
   uint64_t addr;
+
+  if (kind != TARGET_ALLOC_DEFAULT) {
+    REPORT("Invalid target data allocation kind or requested allocator not "
+           "implemented yet\n");
+    return NULL;
+  }
 
   if (DeviceInfo.ProcHandles[ID] == NULL) {
     struct veo_proc_handle *proc_handle;
@@ -353,8 +356,8 @@ void *__tgt_rtl_data_alloc(int32_t ID, int64_t Size, void *HostPtr) {
   DP("Allocate target memory: device=%d, target addr=%p, size=%" PRIu64 "\n",
      ID, reinterpret_cast<void *>(addr), Size);
   if (ret != 0) {
-    DP("veo_alloc_mem(%d, %p, %" PRIu64 ") failed with error code %d\n",
-       ID, reinterpret_cast<void *>(addr), Size, ret);
+    DP("veo_alloc_mem(%d, %p, %" PRIu64 ") failed with error code %d\n", ID,
+       reinterpret_cast<void *>(addr), Size, ret);
     return NULL;
   }
 
@@ -389,8 +392,8 @@ int32_t __tgt_rtl_data_retrieve(int32_t ID, void *HostPtr, void *TargetPtr,
 
 // De-allocate the data referenced by target ptr on the device. In case of
 // success, return zero. Otherwise, return an error code.
-int32_t __tgt_rtl_data_delete(int32_t ID, void *TargetPtr) {
-  int ret =  veo_free_mem(DeviceInfo.ProcHandles[ID], (uint64_t)TargetPtr);
+int32_t __tgt_rtl_data_delete(int32_t ID, void *TargetPtr, int32_t) {
+  int ret = veo_free_mem(DeviceInfo.ProcHandles[ID], (uint64_t)TargetPtr);
 
   if (ret != 0) {
     DP("veo_free_mem() failed with error code %d\n", ret);
@@ -399,16 +402,22 @@ int32_t __tgt_rtl_data_delete(int32_t ID, void *TargetPtr) {
   return OFFLOAD_SUCCESS;
 }
 
-// Similar to __tgt_rtl_run_target_region, but additionally specify the
-// number of teams to be created and a number of threads in each team.
-int32_t __tgt_rtl_run_target_team_region(int32_t ID, void *Entry, void **Args,
-                                         ptrdiff_t *Offsets, int32_t NumArgs,
-                                         int32_t NumTeams, int32_t ThreadLimit,
-                                         uint64_t loop_tripcount) {
+// Transfer control to the offloaded entry Entry on the target device.
+// Args and Offsets are arrays of NumArgs size of target addresses and
+// offsets. An offset should be added to the target address before passing it
+// to the outlined function on device side. In case of success, return zero.
+// Otherwise, return an error code.
+int32_t __tgt_rtl_launch_kernel(int32_t DeviceId, void *TgtEntryPtr,
+                                void **TgtArgs, ptrdiff_t *TgtOffsets,
+                                KernelArgsTy *KernelArgs,
+                                __tgt_async_info *AsyncInfoPtr) {
+  assert(!KernelArgs->NumTeams[1] && !KernelArgs->NumTeams[2] &&
+         !KernelArgs->ThreadLimit[1] && !KernelArgs->ThreadLimit[2] &&
+         "Only one dimensional kernels supported.");
   int ret;
 
   // ignore team num and thread limit.
-  std::vector<void *> ptrs(NumArgs);
+  std::vector<void *> ptrs(KernelArgs->NumArgs);
 
   struct veo_args *TargetArgs;
   TargetArgs = veo_args_alloc();
@@ -418,12 +427,12 @@ int32_t __tgt_rtl_run_target_team_region(int32_t ID, void *Entry, void **Args,
     return OFFLOAD_FAIL;
   }
 
-  for (int i = 0; i < NumArgs; ++i) {
+  for (int i = 0; i < KernelArgs->NumArgs; ++i) {
     ret = veo_args_set_u64(TargetArgs, i, (intptr_t)Args[i]);
 
     if (ret != 0) {
-      DP("veo_args_set_u64() has returned %d for argnum=%d and value %p\n",
-         ret, i, Args[i]);
+      DP("veo_args_set_u64() has returned %d for argnum=%d and value %p\n", ret,
+         i, Args[i]);
       return OFFLOAD_FAIL;
     }
   }
@@ -438,13 +447,7 @@ int32_t __tgt_rtl_run_target_team_region(int32_t ID, void *Entry, void **Args,
   return OFFLOAD_SUCCESS;
 }
 
-// Transfer control to the offloaded entry Entry on the target device.
-// Args and Offsets are arrays of NumArgs size of target addresses and
-// offsets. An offset should be added to the target address before passing it
-// to the outlined function on device side. In case of success, return zero.
-// Otherwise, return an error code.
-int32_t __tgt_rtl_run_target_region(int32_t ID, void *Entry, void **Args,
-                                    ptrdiff_t *Offsets, int32_t NumArgs) {
-  return __tgt_rtl_run_target_team_region(ID, Entry, Args, Offsets, NumArgs, 1,
-                                          1, 0);
-}
+int32_t __tgt_rtl_supports_empty_images() { return 1; }
+
+// VEC plugin's internal InfoLevel.
+std::atomic<uint32_t> InfoLevel;

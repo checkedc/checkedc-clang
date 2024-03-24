@@ -112,12 +112,10 @@ CheckPropertyAgainstProtocol(Sema &S, ObjCPropertyDecl *Prop,
     return;
 
   // Look for a property with the same name.
-  DeclContext::lookup_result R = Proto->lookup(Prop->getDeclName());
-  for (unsigned I = 0, N = R.size(); I != N; ++I) {
-    if (ObjCPropertyDecl *ProtoProp = dyn_cast<ObjCPropertyDecl>(R[I])) {
-      S.DiagnosePropertyMismatch(Prop, ProtoProp, Proto->getIdentifier(), true);
-      return;
-    }
+  if (ObjCPropertyDecl *ProtoProp = Proto->getProperty(
+          Prop->getIdentifier(), Prop->isInstanceProperty())) {
+    S.DiagnosePropertyMismatch(Prop, ProtoProp, Proto->getIdentifier(), true);
+    return;
   }
 
   // Check this property against any protocols we inherit.
@@ -233,18 +231,13 @@ Decl *Sema::ActOnProperty(Scope *S, SourceLocation AtLoc,
     bool FoundInSuper = false;
     ObjCInterfaceDecl *CurrentInterfaceDecl = IFace;
     while (ObjCInterfaceDecl *Super = CurrentInterfaceDecl->getSuperClass()) {
-      DeclContext::lookup_result R = Super->lookup(Res->getDeclName());
-      for (unsigned I = 0, N = R.size(); I != N; ++I) {
-        if (ObjCPropertyDecl *SuperProp = dyn_cast<ObjCPropertyDecl>(R[I])) {
-          DiagnosePropertyMismatch(Res, SuperProp, Super->getIdentifier(), false);
-          FoundInSuper = true;
-          break;
-        }
-      }
-      if (FoundInSuper)
+      if (ObjCPropertyDecl *SuperProp = Super->getProperty(
+              Res->getIdentifier(), Res->isInstanceProperty())) {
+        DiagnosePropertyMismatch(Res, SuperProp, Super->getIdentifier(), false);
+        FoundInSuper = true;
         break;
-      else
-        CurrentInterfaceDecl = Super;
+      }
+      CurrentInterfaceDecl = Super;
     }
 
     if (FoundInSuper) {
@@ -1035,7 +1028,7 @@ static bool hasWrittenStorageAttribute(ObjCPropertyDecl *Prop,
 
   // Find the corresponding property in the primary class definition.
   auto OrigClass = Category->getClassInterface();
-  for (auto Found : OrigClass->lookup(Prop->getDeclName())) {
+  for (auto *Found : OrigClass->lookup(Prop->getDeclName())) {
     if (ObjCPropertyDecl *OrigProp = dyn_cast<ObjCPropertyDecl>(Found))
       return OrigProp->getPropertyAttributesAsWritten() & OwnershipMask;
   }
@@ -1149,14 +1142,13 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       // redeclared 'readwrite', then no warning is to be issued.
       for (auto *Ext : IDecl->known_extensions()) {
         DeclContext::lookup_result R = Ext->lookup(property->getDeclName());
-        if (!R.empty())
-          if (ObjCPropertyDecl *ExtProp = dyn_cast<ObjCPropertyDecl>(R[0])) {
-            PIkind = ExtProp->getPropertyAttributesAsWritten();
-            if (PIkind & ObjCPropertyAttribute::kind_readwrite) {
-              ReadWriteProperty = true;
-              break;
-            }
+        if (auto *ExtProp = R.find_first<ObjCPropertyDecl>()) {
+          PIkind = ExtProp->getPropertyAttributesAsWritten();
+          if (PIkind & ObjCPropertyAttribute::kind_readwrite) {
+            ReadWriteProperty = true;
+            break;
           }
+        }
       }
 
       if (!ReadWriteProperty) {
@@ -1466,7 +1458,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       MarkDeclRefReferenced(SelfExpr);
       Expr *LoadSelfExpr = ImplicitCastExpr::Create(
           Context, SelfDecl->getType(), CK_LValueToRValue, SelfExpr, nullptr,
-          VK_RValue, FPOptionsOverride());
+          VK_PRValue, FPOptionsOverride());
       Expr *IvarRefExpr =
         new (Context) ObjCIvarRefExpr(Ivar,
                                       Ivar->getUsageType(SelfDecl->getType()),
@@ -1475,8 +1467,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
                                       LoadSelfExpr, true, true);
       ExprResult Res = PerformCopyInitialization(
           InitializedEntity::InitializeResult(PropertyDiagLoc,
-                                              getterMethod->getReturnType(),
-                                              /*NRVO=*/false),
+                                              getterMethod->getReturnType()),
           PropertyDiagLoc, IvarRefExpr);
       if (!Res.isInvalid()) {
         Expr *ResExpr = Res.getAs<Expr>();
@@ -1529,7 +1520,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       MarkDeclRefReferenced(SelfExpr);
       Expr *LoadSelfExpr = ImplicitCastExpr::Create(
           Context, SelfDecl->getType(), CK_LValueToRValue, SelfExpr, nullptr,
-          VK_RValue, FPOptionsOverride());
+          VK_PRValue, FPOptionsOverride());
       Expr *lhs =
         new (Context) ObjCIvarRefExpr(Ivar,
                                       Ivar->getUsageType(SelfDecl->getType()),
@@ -1831,9 +1822,8 @@ CollectImmediateProperties(ObjCContainerDecl *CDecl,
 static void CollectSuperClassPropertyImplementations(ObjCInterfaceDecl *CDecl,
                                     ObjCInterfaceDecl::PropertyMap &PropMap) {
   if (ObjCInterfaceDecl *SDecl = CDecl->getSuperClass()) {
-    ObjCInterfaceDecl::PropertyDeclOrder PO;
     while (SDecl) {
-      SDecl->collectPropertiesToImplement(PropMap, PO);
+      SDecl->collectPropertiesToImplement(PropMap);
       SDecl = SDecl->getSuperClass();
     }
   }
@@ -1898,15 +1888,14 @@ void Sema::DefaultSynthesizeProperties(Scope *S, ObjCImplDecl *IMPDecl,
                                        ObjCInterfaceDecl *IDecl,
                                        SourceLocation AtEnd) {
   ObjCInterfaceDecl::PropertyMap PropMap;
-  ObjCInterfaceDecl::PropertyDeclOrder PropertyOrder;
-  IDecl->collectPropertiesToImplement(PropMap, PropertyOrder);
+  IDecl->collectPropertiesToImplement(PropMap);
   if (PropMap.empty())
     return;
   ObjCInterfaceDecl::PropertyMap SuperPropMap;
   CollectSuperClassPropertyImplementations(IDecl, SuperPropMap);
 
-  for (unsigned i = 0, e = PropertyOrder.size(); i != e; i++) {
-    ObjCPropertyDecl *Prop = PropertyOrder[i];
+  for (const auto &PropEntry : PropMap) {
+    ObjCPropertyDecl *Prop = PropEntry.second;
     // Is there a matching property synthesize/dynamic?
     if (Prop->isInvalidDecl() ||
         Prop->isClassProperty() ||
@@ -2055,8 +2044,7 @@ void Sema::DiagnoseUnimplementedProperties(Scope *S, ObjCImplDecl* IMPDecl,
       // its primary class (and its super classes) if property is
       // declared in one of those containers.
       if ((IDecl = C->getClassInterface())) {
-        ObjCInterfaceDecl::PropertyDeclOrder PO;
-        IDecl->collectPropertiesToImplement(NoNeedToImplPropMap, PO);
+        IDecl->collectPropertiesToImplement(NoNeedToImplPropMap);
       }
     }
   if (IDecl)
@@ -2583,7 +2571,7 @@ void Sema::ProcessPropertyDecl(ObjCPropertyDecl *property) {
                                                   /*TInfo=*/nullptr,
                                                   SC_None,
                                                   nullptr);
-      SetterMethod->setMethodParams(Context, Argument, None);
+      SetterMethod->setMethodParams(Context, Argument, std::nullopt);
 
       AddPropertyAttrs(*this, SetterMethod, property);
 
@@ -2766,7 +2754,7 @@ void Sema::CheckObjCPropertyAttributes(Decl *PDecl,
 
   if (Attributes & ObjCPropertyAttribute::kind_weak) {
     // 'weak' and 'nonnull' are mutually exclusive.
-    if (auto nullability = PropertyTy->getNullability(Context)) {
+    if (auto nullability = PropertyTy->getNullability()) {
       if (*nullability == NullabilityKind::NonNull)
         Diag(Loc, diag::err_objc_property_attr_mutually_exclusive)
           << "nonnull" << "weak";

@@ -13,17 +13,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Taint.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
+#include "clang/StaticAnalyzer/Checkers/Taint.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicExtent.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace clang;
 using namespace ento;
@@ -192,7 +193,7 @@ ProgramStateRef VLASizeChecker::checkVLAIndexSize(CheckerContext &C,
   DefinedOrUnknownSVal Zero = SVB.makeZeroVal(SizeTy);
 
   SVal LessThanZeroVal = SVB.evalBinOp(State, BO_LT, SizeD, Zero, SizeTy);
-  if (Optional<DefinedSVal> LessThanZeroDVal =
+  if (std::optional<DefinedSVal> LessThanZeroDVal =
           LessThanZeroVal.getAs<DefinedSVal>()) {
     ConstraintManager &CM = C.getConstraintManager();
     ProgramStateRef StatePos, StateNeg;
@@ -278,28 +279,17 @@ void VLASizeChecker::checkPreStmt(const DeclStmt *DS, CheckerContext &C) const {
   if (!State)
     return;
 
-  auto ArraySizeNL = ArraySize.getAs<NonLoc>();
-  if (!ArraySizeNL) {
+  if (!isa<NonLoc>(ArraySize)) {
     // Array size could not be determined but state may contain new assumptions.
     C.addTransition(State);
     return;
   }
 
-  // VLASizeChecker is responsible for defining the extent of the array being
-  // declared. We do this by multiplying the array length by the element size,
-  // then matching that with the array region's extent symbol.
-
+  // VLASizeChecker is responsible for defining the extent of the array.
   if (VD) {
-    // Assume that the array's size matches the region size.
-    const LocationContext *LC = C.getLocationContext();
-    DefinedOrUnknownSVal DynSize =
-        getDynamicSize(State, State->getRegion(VD, LC), SVB);
-
-    DefinedOrUnknownSVal SizeIsKnown = SVB.evalEQ(State, DynSize, *ArraySizeNL);
-    State = State->assume(SizeIsKnown, true);
-
-    // Assume should not fail at this point.
-    assert(State);
+    State =
+        setDynamicExtent(State, State->getRegion(VD, C.getLocationContext()),
+                         ArraySize.castAs<NonLoc>(), SVB);
   }
 
   // Remember our assumptions!

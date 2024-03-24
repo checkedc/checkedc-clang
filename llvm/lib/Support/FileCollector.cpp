@@ -35,7 +35,7 @@ static bool isCaseSensitivePath(StringRef Path) {
   SmallString<256> TmpDest = Path, UpperDest, RealDest;
 
   // Remove component traversals, links, etc.
-  if (!sys::fs::real_path(Path, TmpDest))
+  if (sys::fs::real_path(Path, TmpDest))
     return true; // Current default value in vfs.yaml
   Path = TmpDest;
 
@@ -44,13 +44,15 @@ static bool isCaseSensitivePath(StringRef Path) {
   // sensitive in the absence of real_path, since this is the YAMLVFSWriter
   // default.
   UpperDest = Path.upper();
-  if (sys::fs::real_path(UpperDest, RealDest) && Path.equals(RealDest))
+  if (!sys::fs::real_path(UpperDest, RealDest) && Path.equals(RealDest))
     return false;
   return true;
 }
 
 FileCollector::FileCollector(std::string Root, std::string OverlayRoot)
-    : Root(std::move(Root)), OverlayRoot(std::move(OverlayRoot)) {
+    : Root(Root), OverlayRoot(OverlayRoot) {
+  assert(sys::path::is_absolute(Root) && "Root not absolute");
+  assert(sys::path::is_absolute(OverlayRoot) && "OverlayRoot not absolute");
 }
 
 void FileCollector::PathCanonicalizer::updateWithRealPath(
@@ -241,7 +243,7 @@ std::error_code FileCollector::writeMapping(StringRef MappingFile) {
   VFSWriter.setUseExternalNames(false);
 
   std::error_code EC;
-  raw_fd_ostream os(MappingFile, EC, sys::fs::OF_Text);
+  raw_fd_ostream os(MappingFile, EC, sys::fs::OF_TextWithCRLF);
   if (EC)
     return EC;
 

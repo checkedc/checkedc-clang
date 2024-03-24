@@ -3,6 +3,11 @@
 # RUN: llvm-mc -filetype=obj -triple riscv64 -mattr=+c < %s \
 # RUN:     | llvm-objdump -d -M no-aliases - \
 # RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-INST %s
+# RUN: llvm-mc -triple=riscv64 -mattr=+experimental-zca -riscv-no-aliases < %s \
+# RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-INST %s
+# RUN: llvm-mc -filetype=obj -triple riscv64 -mattr=+experimental-zca < %s \
+# RUN:     | llvm-objdump --mattr=+experimental-zca -d -M no-aliases - \
+# RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-INST %s
 
 # The following check prefixes are used in this test:
 # CHECK-INST.....Match the canonical instr (tests alias to instr. mapping)
@@ -19,8 +24,8 @@ li x10, -1
 li x10, 2047
 # CHECK-EXPAND: addi a0, zero, -2047
 li x10, -2047
-# CHECK-EXPAND: c.lui a1, 1
-# CHECK-EXPAND: addiw a1, a1, -2048
+# CHECK-EXPAND: c.li a1, 1
+# CHECK-EXPAND: c.slli a1, 11
 li x11, 2048
 # CHECK-EXPAND: addi a1, zero, -2048
 li x11, -2048
@@ -60,9 +65,8 @@ li x12, -0x80000000
 # CHECK-EXPAND: c.li a2, 1
 # CHECK-EXPAND: c.slli a2, 31
 li x12, 0x80000000
-# CHECK-EXPAND: c.li a2, 1
-# CHECK-EXPAND: c.slli a2, 32
-# CHECK-EXPAND: c.addi a2, -1
+# CHECK-EXPAND: c.li a2, -1
+# CHECK-EXPAND: c.srli a2, 32
 li x12, 0xFFFFFFFF
 
 # CHECK-EXPAND: c.li t0, 1

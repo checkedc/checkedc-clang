@@ -6,13 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEMANGLE_MICROSOFT_DEMANGLE_H
-#define LLVM_DEMANGLE_MICROSOFT_DEMANGLE_H
+#ifndef LLVM_DEMANGLE_MICROSOFTDEMANGLE_H
+#define LLVM_DEMANGLE_MICROSOFTDEMANGLE_H
 
-#include "llvm/Demangle/DemangleConfig.h"
 #include "llvm/Demangle/MicrosoftDemangleNodes.h"
 #include "llvm/Demangle/StringView.h"
-#include "llvm/Demangle/Utility.h"
 
 #include <utility>
 
@@ -102,7 +100,7 @@ public:
     if (Head->Used <= Head->Capacity)
       return new (PP) T(std::forward<Args>(ConstructorArgs)...);
 
-    static_assert(Size < AllocUnit, "");
+    static_assert(Size < AllocUnit);
     addNode(AllocUnit);
     Head->Used = Size;
     return new (Head->Buf) T(std::forward<Args>(ConstructorArgs)...);
@@ -275,4 +273,4 @@ private:
 } // namespace ms_demangle
 } // namespace llvm
 
-#endif // LLVM_DEMANGLE_MICROSOFT_DEMANGLE_H
+#endif // LLVM_DEMANGLE_MICROSOFTDEMANGLE_H

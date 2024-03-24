@@ -92,7 +92,7 @@ void WebAssemblyMCCodeEmitter::encodeInstruction(
 
     } else if (MO.isImm()) {
       if (I < Desc.getNumOperands()) {
-        const MCOperandInfo &Info = Desc.OpInfo[I];
+        const MCOperandInfo &Info = Desc.operands()[I];
         LLVM_DEBUG(dbgs() << "Encoding immediate: type="
                           << int(Info.OperandType) << "\n");
         switch (Info.OperandType) {
@@ -106,9 +106,6 @@ void WebAssemblyMCCodeEmitter::encodeInstruction(
           encodeSLEB128(int64_t(MO.getImm()), OS);
           break;
         case WebAssembly::OPERAND_SIGNATURE:
-        case WebAssembly::OPERAND_HEAPTYPE:
-          OS << uint8_t(MO.getImm());
-          break;
         case WebAssembly::OPERAND_VEC_I8IMM:
           support::endian::write<uint8_t>(OS, MO.getImm(), support::little);
           break;
@@ -130,21 +127,14 @@ void WebAssemblyMCCodeEmitter::encodeInstruction(
         encodeULEB128(uint64_t(MO.getImm()), OS);
       }
 
-    } else if (MO.isFPImm()) {
-      const MCOperandInfo &Info = Desc.OpInfo[I];
-      if (Info.OperandType == WebAssembly::OPERAND_F32IMM) {
-        // TODO: MC converts all floating point immediate operands to double.
-        // This is fine for numeric values, but may cause NaNs to change bits.
-        auto F = float(MO.getFPImm());
-        support::endian::write<float>(OS, F, support::little);
-      } else {
-        assert(Info.OperandType == WebAssembly::OPERAND_F64IMM);
-        double D = MO.getFPImm();
-        support::endian::write<double>(OS, D, support::little);
-      }
-
+    } else if (MO.isSFPImm()) {
+      uint32_t F = MO.getSFPImm();
+      support::endian::write<uint32_t>(OS, F, support::little);
+    } else if (MO.isDFPImm()) {
+      uint64_t D = MO.getDFPImm();
+      support::endian::write<uint64_t>(OS, D, support::little);
     } else if (MO.isExpr()) {
-      const MCOperandInfo &Info = Desc.OpInfo[I];
+      const MCOperandInfo &Info = Desc.operands()[I];
       llvm::MCFixupKind FixupKind;
       size_t PaddedSize = 5;
       switch (Info.OperandType) {
@@ -161,7 +151,7 @@ void WebAssemblyMCCodeEmitter::encodeInstruction(
       case WebAssembly::OPERAND_SIGNATURE:
       case WebAssembly::OPERAND_TYPEINDEX:
       case WebAssembly::OPERAND_GLOBAL:
-      case WebAssembly::OPERAND_EVENT:
+      case WebAssembly::OPERAND_TAG:
         FixupKind = MCFixupKind(WebAssembly::fixup_uleb128_i32);
         break;
       case WebAssembly::OPERAND_OFFSET64:

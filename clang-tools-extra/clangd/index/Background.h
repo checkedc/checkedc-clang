@@ -20,7 +20,6 @@
 #include "support/Path.h"
 #include "support/Threading.h"
 #include "support/ThreadsafeFS.h"
-#include "support/Trace.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Threading.h"
@@ -28,6 +27,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
@@ -62,7 +62,7 @@ public:
   // CDBDirectory is the first directory containing a CDB in parent directories
   // of a file, or user cache directory if none was found, e.g. stdlib headers.
   static Factory createDiskBackedStorageFactory(
-      std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo);
+      std::function<std::optional<ProjectInfo>(PathRef)> GetProjectInfo);
 };
 
 // A priority queue of tasks which can be run on (external) worker threads.
@@ -73,7 +73,7 @@ public:
     explicit Task(std::function<void()> Run) : Run(std::move(Run)) {}
 
     std::function<void()> Run;
-    llvm::ThreadPriority ThreadPri = llvm::ThreadPriority::Background;
+    llvm::ThreadPriority ThreadPri = llvm::ThreadPriority::Low;
     unsigned QueuePri = 0; // Higher-priority tasks will run first.
     std::string Tag;       // Allows priority to be boosted later.
     uint64_t Key = 0;      // If the key matches a previous task, drop this one.
@@ -111,8 +111,8 @@ public:
   // Disables thread priority lowering to ensure progress on loaded systems.
   // Only affects tasks that run after the call.
   static void preventThreadStarvationInTests();
-  LLVM_NODISCARD bool
-  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds);
+  [[nodiscard]] bool
+  blockUntilIdleForTest(std::optional<double> TimeoutSeconds);
 
 private:
   void notifyProgress() const; // Requires lock Mu
@@ -137,14 +137,14 @@ public:
     // Arbitrary value to ensure some concurrency in tests.
     // In production an explicit value is specified.
     size_t ThreadPoolSize = 4;
+    // Thread priority when indexing files.
+    llvm::ThreadPriority IndexingPriority = llvm::ThreadPriority::Low;
     // Callback that provides notifications as indexing makes progress.
     std::function<void(BackgroundQueue::Stats)> OnProgress = nullptr;
     // Function called to obtain the Context to use while indexing the specified
     // file. Called with the empty string for other tasks.
     // (When called, the context from BackgroundIndex construction is active).
     std::function<Context(PathRef)> ContextProvider = nullptr;
-    // Whether to collect references to main-file-only symbols.
-    bool CollectMainFileRefs = false;
   };
 
   /// Creates a new background index and starts its threads.
@@ -173,8 +173,8 @@ public:
   }
 
   // Wait until the queue is empty, to allow deterministic testing.
-  LLVM_NODISCARD bool
-  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10) {
+  [[nodiscard]] bool
+  blockUntilIdleForTest(std::optional<double> TimeoutSeconds = 10) {
     return Queue.blockUntilIdleForTest(TimeoutSeconds);
   }
 
@@ -197,8 +197,8 @@ private:
   // configuration
   const ThreadsafeFS &TFS;
   const GlobalCompilationDatabase &CDB;
+  llvm::ThreadPriority IndexingPriority;
   std::function<Context(PathRef)> ContextProvider;
-  bool CollectMainFileRefs;
 
   llvm::Error index(tooling::CompileCommand);
 

@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_ASYNC_IR_ASYNCTYPES
 #define MLIR_DIALECT_ASYNC_IR_ASYNCTYPES
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/Dialect/Async/IR/AsyncDialect.td"
 
 //===----------------------------------------------------------------------===//
@@ -43,11 +44,10 @@ def Async_ValueType : Async_Type<"Value", "value"> {
   let parameters = (ins "Type":$valueType);
   let builders = [
     TypeBuilderWithInferredContext<(ins "Type":$valueType), [{
-      return Base::get(valueType.getContext(), valueType);
-    }], [{
-      return Base::getChecked($_loc, valueType);
+      return $_get(valueType.getContext(), valueType);
     }]>
   ];
+  let hasCustomAssemblyFormat = 1;
   let skipDefaultBuilders = 1;
 }
 

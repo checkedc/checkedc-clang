@@ -153,6 +153,8 @@ StringRef llvm::dwarf::OperationEncodingString(unsigned Encoding) {
     return "DW_OP_LLVM_entry_value";
   case DW_OP_LLVM_implicit_pointer:
     return "DW_OP_LLVM_implicit_pointer";
+  case DW_OP_LLVM_arg:
+    return "DW_OP_LLVM_arg";
   }
 }
 
@@ -166,6 +168,7 @@ unsigned llvm::dwarf::getOperationEncoding(StringRef OperationEncodingString) {
       .Case("DW_OP_LLVM_tag_offset", DW_OP_LLVM_tag_offset)
       .Case("DW_OP_LLVM_entry_value", DW_OP_LLVM_entry_value)
       .Case("DW_OP_LLVM_implicit_pointer", DW_OP_LLVM_implicit_pointer)
+      .Case("DW_OP_LLVM_arg", DW_OP_LLVM_arg)
       .Default(0);
 }
 
@@ -362,10 +365,11 @@ unsigned llvm::dwarf::LanguageVendor(dwarf::SourceLanguage Lang) {
   }
 }
 
-Optional<unsigned> llvm::dwarf::LanguageLowerBound(dwarf::SourceLanguage Lang) {
+std::optional<unsigned>
+llvm::dwarf::LanguageLowerBound(dwarf::SourceLanguage Lang) {
   switch (Lang) {
   default:
-    return None;
+    return std::nullopt;
 #define HANDLE_DW_LANG(ID, NAME, LOWER_BOUND, VERSION, VENDOR)                 \
   case DW_LANG_##NAME:                                                         \
     return LOWER_BOUND;
@@ -688,13 +692,13 @@ StringRef llvm::dwarf::IndexString(unsigned Idx) {
   }
 }
 
-Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
-                                                    FormParams Params) {
+std::optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
+                                                         FormParams Params) {
   switch (Form) {
   case DW_FORM_addr:
     if (Params)
       return Params.AddrSize;
-    return None;
+    return std::nullopt;
 
   case DW_FORM_block:          // ULEB128 length L followed by L bytes.
   case DW_FORM_block1:         // 1 byte length L followed by L bytes.
@@ -712,12 +716,12 @@ Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
   case DW_FORM_rnglistx:       // ULEB128.
   case DW_FORM_GNU_addr_index: // ULEB128.
   case DW_FORM_GNU_str_index:  // ULEB128.
-    return None;
+    return std::nullopt;
 
   case DW_FORM_ref_addr:
     if (Params)
       return Params.getRefAddrByteSize();
-    return None;
+    return std::nullopt;
 
   case DW_FORM_flag:
   case DW_FORM_data1:
@@ -750,7 +754,7 @@ Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
   case DW_FORM_strp_sup:
     if (Params)
       return Params.getDwarfOffsetByteSize();
-    return None;
+    return std::nullopt;
 
   case DW_FORM_data8:
   case DW_FORM_ref8:
@@ -772,7 +776,7 @@ Optional<uint8_t> llvm::dwarf::getFixedFormByteSize(dwarf::Form Form,
   default:
     break;
   }
-  return None;
+  return std::nullopt;
 }
 
 bool llvm::dwarf::isValidFormForVersion(Form F, unsigned Version,

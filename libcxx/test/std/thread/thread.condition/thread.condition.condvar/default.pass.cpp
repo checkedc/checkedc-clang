@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 
 // <condition_variable>
 
@@ -22,6 +22,7 @@
 int main(int, char**)
 {
     std::condition_variable cv;
+    static_cast<void>(cv);
 
   return 0;
 }

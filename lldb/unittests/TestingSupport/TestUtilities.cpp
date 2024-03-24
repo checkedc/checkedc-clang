@@ -30,16 +30,18 @@ llvm::Expected<TestFile> TestFile::fromYaml(llvm::StringRef Yaml) {
   std::string Buffer;
   llvm::raw_string_ostream OS(Buffer);
   llvm::yaml::Input YIn(Yaml);
-  if (!llvm::yaml::convertYAML(YIn, OS, [](const llvm::Twine &Msg) {}))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "convertYAML() failed");
+  std::string ErrorMsg("convertYAML() failed: ");
+  if (!llvm::yaml::convertYAML(YIn, OS, [&ErrorMsg](const llvm::Twine &Msg) {
+        ErrorMsg += Msg.str();
+      }))
+    return llvm::createStringError(llvm::inconvertibleErrorCode(), ErrorMsg);
   return TestFile(std::move(Buffer));
 }
 
 llvm::Expected<TestFile> TestFile::fromYamlFile(const llvm::Twine &Name) {
   auto BufferOrError =
-      llvm::MemoryBuffer::getFile(GetInputFilePath(Name), /*FileSize*/ -1,
-                                  /*RequiresNullTerminator*/ false);
+      llvm::MemoryBuffer::getFile(GetInputFilePath(Name), /*IsText=*/false,
+                                  /*RequiresNullTerminator=*/false);
   if (!BufferOrError)
     return llvm::errorCodeToError(BufferOrError.getError());
   return fromYaml(BufferOrError.get()->getBuffer());

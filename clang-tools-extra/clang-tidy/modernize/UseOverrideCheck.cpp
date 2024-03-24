@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 UseOverrideCheck::UseOverrideCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
@@ -43,7 +41,7 @@ void UseOverrideCheck::registerMatchers(MatchFinder *Finder) {
 // Re-lex the tokens to get precise locations to insert 'override' and remove
 // 'virtual'.
 static SmallVector<Token, 16>
-ParseTokens(CharSourceRange Range, const MatchFinder::MatchResult &Result) {
+parseTokens(CharSourceRange Range, const MatchFinder::MatchResult &Result) {
   const SourceManager &Sources = *Result.SourceManager;
   std::pair<FileID, unsigned> LocInfo =
       Sources.getDecomposedLoc(Range.getBegin());
@@ -75,7 +73,7 @@ ParseTokens(CharSourceRange Range, const MatchFinder::MatchResult &Result) {
   return Tokens;
 }
 
-static StringRef GetText(const Token &Tok, const SourceManager &Sources) {
+static StringRef getText(const Token &Tok, const SourceManager &Sources) {
   return StringRef(Sources.getCharacterData(Tok.getLocation()),
                    Tok.getLength());
 }
@@ -136,12 +134,12 @@ void UseOverrideCheck::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Instead of re-lexing and looking for specific macros such as
   // 'ABSTRACT', properly store the location of 'virtual' and '= 0' in each
   // FunctionDecl.
-  SmallVector<Token, 16> Tokens = ParseTokens(FileRange, Result);
+  SmallVector<Token, 16> Tokens = parseTokens(FileRange, Result);
 
   // Add 'override' on inline declarations that don't already have it.
   if (!HasFinal && !HasOverride) {
     SourceLocation InsertLoc;
-    std::string ReplacementText = OverrideSpelling + " ";
+    std::string ReplacementText = (OverrideSpelling + " ").str();
     SourceLocation MethodLoc = Method->getLocation();
 
     for (Token T : Tokens) {
@@ -171,8 +169,8 @@ void UseOverrideCheck::check(const MatchFinder::MatchResult &Result) {
       // end of the declaration of the function, but prefer to put it on the
       // same line as the declaration if the beginning brace for the start of
       // the body falls on the next line.
-      ReplacementText = " " + OverrideSpelling;
-      auto LastTokenIter = std::prev(Tokens.end());
+      ReplacementText = (" " + OverrideSpelling).str();
+      auto *LastTokenIter = std::prev(Tokens.end());
       // When try statement is used instead of compound statement as
       // method body - insert override keyword before it.
       if (LastTokenIter->is(tok::kw_try))
@@ -185,21 +183,21 @@ void UseOverrideCheck::check(const MatchFinder::MatchResult &Result) {
       // location will point until after those markings. Therefore, the override
       // keyword shouldn't be inserted at the end, but before the '='.
       if (Tokens.size() > 2 &&
-          (GetText(Tokens.back(), Sources) == "0" ||
+          (getText(Tokens.back(), Sources) == "0" ||
            Tokens.back().is(tok::kw_default) ||
            Tokens.back().is(tok::kw_delete)) &&
-          GetText(Tokens[Tokens.size() - 2], Sources) == "=") {
+          getText(Tokens[Tokens.size() - 2], Sources) == "=") {
         InsertLoc = Tokens[Tokens.size() - 2].getLocation();
         // Check if we need to insert a space.
         if ((Tokens[Tokens.size() - 2].getFlags() & Token::LeadingSpace) == 0)
-          ReplacementText = " " + OverrideSpelling + " ";
-      } else if (GetText(Tokens.back(), Sources) == "ABSTRACT")
+          ReplacementText = (" " + OverrideSpelling + " ").str();
+      } else if (getText(Tokens.back(), Sources) == "ABSTRACT")
         InsertLoc = Tokens.back().getLocation();
     }
 
     if (!InsertLoc.isValid()) {
       InsertLoc = FileRange.getEnd();
-      ReplacementText = " " + OverrideSpelling;
+      ReplacementText = (" " + OverrideSpelling).str();
     }
 
     // If the override macro has been specified just ensure it exists,
@@ -228,6 +226,4 @@ void UseOverrideCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

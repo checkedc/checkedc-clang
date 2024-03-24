@@ -1,16 +1,12 @@
-// RUN: %libomptarget-compile-run-and-check-aarch64-unknown-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-powerpc64-ibm-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-powerpc64le-ibm-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-x86_64-pc-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-nvptx64-nvidia-cuda
+// RUN: %libomptarget-compile-run-and-check-generic
 
-#include <stdio.h>
 #include <omp.h>
+#include <stdio.h>
 
 int main(void) {
   int isHost = -1;
 
-#pragma omp target map(from: isHost)
+#pragma omp target map(from : isHost)
   { isHost = omp_is_initial_device(); }
 
   if (isHost < 0) {

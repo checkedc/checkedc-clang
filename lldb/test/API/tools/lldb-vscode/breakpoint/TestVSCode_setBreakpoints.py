@@ -3,7 +3,6 @@ Test lldb-vscode setBreakpoints request
 """
 
 
-import unittest2
 import vscode
 import shutil
 from lldbsuite.test.decorators import *
@@ -15,18 +14,21 @@ import os
 
 class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         lldbvscode_testcase.VSCodeTestCaseBase.setUp(self)
 
         self.main_basename = 'main-copy.cpp'
-        self.main_path = self.getBuildArtifact(self.main_basename)
+        self.main_path = os.path.realpath(self.getBuildArtifact(self.main_basename))
 
     @skipIfWindows
     @skipIfRemote
-    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48421")
     def test_source_map(self):
+        """
+        This test simulates building two files in a folder, and then moving
+        each source to a different folder. Then, the debug session is started
+        with the corresponding source maps to have breakpoints and frames
+        working.
+        """
         self.build_and_create_debug_adaptor()
 
         other_basename = 'other-copy.c'
@@ -88,9 +90,18 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
         self.assertEqual(other_basename, breakpoint['source']['name'])
         self.assertEqual(new_other_path, breakpoint['source']['path'])
 
+        # now we check the stack trace making sure that we got mapped source paths
+        frames = self.vscode.request_stackTrace()['body']['stackFrames']
+
+        self.assertEqual(frames[0]['source']['name'], other_basename)
+        self.assertEqual(frames[0]['source']['path'], new_other_path)
+
+        self.assertEqual(frames[1]['source']['name'], self.main_basename)
+        self.assertEqual(frames[1]['source']['path'], new_main_path)
+
+
     @skipIfWindows
     @skipIfRemote
-    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48421")
     def test_set_and_clear(self):
         '''Tests setting and clearing source file and line breakpoints.
            This packet is a bit tricky on the debug adaptor side since there
@@ -127,7 +138,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
                 self.assertTrue(line, lines[index])
                 # Store the "id" of the breakpoint that was set for later
                 line_to_id[line] = breakpoint['id']
-                self.assertTrue(line in lines, "line expected in lines array")
+                self.assertIn(line, lines, "line expected in lines array")
                 self.assertTrue(breakpoint['verified'],
                                 "expect breakpoint verified")
 
@@ -153,7 +164,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
                 # making sure the breakpoint ID didn't change
                 self.assertEquals(line_to_id[line], breakpoint['id'],
                                 "verify previous breakpoints stayed the same")
-                self.assertTrue(line in lines, "line expected in lines array")
+                self.assertIn(line, lines, "line expected in lines array")
                 self.assertTrue(breakpoint['verified'],
                                 "expect breakpoint still verified")
 
@@ -172,7 +183,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
                 # making sure the breakpoint ID didn't change
                 self.assertEquals(line_to_id[line], breakpoint['id'],
                                 "verify previous breakpoints stayed the same")
-                self.assertTrue(line in lines, "line expected in lines array")
+                self.assertIn(line, lines, "line expected in lines array")
                 self.assertTrue(breakpoint['verified'],
                                 "expect breakpoint still verified")
 
@@ -202,7 +213,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
                             "expect %u source breakpoints" % (len(lines)))
             for breakpoint in breakpoints:
                 line = breakpoint['line']
-                self.assertTrue(line in lines, "line expected in lines array")
+                self.assertIn(line, lines, "line expected in lines array")
                 self.assertTrue(breakpoint['verified'],
                                 "expect breakpoint still verified")
 
@@ -217,13 +228,12 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
                             "expect %u source breakpoints" % (len(lines)))
             for breakpoint in breakpoints:
                 line = breakpoint['line']
-                self.assertTrue(line in lines, "line expected in lines array")
+                self.assertIn(line, lines, "line expected in lines array")
                 self.assertTrue(breakpoint['verified'],
                                 "expect breakpoint still verified")
 
     @skipIfWindows
     @skipIfRemote
-    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48421")
     def test_clear_breakpoints_unset_breakpoints(self):
         '''Test clearing breakpoints like test_set_and_clear, but clear
            breakpoints by omitting the breakpoints array instead of sending an
@@ -248,7 +258,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
             self.assertTrue(line, lines[index])
             # Store the "id" of the breakpoint that was set for later
             line_to_id[line] = breakpoint['id']
-            self.assertTrue(line in lines, "line expected in lines array")
+            self.assertIn(line, lines, "line expected in lines array")
             self.assertTrue(breakpoint['verified'],
                             "expect breakpoint verified")
 
@@ -266,7 +276,6 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
 
     @skipIfWindows
     @skipIfRemote
-    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48421")
     def test_functionality(self):
         '''Tests hitting breakpoints and the functionality of a single
            breakpoint, like 'conditions' and 'hitCondition' settings.'''
@@ -290,7 +299,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
         # Update the condition on our breakpoint
         new_breakpoint_ids = self.set_source_breakpoints(self.main_path,
                                                          [loop_line],
-                                                         condition="i==4")
+                                                         [{'condition': "i==4"}])
         self.assertEquals(breakpoint_ids, new_breakpoint_ids,
                         "existing breakpoint should have its condition "
                         "updated")
@@ -302,7 +311,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
 
         new_breakpoint_ids = self.set_source_breakpoints(self.main_path,
                                                          [loop_line],
-                                                         hitCondition="2")
+                                                         [{'hitCondition':"2"}])
 
         self.assertEquals(breakpoint_ids, new_breakpoint_ids,
                         "existing breakpoint should have its condition "

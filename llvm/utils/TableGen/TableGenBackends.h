@@ -87,12 +87,14 @@ void EmitGlobalISel(RecordKeeper &RK, raw_ostream &OS);
 void EmitGICombiner(RecordKeeper &RK, raw_ostream &OS);
 void EmitX86EVEX2VEXTables(RecordKeeper &RK, raw_ostream &OS);
 void EmitX86FoldTables(RecordKeeper &RK, raw_ostream &OS);
+void EmitX86MnemonicTables(RecordKeeper &RK, raw_ostream &OS);
 void EmitRegisterBank(RecordKeeper &RK, raw_ostream &OS);
 void EmitExegesis(RecordKeeper &RK, raw_ostream &OS);
 void EmitAutomata(RecordKeeper &RK, raw_ostream &OS);
 void EmitDirectivesDecl(RecordKeeper &RK, raw_ostream &OS);
 void EmitDirectivesImpl(RecordKeeper &RK, raw_ostream &OS);
-void EmitDirectivesGen(RecordKeeper &RK, raw_ostream &OS);
+void EmitDXILOperation(RecordKeeper &RK, raw_ostream &OS);
+void EmitRISCVTargetDef(const RecordKeeper &RK, raw_ostream &OS);
 
 } // End llvm namespace
 

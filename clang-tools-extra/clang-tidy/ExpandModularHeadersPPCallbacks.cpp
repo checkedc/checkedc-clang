@@ -12,11 +12,11 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Serialization/ASTReader.h"
+#include <optional>
 
 #define DEBUG_TYPE "clang-tidy"
 
-namespace clang {
-namespace tooling {
+namespace clang::tooling {
 
 class ExpandModularHeadersPPCallbacks::FileRecorder {
 public:
@@ -39,7 +39,7 @@ public:
       return;
 
     // FIXME: Why is this happening? We might be losing contents here.
-    llvm::Optional<StringRef> Data = ContentCache.getBufferDataIfLoaded();
+    std::optional<StringRef> Data = ContentCache.getBufferDataIfLoaded();
     if (!Data)
       return;
 
@@ -125,7 +125,7 @@ void ExpandModularHeadersPPCallbacks::handleModuleFile(
         Recorder->addNecessaryFile(IF.getFile());
       });
   // Recursively handle all transitively imported modules.
-  for (auto Import : MF->Imports)
+  for (auto *Import : MF->Imports)
     handleModuleFile(Import);
 }
 
@@ -162,8 +162,9 @@ void ExpandModularHeadersPPCallbacks::FileChanged(
 void ExpandModularHeadersPPCallbacks::InclusionDirective(
     SourceLocation DirectiveLoc, const Token &IncludeToken,
     StringRef IncludedFilename, bool IsAngled, CharSourceRange FilenameRange,
-    const FileEntry *IncludedFile, StringRef SearchPath, StringRef RelativePath,
-    const Module *Imported, SrcMgr::CharacteristicKind FileType) {
+    OptionalFileEntryRef IncludedFile, StringRef SearchPath,
+    StringRef RelativePath, const Module *Imported,
+    SrcMgr::CharacteristicKind FileType) {
   if (Imported) {
     serialization::ModuleFile *MF =
         Compiler.getASTReader()->getModuleManager().lookup(
@@ -223,18 +224,19 @@ void ExpandModularHeadersPPCallbacks::PragmaDiagnostic(SourceLocation Loc,
   parseToLocation(Loc);
 }
 void ExpandModularHeadersPPCallbacks::HasInclude(SourceLocation Loc, StringRef,
-                                                 bool, Optional<FileEntryRef>,
+                                                 bool, OptionalFileEntryRef,
                                                  SrcMgr::CharacteristicKind) {
   parseToLocation(Loc);
 }
 void ExpandModularHeadersPPCallbacks::PragmaOpenCLExtension(
     SourceLocation NameLoc, const IdentifierInfo *, SourceLocation StateLoc,
     unsigned) {
-  // FIME: Figure out whether it's the right location to parse to.
+  // FIXME: Figure out whether it's the right location to parse to.
   parseToLocation(NameLoc);
 }
 void ExpandModularHeadersPPCallbacks::PragmaWarning(SourceLocation Loc,
-                                                    StringRef, ArrayRef<int>) {
+                                                    PragmaWarningSpecifier,
+                                                    ArrayRef<int>) {
   parseToLocation(Loc);
 }
 void ExpandModularHeadersPPCallbacks::PragmaWarningPush(SourceLocation Loc,
@@ -256,7 +258,7 @@ void ExpandModularHeadersPPCallbacks::MacroExpands(const Token &MacroNameTok,
                                                    const MacroDefinition &,
                                                    SourceRange Range,
                                                    const MacroArgs *) {
-  // FIME: Figure out whether it's the right location to parse to.
+  // FIXME: Figure out whether it's the right location to parse to.
   parseToLocation(Range.getBegin());
 }
 void ExpandModularHeadersPPCallbacks::MacroDefined(const Token &MacroNameTok,
@@ -271,12 +273,12 @@ void ExpandModularHeadersPPCallbacks::MacroUndefined(
 void ExpandModularHeadersPPCallbacks::Defined(const Token &MacroNameTok,
                                               const MacroDefinition &,
                                               SourceRange Range) {
-  // FIME: Figure out whether it's the right location to parse to.
+  // FIXME: Figure out whether it's the right location to parse to.
   parseToLocation(Range.getBegin());
 }
 void ExpandModularHeadersPPCallbacks::SourceRangeSkipped(
     SourceRange Range, SourceLocation EndifLoc) {
-  // FIME: Figure out whether it's the right location to parse to.
+  // FIXME: Figure out whether it's the right location to parse to.
   parseToLocation(EndifLoc);
 }
 void ExpandModularHeadersPPCallbacks::If(SourceLocation Loc, SourceRange,
@@ -303,5 +305,4 @@ void ExpandModularHeadersPPCallbacks::Endif(SourceLocation Loc,
   parseToLocation(Loc);
 }
 
-} // namespace tooling
-} // namespace clang
+} // namespace clang::tooling

@@ -62,7 +62,7 @@ representation.
 
 #### Defining the Type Class
 
-As mentioned in [chapter 2](Ch-2.md), [`Type`](../../LangRef.md#type-system)
+As mentioned in [chapter 2](Ch-2.md), [`Type`](../../LangRef.md/#type-system)
 objects in MLIR are value-typed and rely on having an internal storage object
 that holds the actual data for the type. The `Type` class in itself acts as a
 simple wrapper around an internal `TypeStorage` object that is uniqued within an
@@ -72,7 +72,7 @@ constructing and uniquing an instance of a storage class.
 When defining a new `Type` that contains parametric data (e.g. the `struct`
 type, which requires additional information to hold the element types), we will
 need to provide a derived storage class. The `singleton` types that don't have
-any additional data (e.g. the [`index` type](../../LangRef.md#index-type)) don't
+any additional data (e.g. the [`index` type](../../Dialects/Builtin.md/#indextype)) don't
 require a storage class and use the default `TypeStorage`.
 
 ##### Defining the Storage Class
@@ -177,18 +177,38 @@ public:
 };
 ```
 
-We register this type in the `ToyDialect` constructor in a similar way to how we
+We register this type in the `ToyDialect` initializer in a similar way to how we
 did with operations:
 
 ```c++
-ToyDialect::ToyDialect(mlir::MLIRContext *ctx)
-    : mlir::Dialect(getDialectNamespace(), ctx) {
+void ToyDialect::initialize() {
   addTypes<StructType>();
 }
 ```
 
+(An important note here is that when registering a type, the definition of the
+storage class must be visible.)
+
 With this we can now use our `StructType` when generating MLIR from Toy. See
 examples/toy/Ch7/mlir/MLIRGen.cpp for more details.
+
+### Exposing to ODS
+
+After defining a new type, we should make the ODS framework aware of our Type so
+that we can use it in the operation definitions and auto-generate utilities
+within the Dialect. A simple example is shown below:
+
+```tablegen
+// Provide a definition for the Toy StructType for use in ODS. This allows for
+// using StructType in a similar way to Tensor or MemRef. We use `DialectType`
+// to demarcate the StructType as belonging to the Toy dialect.
+def Toy_StructType :
+    DialectType<Toy_Dialect, CPred<"$_self.isa<StructType>()">,
+                "Toy struct type">;
+
+// Provide a definition of the types that are used within the Toy dialect.
+def Toy_Type : AnyTypeOf<[F64Tensor, Toy_StructType]>;
+```
 
 ### Parsing and Printing
 
@@ -196,6 +216,8 @@ At this point we can use our `StructType` during MLIR generation and
 transformation, but we can't output or parse `.mlir`. For this we need to add
 support for parsing and printing instances of the `StructType`. This can be done
 by overriding the `parseType` and `printType` methods on the `ToyDialect`.
+Declarations for these methods are automatically provided when the type is
+exposed to ODS as detailed in the previous section.
 
 ```c++
 class ToyDialect : public mlir::Dialect {
@@ -213,7 +235,7 @@ These methods take an instance of a high-level parser or printer that allows for
 easily implementing the necessary functionality. Before going into the
 implementation, let's think about the syntax that we want for the `struct` type
 in the printed IR. As described in the
-[MLIR language reference](../../LangRef.md#dialect-types), dialect types are
+[MLIR language reference](../../LangRef.md/#dialect-types), dialect types are
 generally represented as: `! dialect-namespace < type-data >`, with a pretty
 form available under certain circumstances. The responsibility of our `Toy`
 parser and printer is to provide the `type-data` bits. We will define our
@@ -246,7 +268,7 @@ mlir::Type ToyDialect::parseType(mlir::DialectAsmParser &parser) const {
   SmallVector<mlir::Type, 1> elementTypes;
   do {
     // Parse the current element type.
-    llvm::SMLoc typeLoc = parser.getCurrentLocation();
+    SMLoc typeLoc = parser.getCurrentLocation();
     mlir::Type elementType;
     if (parser.parseType(elementType))
       return nullptr;
@@ -305,7 +327,7 @@ Which generates the following:
 
 ```mlir
 module {
-  func @multiply_transpose(%arg0: !toy.struct<tensor<*xf64>, tensor<*xf64>>) {
+  toy.func @multiply_transpose(%arg0: !toy.struct<tensor<*xf64>, tensor<*xf64>>) {
     toy.return
   }
 }
@@ -318,22 +340,8 @@ the IR. The next step is to add support for using it within our operations.
 
 #### Updating Existing Operations
 
-A few of our existing operations will need to be updated to handle `StructType`.
-The first step is to make the ODS framework aware of our Type so that we can use
-it in the operation definitions. A simple example is shown below:
-
-```tablegen
-// Provide a definition for the Toy StructType for use in ODS. This allows for
-// using StructType in a similar way to Tensor or MemRef.
-def Toy_StructType :
-    Type<CPred<"$_self.isa<StructType>()">, "Toy struct type">;
-
-// Provide a definition of the types that are used within the Toy dialect.
-def Toy_Type : AnyTypeOf<[F64Tensor, Toy_StructType]>;
-```
-
-We can then update our operations, e.g. `ReturnOp`, to also accept the
-`Toy_StructType`:
+A few of our existing operations, e.g. `ReturnOp`, will need to be updated to
+handle `Toy_StructType`.
 
 ```tablegen
 def ReturnOp : Toy_Op<"return", [Terminator, HasParent<"FuncOp">]> {
@@ -351,7 +359,7 @@ that will provide more specific handling of `structs`.
 ##### `toy.struct_constant`
 
 This new operation materializes a constant value for a struct. In our current
-modeling, we just use an [array attribute](../../LangRef.md#array-attribute)
+modeling, we just use an [array attribute](../../Dialects/Builtin.md/#arrayattr)
 that contains a set of constant values for each of the `struct` elements.
 
 ```mlir
@@ -397,7 +405,7 @@ and finally get a full MLIR module:
 
 ```mlir
 module {
-  func @multiply_transpose(%arg0: !toy.struct<tensor<*xf64>, tensor<*xf64>>) -> tensor<*xf64> {
+  toy.func @multiply_transpose(%arg0: !toy.struct<tensor<*xf64>, tensor<*xf64>>) -> tensor<*xf64> {
     %0 = toy.struct_access %arg0[0] : !toy.struct<tensor<*xf64>, tensor<*xf64>> -> tensor<*xf64>
     %1 = toy.transpose(%0 : tensor<*xf64>) to tensor<*xf64>
     %2 = toy.struct_access %arg0[1] : !toy.struct<tensor<*xf64>, tensor<*xf64>> -> tensor<*xf64>
@@ -405,7 +413,7 @@ module {
     %4 = toy.mul %1, %3 : tensor<*xf64>
     toy.return %4 : tensor<*xf64>
   }
-  func @main() {
+  toy.func @main() {
     %0 = toy.struct_constant [
       dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>,
       dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
@@ -426,7 +434,7 @@ After inlining, the MLIR module in the previous section looks something like:
 
 ```mlir
 module {
-  func @main() {
+  toy.func @main() {
     %0 = toy.struct_constant [
       dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>,
       dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
@@ -450,16 +458,16 @@ method.
 
 ```c++
 /// Fold constants.
-OpFoldResult ConstantOp::fold(ArrayRef<Attribute> operands) { return value(); }
+OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) { return value(); }
 
 /// Fold struct constants.
-OpFoldResult StructConstantOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult StructConstantOp::fold(FoldAdaptor adaptor) {
   return value();
 }
 
 /// Fold simple struct access operations that access into a constant.
-OpFoldResult StructAccessOp::fold(ArrayRef<Attribute> operands) {
-  auto structAttr = operands.front().dyn_cast_or_null<mlir::ArrayAttr>();
+OpFoldResult StructAccessOp::fold(FoldAdaptor adaptor) {
+  auto structAttr = adaptor.getInput().dyn_cast_or_null<mlir::ArrayAttr>();
   if (!structAttr)
     return nullptr;
 
@@ -492,7 +500,7 @@ changes to our pipeline.
 
 ```mlir
 module {
-  func @main() {
+  toy.func @main() {
     %0 = toy.constant dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
     %1 = toy.transpose(%0 : tensor<2x3xf64>) to tensor<3x2xf64>
     %2 = toy.mul %1, %1 : tensor<3x2xf64>
@@ -505,4 +513,4 @@ module {
 You can build `toyc-ch7` and try yourself: `toyc-ch7
 test/Examples/Toy/Ch7/struct-codegen.toy -emit=mlir`. More details on defining
 custom types can be found in
-[DefiningAttributesAndTypes](../DefiningAttributesAndTypes.md).
+[DefiningAttributesAndTypes](../../DefiningDialects/AttributesAndTypes.md).

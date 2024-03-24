@@ -12,193 +12,113 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/BuiltinDialect.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "BuiltinDialectBytecode.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/FunctionImplementation.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
-#include "llvm/ADT/MapVector.h"
+#include "mlir/IR/TypeRange.h"
 
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
-// Builtin Dialect
+// TableGen'erated dialect
+//===----------------------------------------------------------------------===//
+
+#include "mlir/IR/BuiltinDialect.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// BuiltinBlobManagerInterface
+//===----------------------------------------------------------------------===//
+
+using BuiltinBlobManagerInterface =
+    ResourceBlobManagerDialectInterfaceBase<DenseResourceElementsHandle>;
+
+//===----------------------------------------------------------------------===//
+// BuiltinOpAsmDialectInterface
 //===----------------------------------------------------------------------===//
 
 namespace {
 struct BuiltinOpAsmDialectInterface : public OpAsmDialectInterface {
-  using OpAsmDialectInterface::OpAsmDialectInterface;
+  BuiltinOpAsmDialectInterface(Dialect *dialect,
+                               BuiltinBlobManagerInterface &mgr)
+      : OpAsmDialectInterface(dialect), blobManager(mgr) {}
 
-  LogicalResult getAlias(Attribute attr, raw_ostream &os) const override {
+  AliasResult getAlias(Attribute attr, raw_ostream &os) const override {
     if (attr.isa<AffineMapAttr>()) {
       os << "map";
-      return success();
+      return AliasResult::OverridableAlias;
     }
     if (attr.isa<IntegerSetAttr>()) {
       os << "set";
-      return success();
+      return AliasResult::OverridableAlias;
     }
     if (attr.isa<LocationAttr>()) {
       os << "loc";
-      return success();
+      return AliasResult::OverridableAlias;
     }
-    return failure();
+    return AliasResult::NoAlias;
   }
+
+  AliasResult getAlias(Type type, raw_ostream &os) const final {
+    if (auto tupleType = type.dyn_cast<TupleType>()) {
+      if (tupleType.size() > 16) {
+        os << "tuple";
+        return AliasResult::OverridableAlias;
+      }
+    }
+    return AliasResult::NoAlias;
+  }
+
+  //===------------------------------------------------------------------===//
+  // Resources
+  //===------------------------------------------------------------------===//
+
+  std::string
+  getResourceKey(const AsmDialectResourceHandle &handle) const override {
+    return cast<DenseResourceElementsHandle>(handle).getKey().str();
+  }
+  FailureOr<AsmDialectResourceHandle>
+  declareResource(StringRef key) const final {
+    return blobManager.insert(key);
+  }
+  LogicalResult parseResource(AsmParsedResourceEntry &entry) const final {
+    FailureOr<AsmResourceBlob> blob = entry.parseAsBlob();
+    if (failed(blob))
+      return failure();
+
+    // Update the blob for this entry.
+    blobManager.update(entry.getKey(), std::move(*blob));
+    return success();
+  }
+  void
+  buildResources(Operation *op,
+                 const SetVector<AsmDialectResourceHandle> &referencedResources,
+                 AsmResourceBuilder &provider) const final {
+    blobManager.buildResources(provider, referencedResources.getArrayRef());
+  }
+
+private:
+  /// The blob manager for the dialect.
+  BuiltinBlobManagerInterface &blobManager;
 };
-} // end anonymous namespace.
+} // namespace
 
 void BuiltinDialect::initialize() {
-  addTypes<ComplexType, BFloat16Type, Float16Type, Float32Type, Float64Type,
-           Float80Type, Float128Type, FunctionType, IndexType, IntegerType,
-           MemRefType, UnrankedMemRefType, NoneType, OpaqueType,
-           RankedTensorType, TupleType, UnrankedTensorType, VectorType>();
-  addAttributes<AffineMapAttr, ArrayAttr, DenseIntOrFPElementsAttr,
-                DenseStringElementsAttr, DictionaryAttr, FloatAttr,
-                SymbolRefAttr, IntegerAttr, IntegerSetAttr, OpaqueAttr,
-                OpaqueElementsAttr, SparseElementsAttr, StringAttr, TypeAttr,
-                UnitAttr>();
-  addAttributes<CallSiteLoc, FileLineColLoc, FusedLoc, NameLoc, OpaqueLoc,
-                UnknownLoc>();
+  registerTypes();
+  registerAttributes();
+  registerLocationAttributes();
   addOperations<
 #define GET_OP_LIST
 #include "mlir/IR/BuiltinOps.cpp.inc"
       >();
-  addInterfaces<BuiltinOpAsmDialectInterface>();
-}
 
-//===----------------------------------------------------------------------===//
-// FuncOp
-//===----------------------------------------------------------------------===//
-
-FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
-                      ArrayRef<NamedAttribute> attrs) {
-  OperationState state(location, "func");
-  OpBuilder builder(location->getContext());
-  FuncOp::build(builder, state, name, type, attrs);
-  return cast<FuncOp>(Operation::create(state));
-}
-FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
-                      iterator_range<dialect_attr_iterator> attrs) {
-  SmallVector<NamedAttribute, 8> attrRef(attrs);
-  return create(location, name, type, llvm::makeArrayRef(attrRef));
-}
-FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
-                      ArrayRef<NamedAttribute> attrs,
-                      ArrayRef<DictionaryAttr> argAttrs) {
-  FuncOp func = create(location, name, type, attrs);
-  func.setAllArgAttrs(argAttrs);
-  return func;
-}
-
-void FuncOp::build(OpBuilder &builder, OperationState &state, StringRef name,
-                   FunctionType type, ArrayRef<NamedAttribute> attrs,
-                   ArrayRef<DictionaryAttr> argAttrs) {
-  state.addAttribute(SymbolTable::getSymbolAttrName(),
-                     builder.getStringAttr(name));
-  state.addAttribute(getTypeAttrName(), TypeAttr::get(type));
-  state.attributes.append(attrs.begin(), attrs.end());
-  state.addRegion();
-
-  if (argAttrs.empty())
-    return;
-  assert(type.getNumInputs() == argAttrs.size());
-  SmallString<8> argAttrName;
-  for (unsigned i = 0, e = type.getNumInputs(); i != e; ++i)
-    if (DictionaryAttr argDict = argAttrs[i])
-      state.addAttribute(getArgAttrName(i, argAttrName), argDict);
-}
-
-static ParseResult parseFuncOp(OpAsmParser &parser, OperationState &result) {
-  auto buildFuncType = [](Builder &builder, ArrayRef<Type> argTypes,
-                          ArrayRef<Type> results, impl::VariadicFlag,
-                          std::string &) {
-    return builder.getFunctionType(argTypes, results);
-  };
-
-  return impl::parseFunctionLikeOp(parser, result, /*allowVariadic=*/false,
-                                   buildFuncType);
-}
-
-static void print(FuncOp op, OpAsmPrinter &p) {
-  FunctionType fnType = op.getType();
-  impl::printFunctionLikeOp(p, op, fnType.getInputs(), /*isVariadic=*/false,
-                            fnType.getResults());
-}
-
-static LogicalResult verify(FuncOp op) {
-  // If this function is external there is nothing to do.
-  if (op.isExternal())
-    return success();
-
-  // Verify that the argument list of the function and the arg list of the entry
-  // block line up.  The trait already verified that the number of arguments is
-  // the same between the signature and the block.
-  auto fnInputTypes = op.getType().getInputs();
-  Block &entryBlock = op.front();
-  for (unsigned i = 0, e = entryBlock.getNumArguments(); i != e; ++i)
-    if (fnInputTypes[i] != entryBlock.getArgument(i).getType())
-      return op.emitOpError("type of entry block argument #")
-             << i << '(' << entryBlock.getArgument(i).getType()
-             << ") must match the type of the corresponding argument in "
-             << "function signature(" << fnInputTypes[i] << ')';
-
-  return success();
-}
-
-/// Clone the internal blocks from this function into dest and all attributes
-/// from this function to dest.
-void FuncOp::cloneInto(FuncOp dest, BlockAndValueMapping &mapper) {
-  // Add the attributes of this function to dest.
-  llvm::MapVector<Identifier, Attribute> newAttrs;
-  for (auto &attr : dest.getAttrs())
-    newAttrs.insert(attr);
-  for (auto &attr : getAttrs())
-    newAttrs.insert(attr);
-  dest->setAttrs(DictionaryAttr::get(newAttrs.takeVector(), getContext()));
-
-  // Clone the body.
-  getBody().cloneInto(&dest.getBody(), mapper);
-}
-
-/// Create a deep copy of this function and all of its blocks, remapping
-/// any operands that use values outside of the function using the map that is
-/// provided (leaving them alone if no entry is present). Replaces references
-/// to cloned sub-values with the corresponding value that is copied, and adds
-/// those mappings to the mapper.
-FuncOp FuncOp::clone(BlockAndValueMapping &mapper) {
-  FunctionType newType = getType();
-
-  // If the function has a body, then the user might be deleting arguments to
-  // the function by specifying them in the mapper. If so, we don't add the
-  // argument to the input type vector.
-  bool isExternalFn = isExternal();
-  if (!isExternalFn) {
-    SmallVector<Type, 4> inputTypes;
-    inputTypes.reserve(newType.getNumInputs());
-    for (unsigned i = 0, e = getNumArguments(); i != e; ++i)
-      if (!mapper.contains(getArgument(i)))
-        inputTypes.push_back(newType.getInput(i));
-    newType = FunctionType::get(getContext(), inputTypes, newType.getResults());
-  }
-
-  // Create the new function.
-  FuncOp newFunc = cast<FuncOp>(getOperation()->cloneWithoutRegions());
-  newFunc.setType(newType);
-
-  /// Set the argument attributes for arguments that aren't being replaced.
-  for (unsigned i = 0, e = getNumArguments(), destI = 0; i != e; ++i)
-    if (isExternalFn || !mapper.contains(getArgument(i)))
-      newFunc.setArgAttrs(destI++, getArgAttrs(i));
-
-  /// Clone the current function into the new one and return it.
-  cloneInto(newFunc, mapper);
-  return newFunc;
-}
-FuncOp FuncOp::clone() {
-  BlockAndValueMapping mapper;
-  return clone(mapper);
+  auto &blobInterface = addInterface<BuiltinBlobManagerInterface>();
+  addInterface<BuiltinOpAsmDialectInterface>(blobInterface);
+  builtin_dialect_detail::addBytecodeInterface(this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -206,8 +126,8 @@ FuncOp FuncOp::clone() {
 //===----------------------------------------------------------------------===//
 
 void ModuleOp::build(OpBuilder &builder, OperationState &state,
-                     Optional<StringRef> name) {
-  ensureTerminator(*state.addRegion(), builder, state.location);
+                     std::optional<StringRef> name) {
+  state.addRegion()->emplaceBlock();
   if (name) {
     state.attributes.push_back(builder.getNamedAttr(
         mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(*name)));
@@ -215,23 +135,51 @@ void ModuleOp::build(OpBuilder &builder, OperationState &state,
 }
 
 /// Construct a module from the given context.
-ModuleOp ModuleOp::create(Location loc, Optional<StringRef> name) {
+ModuleOp ModuleOp::create(Location loc, std::optional<StringRef> name) {
   OpBuilder builder(loc->getContext());
   return builder.create<ModuleOp>(loc, name);
 }
 
-static LogicalResult verify(ModuleOp op) {
+DataLayoutSpecInterface ModuleOp::getDataLayoutSpec() {
+  // Take the first and only (if present) attribute that implements the
+  // interface. This needs a linear search, but is called only once per data
+  // layout object construction that is used for repeated queries.
+  for (NamedAttribute attr : getOperation()->getAttrs())
+    if (auto spec = attr.getValue().dyn_cast<DataLayoutSpecInterface>())
+      return spec;
+  return {};
+}
+
+LogicalResult ModuleOp::verify() {
   // Check that none of the attributes are non-dialect attributes, except for
   // the symbol related attributes.
-  for (auto attr : op.getAttrs()) {
-    if (!attr.first.strref().contains('.') &&
+  for (auto attr : (*this)->getAttrs()) {
+    if (!attr.getName().strref().contains('.') &&
         !llvm::is_contained(
             ArrayRef<StringRef>{mlir::SymbolTable::getSymbolAttrName(),
                                 mlir::SymbolTable::getVisibilityAttrName()},
-            attr.first.strref()))
-      return op.emitOpError() << "can only contain attributes with "
-                                 "dialect-prefixed names, found: '"
-                              << attr.first << "'";
+            attr.getName().strref()))
+      return emitOpError() << "can only contain attributes with "
+                              "dialect-prefixed names, found: '"
+                           << attr.getName().getValue() << "'";
+  }
+
+  // Check that there is at most one data layout spec attribute.
+  StringRef layoutSpecAttrName;
+  DataLayoutSpecInterface layoutSpec;
+  for (const NamedAttribute &na : (*this)->getAttrs()) {
+    if (auto spec = na.getValue().dyn_cast<DataLayoutSpecInterface>()) {
+      if (layoutSpec) {
+        InFlightDiagnostic diag =
+            emitOpError() << "expects at most one data layout attribute";
+        diag.attachNote() << "'" << layoutSpecAttrName
+                          << "' is a data layout attribute";
+        diag.attachNote() << "'" << na.getName().getValue()
+                          << "' is a data layout attribute";
+      }
+      layoutSpecAttrName = na.getName().strref();
+      layoutSpec = spec;
+    }
   }
 
   return success();
@@ -242,16 +190,22 @@ static LogicalResult verify(ModuleOp op) {
 //===----------------------------------------------------------------------===//
 
 LogicalResult
-UnrealizedConversionCastOp::fold(ArrayRef<Attribute> attrOperands,
+UnrealizedConversionCastOp::fold(FoldAdaptor adaptor,
                                  SmallVectorImpl<OpFoldResult> &foldResults) {
-  OperandRange operands = inputs();
+  OperandRange operands = getInputs();
+  ResultRange results = getOutputs();
+
+  if (operands.getType() == results.getType()) {
+    foldResults.append(operands.begin(), operands.end());
+    return success();
+  }
+
   if (operands.empty())
     return failure();
 
   // Check that the input is a cast with results that all feed into this
   // operation, and operand types that directly match the result types of this
   // operation.
-  ResultRange results = outputs();
   Value firstInput = operands.front();
   auto inputOp = firstInput.getDefiningOp<UnrealizedConversionCastOp>();
   if (!inputOp || inputOp.getResults() != operands ||

@@ -22,6 +22,8 @@ define i64 @getPart1(fp128 %in) local_unnamed_addr {
 ;
 ; CHECK-P8-LABEL: getPart1:
 ; CHECK-P8:       # %bb.0: # %entry
+; CHECK-P8-NEXT:    xxswapd vs0, v2
+; CHECK-P8-NEXT:    mffprd r3, f0
 ; CHECK-P8-NEXT:    blr
 entry:
   %0 = bitcast fp128 %in to i128
@@ -43,7 +45,7 @@ define i64 @getPart2(fp128 %in) local_unnamed_addr {
 ;
 ; CHECK-P8-LABEL: getPart2:
 ; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    mr r3, r4
+; CHECK-P8-NEXT:    mfvsrd r3, v2
 ; CHECK-P8-NEXT:    blr
 entry:
   %0 = bitcast fp128 %in to i128
@@ -53,7 +55,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind readnone
-define i64 @checkBitcast(fp128 %in, <2 x i64> %in2, <2 x i64> *%out) local_unnamed_addr {
+define i64 @checkBitcast(fp128 %in, <2 x i64> %in2, ptr %out) local_unnamed_addr {
 ; CHECK-LABEL: checkBitcast:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mfvsrld r3, v2
@@ -70,11 +72,8 @@ define i64 @checkBitcast(fp128 %in, <2 x i64> %in2, <2 x i64> *%out) local_unnam
 ;
 ; CHECK-P8-LABEL: checkBitcast:
 ; CHECK-P8:       # %bb.0: # %entry
-; CHECK-P8-NEXT:    mtfprd f0, r3
-; CHECK-P8-NEXT:    mtfprd f1, r4
-; CHECK-P8-NEXT:    xxmrghd v3, vs1, vs0
-; CHECK-P8-NEXT:    xxswapd vs0, v3
-; CHECK-P8-NEXT:    vaddudm v2, v3, v2
+; CHECK-P8-NEXT:    xxswapd vs0, v2
+; CHECK-P8-NEXT:    vaddudm v2, v2, v3
 ; CHECK-P8-NEXT:    mffprd r3, f0
 ; CHECK-P8-NEXT:    xxswapd vs0, v2
 ; CHECK-P8-NEXT:    stxvd2x vs0, 0, r7
@@ -83,7 +82,7 @@ entry:
   %0 = bitcast fp128 %in to <2 x i64>
   %1 = extractelement <2 x i64> %0, i64 0
   %2 = add <2 x i64> %0, %in2
-  store <2 x i64> %2, <2 x i64> *%out, align 16
+  store <2 x i64> %2, ptr %out, align 16
   ret i64 %1
 }
 

@@ -49,6 +49,47 @@ namespace dr2026 { // dr2026: 11
   }
 }
 
+namespace dr2076 { // dr2076: 13
+#if __cplusplus >= 201103L
+  namespace std_example {
+    struct A { A(int); };
+    struct B { B(A); };
+    B b{{0}};
+
+    struct Params { int a; int b; };
+    struct Foo {
+      Foo(Params);
+    };
+    Foo foo{{1, 2}};
+  }
+
+  struct string_view {
+    string_view(int); // not an aggregate
+  };
+  struct string {
+    string(int); // not an aggregate
+    operator string_view() const;
+  };
+
+  void foo(const string &); // expected-note {{cannot convert initializer list}}
+  void bar(string_view); // expected-note 2{{cannot convert initializer list}}
+
+  void func(const string &arg) {
+    // An argument in one set of braces is subject to user-defined conversions;
+    // an argument in two sets of braces is not, but an identity conversion is
+    // still OK.
+    foo(arg);
+    foo({arg});
+    foo({{arg}});
+    foo({{{arg}}}); // expected-error {{no matching function}}
+    bar(arg);
+    bar({arg});
+    bar({{arg}}); // expected-error {{no matching function}}
+    bar({{{arg}}}); // expected-error {{no matching function}}
+  }
+#endif
+}
+
 namespace dr2082 { // dr2082: 11
   void test1(int x, int = sizeof(x)); // ok
 #if __cplusplus >= 201103L
@@ -180,7 +221,7 @@ namespace dr2083 { // dr2083: partial
         a.*&A::x; // expected-warning {{unused}}
         true ? a.x : a.y; // expected-warning {{unused}}
         (void)a.x;
-        a.x, discarded_lval(); // expected-warning {{unused}}
+        a.x, discarded_lval(); // expected-warning {{left operand of comma operator has no effect}}
 #if 1 // FIXME: These errors are all incorrect; the above code is valid.
       // expected-error@-6 {{enclosing function}}
       // expected-error@-6 {{enclosing function}}
@@ -268,4 +309,32 @@ namespace dr2094 { // dr2094: 5
 
   static_assert(__is_trivially_assignable(A, const A&), "");
   static_assert(__is_trivially_assignable(B, const B&), "");
+}
+
+namespace dr2061 { // dr2061: yes
+#if __cplusplus >= 201103L
+  namespace A {
+    inline namespace b {
+      namespace C {
+        // 'f' is the example from the DR.  'S' is an example where if we didn't
+        // properly handle the two being the same, we would get an incomplete
+        // type error during attempted instantiation.
+        template<typename T> void f();
+        template<typename T> struct S;
+      }
+    }
+  }
+
+  namespace A {
+    namespace C {
+      template<> void f<int>() { }
+      template<> struct S<int> { };
+    }
+  }
+
+  void use() {
+    A::C::f<int>();
+    A::C::S<int> s;
+  }
+#endif // C++11
 }

@@ -12,14 +12,14 @@
 // INCOMPATIBLE: -z text and -z ifunc-noplt may not be used together
 
 // RUN: ld.lld -z ifunc-noplt -z notext --hash-style=sysv %t.so %t.o -o %tout
-// RUN: llvm-objdump -d --no-show-raw-insn %tout | FileCheck %s --check-prefix=DISASM
+// RUN: llvm-objdump --no-print-imm-hex -d --no-show-raw-insn %tout | FileCheck %s --check-prefix=DISASM
 // RUN: llvm-readobj -r --dynamic-table %tout | FileCheck %s
 
 // Check that we emitted relocations for the ifunc calls
 // CHECK: Relocations [
 // CHECK-NEXT:   Section (4) .rela.dyn {
-// CHECK-NEXT:     0x201328 R_X86_64_PLT32 bar 0xFFFFFFFFFFFFFFFC
 // CHECK-NEXT:     0x201323 R_X86_64_PLT32 foo 0xFFFFFFFFFFFFFFFC
+// CHECK-NEXT:     0x201328 R_X86_64_PLT32 bar 0xFFFFFFFFFFFFFFFC
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Section (5) .rela.plt {
 // CHECK-NEXT:     0x203498 R_X86_64_JUMP_SLOT bar2 0x0

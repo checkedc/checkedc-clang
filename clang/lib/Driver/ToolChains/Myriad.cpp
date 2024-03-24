@@ -218,7 +218,7 @@ MyriadToolChain::MyriadToolChain(const Driver &D, const llvm::Triple &Triple,
   default:
     D.Diag(clang::diag::err_target_unsupported_arch)
         << Triple.getArchName() << "myriad";
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case llvm::Triple::shave:
     return;
   case llvm::Triple::sparc:
@@ -260,7 +260,7 @@ void MyriadToolChain::addLibStdCxxIncludePaths(
   const Multilib &Multilib = GCCInstallation.getMultilib();
   addLibStdCXXIncludePaths(
       LibDir.str() + "/../" + TripleStr.str() + "/include/c++/" + Version.Text,
-      "", TripleStr, "", "", Multilib.includeSuffix(), DriverArgs, CC1Args);
+      TripleStr, Multilib.includeSuffix(), DriverArgs, CC1Args);
 }
 
 // MyriadToolChain handles several triples:

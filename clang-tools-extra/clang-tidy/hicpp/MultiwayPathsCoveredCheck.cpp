@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace hicpp {
+namespace clang::tidy::hicpp {
 
 void MultiwayPathsCoveredCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
@@ -36,7 +34,8 @@ void MultiwayPathsCoveredCheck::registerMatchers(MatchFinder *Finder) {
               // otherwise the matcher does not work correctly, because it
               // will not explicitly ignore enum conditions.
               unless(ignoringImpCasts(
-                  declRefExpr(hasType(enumType())).bind("enum-condition"))))))
+                  declRefExpr(hasType(hasCanonicalType(enumType())))
+                      .bind("enum-condition"))))))
           .bind("switch"),
       this);
 
@@ -83,10 +82,9 @@ static std::size_t getNumberOfPossibleValues(QualType T,
   // and would not return 2 as result.
   if (T->isBooleanType())
     return 2;
-  else if (T->isIntegralType(Context))
+  if (T->isIntegralType(Context))
     return twoPow(Context.getTypeSize(T));
-  else
-    return 1;
+  return 1;
 }
 
 void MultiwayPathsCoveredCheck::check(const MatchFinder::MatchResult &Result) {
@@ -174,6 +172,4 @@ void MultiwayPathsCoveredCheck::handleSwitchWithoutDefault(
          CaseCount == 1 ? "switch with only one case; use an if statement"
                         : "potential uncovered code path; add a default label");
 }
-} // namespace hicpp
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::hicpp

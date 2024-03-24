@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cppcoreguidelines {
+namespace clang::tidy::cppcoreguidelines {
 
 namespace {
 AST_MATCHER_P(CXXForRangeStmt, hasRangeBeginEndStmt,
@@ -54,13 +52,17 @@ void ProBoundsArrayToPointerDecayCheck::registerMatchers(MatchFinder *Finder) {
   // 2) inside a range-for over an array
   // 3) if it converts a string literal to a pointer
   Finder->addMatcher(
-      traverse(TK_AsIs,
-               implicitCastExpr(
-                   unless(hasParent(arraySubscriptExpr())),
-                   unless(hasParentIgnoringImpCasts(explicitCastExpr())),
-                   unless(isInsideOfRangeBeginEndStmt()),
-                   unless(hasSourceExpression(ignoringParens(stringLiteral()))))
-                   .bind("cast")),
+      traverse(
+          TK_AsIs,
+          implicitCastExpr(
+              unless(hasParent(arraySubscriptExpr())),
+              unless(hasParentIgnoringImpCasts(explicitCastExpr())),
+              unless(isInsideOfRangeBeginEndStmt()),
+              unless(hasSourceExpression(ignoringParens(stringLiteral()))),
+              unless(hasSourceExpression(ignoringParens(conditionalOperator(
+                  allOf(hasTrueExpression(stringLiteral()),
+                        hasFalseExpression(stringLiteral())))))))
+              .bind("cast")),
       this);
 }
 
@@ -75,6 +77,4 @@ void ProBoundsArrayToPointerDecayCheck::check(
                                   "an explicit cast instead");
 }
 
-} // namespace cppcoreguidelines
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cppcoreguidelines

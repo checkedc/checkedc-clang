@@ -258,8 +258,7 @@ static const clang::StringRef PosixFunctions[] = {
     "::wctomb",
 };
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 template <> struct OptionEnumMapping<concurrency::MtUnsafeCheck::FunctionSet> {
   static llvm::ArrayRef<
@@ -270,15 +269,15 @@ template <> struct OptionEnumMapping<concurrency::MtUnsafeCheck::FunctionSet> {
         Mapping[] = {{concurrency::MtUnsafeCheck::FunctionSet::Posix, "posix"},
                      {concurrency::MtUnsafeCheck::FunctionSet::Glibc, "glibc"},
                      {concurrency::MtUnsafeCheck::FunctionSet::Any, "any"}};
-    return makeArrayRef(Mapping);
+    return ArrayRef(Mapping);
   }
 };
 
 namespace concurrency {
 
 static ast_matchers::internal::Matcher<clang::NamedDecl>
-hasAnyMtUnsafeNames(MtUnsafeCheck::FunctionSet libc) {
-  switch (libc) {
+hasAnyMtUnsafeNames(MtUnsafeCheck::FunctionSet Libc) {
+  switch (Libc) {
   case MtUnsafeCheck::FunctionSet::Posix:
     return hasAnyName(PosixFunctions);
   case MtUnsafeCheck::FunctionSet::Glibc:
@@ -312,5 +311,4 @@ void MtUnsafeCheck::check(const MatchFinder::MatchResult &Result) {
 }
 
 } // namespace concurrency
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

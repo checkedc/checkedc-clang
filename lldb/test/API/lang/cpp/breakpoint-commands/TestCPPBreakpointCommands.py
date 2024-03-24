@@ -12,16 +12,14 @@ from lldbsuite.test import lldbutil
 
 class CPPBreakpointCommandsTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def make_breakpoint(self, name, type, expected_num_locations):
         bkpt = self.target.BreakpointCreateByName(name,
                                                   type,
                                                   self.a_out_module,
                                                   self.nested_comp_unit)
         num_locations = bkpt.GetNumLocations()
-        self.assertTrue(
-            num_locations == expected_num_locations,
+        self.assertEqual(
+            num_locations, expected_num_locations,
             "Wrong number of locations for '%s', expected: %d got: %d" %
             (name,
              expected_num_locations,

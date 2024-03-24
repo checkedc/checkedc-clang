@@ -18,7 +18,7 @@ namespace dr1413 { // dr1413: 12
       Check<true ? 0 : A::unknown_spec>::type *var1; // expected-error {{undeclared identifier 'var1'}}
       Check<true ? 0 : a>::type *var2; // ok, variable declaration  expected-note 0+{{here}}
       Check<true ? 0 : b>::type *var3; // expected-error {{undeclared identifier 'var3'}}
-      Check<true ? 0 : (c, 0)>::type *var4; // expected-error {{undeclared identifier 'var4'}}
+      Check<true ? 0 : ((void)c, 0)>::type *var4; // expected-error {{undeclared identifier 'var4'}}
       // value-dependent because of the implied type-dependent 'this->', not because of 'd'
       Check<true ? 0 : (d(), 0)>::type *var5; // expected-error {{undeclared identifier 'var5'}}
       // value-dependent because of the value-dependent '&' operator, not because of 'A::d'
@@ -33,6 +33,27 @@ namespace dr1423 { // dr1423: 11
   bool b2(nullptr); // expected-warning {{implicit conversion of nullptr constant to 'bool'}}
   bool b3 = {nullptr}; // expected-error {{cannot initialize}}
   bool b4{nullptr}; // expected-warning {{implicit conversion of nullptr constant to 'bool'}}
+#endif
+}
+
+namespace dr1432 { // dr1432: 16
+#if __cplusplus >= 201103L
+  template<typename T> T declval();
+
+  template <class... T>
+  struct common_type;
+
+  template <class T, class U>
+  struct common_type<T, U> {
+   typedef decltype(true ? declval<T>() : declval<U>()) type;
+  };
+
+  template <class T, class U, class... V>
+  struct common_type<T, U, V...> {
+   typedef typename common_type<typename common_type<T, U>::type, V...>::type type;
+  };
+
+  template struct common_type<int, double>;
 #endif
 }
 
@@ -296,6 +317,9 @@ namespace std {
 } // std
 
 namespace dr1467 {  // dr1467: 3.7 c++11
+  // Note that the change to [over.best.ics] was partially undone by DR2076;
+  // the resulting rule is tested with the tests for that change.
+
   // List-initialization of aggregate from same-type object
 
   namespace basic0 {
@@ -419,7 +443,7 @@ namespace dr1467 {  // dr1467: 3.7 c++11
     void f() { Value{{{1,2},{3,4}}}; }
   }
   namespace NonAmbiguous {
-  // The original implementation made this case ambigious due to the special
+  // The original implementation made this case ambiguous due to the special
   // handling of one element initialization lists.
   void f(int(&&)[1]);
   void f(unsigned(&&)[1]);
@@ -460,6 +484,10 @@ namespace dr1467 {  // dr1467: 3.7 c++11
 #endif
 } // dr1467
 
+namespace dr1479 { // dr1479: yes
+  int operator"" _a(const char*, std::size_t = 0); // expected-error {{literal operator cannot have a default argument}}
+}
+
 namespace dr1490 {  // dr1490: 3.7 c++11
   // List-initialization from a string literal
 
@@ -494,4 +522,16 @@ namespace dr1495 { // dr1495: 4
   template<typename ...Ts> int c<0, Ts...>; // expected-error {{not more specialized}}
 #endif
 }
+
+namespace dr1496 { // dr1496: no
+#if __cplusplus >= 201103L
+struct A {
+    A() = delete;
+};
+// FIXME: 'A' should not be trivial because the class lacks at least one
+// default constructor which is not deleted.
+static_assert(__is_trivial(A), "");
+#endif
+}
+
 #endif

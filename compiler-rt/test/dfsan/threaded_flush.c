@@ -1,6 +1,7 @@
 // Tests that doing dfsan_flush() while another thread is executing doesn't
 // segfault.
 // RUN: %clang_dfsan %s -o %t && %run %t
+
 #include <assert.h>
 #include <pthread.h>
 #include <sanitizer/dfsan_interface.h>

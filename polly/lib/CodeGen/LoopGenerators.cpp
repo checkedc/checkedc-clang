@@ -16,6 +16,7 @@
 #include "polly/ScopDetection.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
@@ -245,8 +246,21 @@ void ParallelLoopGenerator::extractValuesFromStruct(
     SetVector<Value *> OldValues, Type *Ty, Value *Struct, ValueMapT &Map) {
   for (unsigned i = 0; i < OldValues.size(); i++) {
     Value *Address = Builder.CreateStructGEP(Ty, Struct, i);
-    Value *NewValue = Builder.CreateLoad(Address);
+    Type *ElemTy = cast<GetElementPtrInst>(Address)->getResultElementType();
+    Value *NewValue = Builder.CreateLoad(ElemTy, Address);
     NewValue->setName("polly.subfunc.arg." + OldValues[i]->getName());
     Map[OldValues[i]] = NewValue;
   }
+}
+
+DebugLoc polly::createDebugLocForGeneratedCode(Function *F) {
+  if (!F)
+    return DebugLoc();
+
+  LLVMContext &Ctx = F->getContext();
+  DISubprogram *DILScope =
+      dyn_cast_or_null<DISubprogram>(F->getMetadata(LLVMContext::MD_dbg));
+  if (!DILScope)
+    return DebugLoc();
+  return DILocation::get(Ctx, 0, 0, DILScope);
 }

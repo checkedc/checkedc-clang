@@ -2,9 +2,6 @@
 Test some SBModule and SBSection APIs.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -14,12 +11,9 @@ from lldbsuite.test.lldbutil import symbol_type_to_str
 
 class ModuleAndSectionAPIsTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     # Py3 asserts due to a bug in SWIG.  A fix for this was upstreamed into
     # SWIG 3.0.8.
     @skipIf(py_version=['>=', (3, 0)], swig_version=['<', (3, 0, 8)])
-    @add_test_categories(['pyapi'])
     def test_module_and_section(self):
         """Test module and section APIs."""
         self.build()
@@ -71,7 +65,6 @@ class ModuleAndSectionAPIsTestCase(TestBase):
                             symbol_type_to_str(
                                 sym.GetType()))
 
-    @add_test_categories(['pyapi'])
     def test_module_and_section_boundary_condition(self):
         """Test module and section APIs by passing None when it expects a Python string."""
         self.build()
@@ -112,7 +105,6 @@ class ModuleAndSectionAPIsTestCase(TestBase):
         if sec1:
             sec1.FindSubSection(None)
 
-    @add_test_categories(['pyapi'])
     def test_module_compile_unit_iter(self):
         """Test module's compile unit iterator APIs."""
         self.build()
@@ -140,7 +132,6 @@ class ModuleAndSectionAPIsTestCase(TestBase):
         for cu in exe_module.compile_unit_iter():
             print(cu)
 
-    @add_test_categories(['pyapi'])
     def test_find_compile_units(self):
         """Exercise SBModule.FindCompileUnits() API."""
         d = {'EXE': 'b.out'}
@@ -162,6 +153,5 @@ class ModuleAndSectionAPIsTestCase(TestBase):
             for source_name in source_name_list:
                 list = module.FindCompileUnits(lldb.SBFileSpec(source_name, False))
                 for sc in list:
-                    self.assertTrue(
-                        sc.GetCompileUnit().GetFileSpec().GetFilename() ==
-                        source_name)
+                    self.assertEqual(
+                        sc.GetCompileUnit().GetFileSpec().GetFilename(), source_name)

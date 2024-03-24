@@ -17,7 +17,7 @@ namespace scudo {
 
 class ScopedErrorReport {
 public:
-  ScopedErrorReport() : Message(512) { Message.append("Scudo ERROR: "); }
+  ScopedErrorReport() : Message() { Message.append("Scudo ERROR: "); }
   void append(const char *Format, ...) {
     va_list Args;
     va_start(Args, Format);
@@ -36,6 +36,18 @@ private:
 
 inline void NORETURN trap() { __builtin_trap(); }
 
+void NORETURN reportSoftRSSLimit(uptr RssLimitMb) {
+  ScopedErrorReport Report;
+  Report.append("Soft RSS limit of %zu MB exhausted, current RSS is %zu MB\n",
+                RssLimitMb, GetRSS() >> 20);
+}
+
+void NORETURN reportHardRSSLimit(uptr RssLimitMb) {
+  ScopedErrorReport Report;
+  Report.append("Hard RSS limit of %zu MB exhausted, current RSS is %zu MB\n",
+                RssLimitMb, GetRSS() >> 20);
+}
+
 // This could potentially be called recursively if a CHECK fails in the reports.
 void NORETURN reportCheckFailed(const char *File, int Line,
                                 const char *Condition, u64 Value1, u64 Value2) {
@@ -45,8 +57,8 @@ void NORETURN reportCheckFailed(const char *File, int Line,
     trap();
   }
   ScopedErrorReport Report;
-  Report.append("CHECK failed @ %s:%d %s (%llu, %llu)\n", File, Line, Condition,
-                Value1, Value2);
+  Report.append("CHECK failed @ %s:%d %s ((u64)op1=%llu, (u64)op2=%llu)\n",
+                File, Line, Condition, Value1, Value2);
 }
 
 // Generic string fatal error message.

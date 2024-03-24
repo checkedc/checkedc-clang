@@ -134,6 +134,24 @@ public:
   ///   The Address object set to the current PC value.
   const Address &GetFrameCodeAddress();
 
+  /// Get the current code Address suitable for symbolication,
+  /// may not be the same as GetFrameCodeAddress().
+  ///
+  /// For a frame in the middle of the stack, the return-pc is the
+  /// current code address, but for symbolication purposes the
+  /// return address after a noreturn call may point to the next
+  /// function, a DWARF location list entry that is a completely
+  /// different code path, or the wrong source line.
+  ///
+  /// The address returned should be used for symbolication (source line,
+  /// block, function, DWARF location entry selection) but should NOT
+  /// be shown to the user.  It may not point to an actual instruction
+  /// boundary.
+  ///
+  /// \return
+  ///   The Address object set to the current PC value.
+  Address GetFrameCodeAddressForSymbolication();
+
   /// Change the pc value for a given thread.
   ///
   /// Change the current pc value for the frame on this thread.
@@ -153,7 +171,7 @@ public:
   /// functions looking up symbolic information for a given pc value multiple
   /// times.
   ///
-  /// \params [in] resolve_scope
+  /// \param [in] resolve_scope
   ///   Flags from the SymbolContextItem enumerated type which specify what
   ///   type of symbol context is needed by this caller.
   ///
@@ -184,7 +202,7 @@ public:
   ///   frames may be unable to provide this value; they will return false.
   bool GetFrameBaseValue(Scalar &value, Status *error_ptr);
 
-  /// Get the DWARFExpression corresponding to the Canonical Frame Address.
+  /// Get the DWARFExpressionList corresponding to the Canonical Frame Address.
   ///
   /// Often a register (bp), but sometimes a register + offset.
   ///
@@ -194,7 +212,7 @@ public:
   ///
   /// \return
   ///   Returns the corresponding DWARF expression, or NULL.
-  DWARFExpression *GetFrameBaseExpression(Status *error_ptr);
+  DWARFExpressionList *GetFrameBaseExpression(Status *error_ptr);
 
   /// Get the current lexical scope block for this StackFrame, if possible.
   ///
@@ -236,9 +254,14 @@ public:
   ///     that are visible to the entire compilation unit (e.g. file
   ///     static in C, globals that are homed in this CU).
   ///
+  /// \param [out] error_ptr
+  ///   If there is an error in the debug information that prevents variables
+  ///   from being fetched. \see SymbolFile::GetFrameVariableError() for full
+  ///   details.
+  ///
   /// \return
   ///     A pointer to a list of variables.
-  VariableList *GetVariableList(bool get_file_globals);
+  VariableList *GetVariableList(bool get_file_globals, Status *error_ptr);
 
   /// Retrieve the list of variables that are in scope at this StackFrame's
   /// pc.
@@ -390,10 +413,10 @@ public:
 
   /// Create a ValueObject for a given Variable in this StackFrame.
   ///
-  /// \params [in] variable_sp
+  /// \param [in] variable_sp
   ///   The Variable to base this ValueObject on
   ///
-  /// \params [in] use_dynamic
+  /// \param [in] use_dynamic
   ///     Whether the correct dynamic type of the variable should be
   ///     determined before creating the ValueObject, or if the static type
   ///     is sufficient.  One of the DynamicValueType enumerated values.
@@ -403,22 +426,6 @@ public:
   lldb::ValueObjectSP
   GetValueObjectForFrameVariable(const lldb::VariableSP &variable_sp,
                                  lldb::DynamicValueType use_dynamic);
-
-  /// Add an arbitrary Variable object (e.g. one that specifics a global or
-  /// static) to a StackFrame's list of ValueObjects.
-  ///
-  /// \params [in] variable_sp
-  ///   The Variable to base this ValueObject on
-  ///
-  /// \params [in] use_dynamic
-  ///     Whether the correct dynamic type of the variable should be
-  ///     determined before creating the ValueObject, or if the static type
-  ///     is sufficient.  One of the DynamicValueType enumerated values.
-  ///
-  /// \return
-  ///     A ValueObject for this variable.
-  lldb::ValueObjectSP TrackGlobalVariable(const lldb::VariableSP &variable_sp,
-                                          lldb::DynamicValueType use_dynamic);
 
   /// Query this frame to determine what the default language should be when
   /// parsing expressions given the execution context.
@@ -435,7 +442,7 @@ public:
   /// the current instruction.  The ExpressionPath should indicate how to get
   /// to this value using "frame variable."
   ///
-  /// \params [in] addr
+  /// \param [in] addr
   ///   The raw address.
   ///
   /// \return
@@ -446,10 +453,10 @@ public:
   /// given register plus an offset.  The ExpressionPath should indicate how
   /// to get to this value using "frame variable."
   ///
-  /// \params [in] reg
+  /// \param [in] reg
   ///   The name of the register.
   ///
-  /// \params [in] offset
+  /// \param [in] offset
   ///   The offset from the register.  Particularly important for sp...
   ///
   /// \return
@@ -463,7 +470,7 @@ public:
   /// PC in the stack frame and traverse through all parent blocks stopping at
   /// inlined function boundaries.
   ///
-  /// \params [in] name
+  /// \param [in] name
   ///   The name of the variable.
   ///
   /// \return

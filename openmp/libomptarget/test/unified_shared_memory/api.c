@@ -1,10 +1,13 @@
-// RUN: %libomptarget-compile-run-and-check-aarch64-unknown-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-powerpc64-ibm-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-powerpc64le-ibm-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-x86_64-pc-linux-gnu
+// RUN: %libomptarget-compile-run-and-check-generic
+// XFAIL: nvptx64-nvidia-cuda
+// XFAIL: nvptx64-nvidia-cuda-LTO
 
-#include <stdio.h>
+// Fails on amdgpu with error: GPU Memory Error
+// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: amdgcn-amd-amdhsa-LTO
+
 #include <omp.h>
+#include <stdio.h>
 
 // ---------------------------------------------------------------------------
 // Various definitions copied from OpenMP RTL

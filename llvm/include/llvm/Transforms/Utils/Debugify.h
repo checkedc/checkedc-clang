@@ -1,4 +1,4 @@
-//===- Debugify.h - Attach synthetic debug info to everything -------------===//
+//===- Debugify.h - Check debug info preservation in optimizations --------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 ///
-/// \file Interface to the `debugify` synthetic debug info testing utility.
+/// \file Interface to the `debugify` synthetic/original debug info testing
+/// utility.
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORM_UTILS_DEBUGIFY_H
-#define LLVM_TRANSFORM_UTILS_DEBUGIFY_H
+#ifndef LLVM_TRANSFORMS_UTILS_DEBUGIFY_H
+#define LLVM_TRANSFORMS_UTILS_DEBUGIFY_H
 
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -19,6 +20,28 @@
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/ValueHandle.h"
+#include "llvm/Pass.h"
+
+using DebugFnMap =
+    llvm::MapVector<const llvm::Function *, const llvm::DISubprogram *>;
+using DebugInstMap = llvm::MapVector<const llvm::Instruction *, bool>;
+using DebugVarMap = llvm::MapVector<const llvm::DILocalVariable *, unsigned>;
+using WeakInstValueMap =
+    llvm::MapVector<const llvm::Instruction *, llvm::WeakVH>;
+
+/// Used to track the Debug Info Metadata information.
+struct DebugInfoPerPass {
+  // This maps a function name to its associated DISubprogram.
+  DebugFnMap DIFunctions;
+  // This maps an instruction and the info about whether it has !dbg attached.
+  DebugInstMap DILocations;
+  // This tracks value (instruction) deletion. If an instruction gets deleted,
+  // WeakVH nulls itself.
+  WeakInstValueMap InstToDelete;
+  // Maps variable into dbg users (#dbg values/declares for this variable).
+  DebugVarMap DIVariables;
+};
 
 namespace llvm {
 class DIBuilder;
@@ -40,14 +63,61 @@ bool applyDebugifyMetadata(
 /// Returns true if any change was made.
 bool stripDebugifyMetadata(Module &M);
 
-llvm::ModulePass *createDebugifyModulePass();
-llvm::FunctionPass *createDebugifyFunctionPass();
+/// Collect original debug information before a pass.
+///
+/// \param M The module to collect debug information from.
+/// \param Functions A range of functions to collect debug information from.
+/// \param DebugInfoBeforePass DI metadata before a pass.
+/// \param Banner A prefix string to add to debug/error messages.
+/// \param NameOfWrappedPass A name of a pass to add to debug/error messages.
+bool collectDebugInfoMetadata(Module &M,
+                              iterator_range<Module::iterator> Functions,
+                              DebugInfoPerPass &DebugInfoBeforePass,
+                              StringRef Banner, StringRef NameOfWrappedPass);
 
-struct NewPMDebugifyPass : public llvm::PassInfoMixin<NewPMDebugifyPass> {
+/// Check original debug information after a pass.
+///
+/// \param M The module to collect debug information from.
+/// \param Functions A range of functions to collect debug information from.
+/// \param DebugInfoBeforePass DI metadata before a pass.
+/// \param Banner A prefix string to add to debug/error messages.
+/// \param NameOfWrappedPass A name of a pass to add to debug/error messages.
+bool checkDebugInfoMetadata(Module &M,
+                            iterator_range<Module::iterator> Functions,
+                            DebugInfoPerPass &DebugInfoBeforePass,
+                            StringRef Banner, StringRef NameOfWrappedPass,
+                            StringRef OrigDIVerifyBugsReportFilePath);
+} // namespace llvm
+
+/// Used to check whether we track synthetic or original debug info.
+enum class DebugifyMode { NoDebugify, SyntheticDebugInfo, OriginalDebugInfo };
+
+llvm::ModulePass *createDebugifyModulePass(
+    enum DebugifyMode Mode = DebugifyMode::SyntheticDebugInfo,
+    llvm::StringRef NameOfWrappedPass = "",
+    DebugInfoPerPass *DebugInfoBeforePass = nullptr);
+llvm::FunctionPass *createDebugifyFunctionPass(
+    enum DebugifyMode Mode = DebugifyMode::SyntheticDebugInfo,
+    llvm::StringRef NameOfWrappedPass = "",
+    DebugInfoPerPass *DebugInfoBeforePass = nullptr);
+
+class NewPMDebugifyPass : public llvm::PassInfoMixin<NewPMDebugifyPass> {
+  llvm::StringRef NameOfWrappedPass;
+  DebugInfoPerPass *DebugInfoBeforePass = nullptr;
+  enum DebugifyMode Mode = DebugifyMode::NoDebugify;
+public:
+  NewPMDebugifyPass(
+      enum DebugifyMode Mode = DebugifyMode::SyntheticDebugInfo,
+      llvm::StringRef NameOfWrappedPass = "",
+      DebugInfoPerPass *DebugInfoBeforePass = nullptr)
+      : NameOfWrappedPass(NameOfWrappedPass),
+        DebugInfoBeforePass(DebugInfoBeforePass), Mode(Mode) {}
+
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
 
-/// Track how much `debugify` information has been lost.
+/// Track how much `debugify` information (in the `synthetic` mode only)
+/// has been lost.
 struct DebugifyStatistics {
   /// Number of missing dbg.values.
   unsigned NumDbgValuesMissing = 0;
@@ -75,27 +145,79 @@ struct DebugifyStatistics {
 /// Map pass names to a per-pass DebugifyStatistics instance.
 using DebugifyStatsMap = llvm::MapVector<llvm::StringRef, DebugifyStatistics>;
 
-void exportDebugifyStats(StringRef Path, const DebugifyStatsMap &Map);
+llvm::ModulePass *createCheckDebugifyModulePass(
+    bool Strip = false, llvm::StringRef NameOfWrappedPass = "",
+    DebugifyStatsMap *StatsMap = nullptr,
+    enum DebugifyMode Mode = DebugifyMode::SyntheticDebugInfo,
+    DebugInfoPerPass *DebugInfoBeforePass = nullptr,
+    llvm::StringRef OrigDIVerifyBugsReportFilePath = "");
 
-llvm::ModulePass *
-createCheckDebugifyModulePass(bool Strip = false,
-                              llvm::StringRef NameOfWrappedPass = "",
-                              DebugifyStatsMap *StatsMap = nullptr);
+llvm::FunctionPass *createCheckDebugifyFunctionPass(
+    bool Strip = false, llvm::StringRef NameOfWrappedPass = "",
+    DebugifyStatsMap *StatsMap = nullptr,
+    enum DebugifyMode Mode = DebugifyMode::SyntheticDebugInfo,
+    DebugInfoPerPass *DebugInfoBeforePass = nullptr,
+    llvm::StringRef OrigDIVerifyBugsReportFilePath = "");
 
-llvm::FunctionPass *
-createCheckDebugifyFunctionPass(bool Strip = false,
-                                llvm::StringRef NameOfWrappedPass = "",
-                                DebugifyStatsMap *StatsMap = nullptr);
-
-struct NewPMCheckDebugifyPass
+class NewPMCheckDebugifyPass
     : public llvm::PassInfoMixin<NewPMCheckDebugifyPass> {
+  llvm::StringRef NameOfWrappedPass;
+  llvm::StringRef OrigDIVerifyBugsReportFilePath;
+  DebugifyStatsMap *StatsMap;
+  DebugInfoPerPass *DebugInfoBeforePass;
+  enum DebugifyMode Mode;
+  bool Strip;
+public:
+  NewPMCheckDebugifyPass(
+      bool Strip = false, llvm::StringRef NameOfWrappedPass = "",
+      DebugifyStatsMap *StatsMap = nullptr,
+      enum DebugifyMode Mode = DebugifyMode::SyntheticDebugInfo,
+      DebugInfoPerPass *DebugInfoBeforePass = nullptr,
+      llvm::StringRef OrigDIVerifyBugsReportFilePath = "")
+      : NameOfWrappedPass(NameOfWrappedPass),
+        OrigDIVerifyBugsReportFilePath(OrigDIVerifyBugsReportFilePath),
+        StatsMap(StatsMap), DebugInfoBeforePass(DebugInfoBeforePass), Mode(Mode),
+        Strip(Strip) {}
+
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
 
-struct DebugifyEachInstrumentation {
-  DebugifyStatsMap StatsMap;
+namespace llvm {
+void exportDebugifyStats(StringRef Path, const DebugifyStatsMap &Map);
+
+class DebugifyEachInstrumentation {
+  llvm::StringRef OrigDIVerifyBugsReportFilePath = "";
+  DebugInfoPerPass *DebugInfoBeforePass = nullptr;
+  enum DebugifyMode Mode = DebugifyMode::NoDebugify;
+  DebugifyStatsMap *DIStatsMap = nullptr;
+
+public:
 
   void registerCallbacks(PassInstrumentationCallbacks &PIC);
+  // Used within DebugifyMode::SyntheticDebugInfo mode.
+  void setDIStatsMap(DebugifyStatsMap &StatMap) { DIStatsMap = &StatMap; }
+  const DebugifyStatsMap &getDebugifyStatsMap() const { return *DIStatsMap; }
+  // Used within DebugifyMode::OriginalDebugInfo mode.
+  void setDebugInfoBeforePass(DebugInfoPerPass &PerPassMap) {
+    DebugInfoBeforePass = &PerPassMap;
+  }
+  DebugInfoPerPass &getDebugInfoPerPass() { return *DebugInfoBeforePass; }
+
+  void setOrigDIVerifyBugsReportFilePath(StringRef BugsReportFilePath) {
+    OrigDIVerifyBugsReportFilePath = BugsReportFilePath;
+  }
+  StringRef getOrigDIVerifyBugsReportFilePath() const {
+    return OrigDIVerifyBugsReportFilePath;
+  }
+
+  void setDebugifyMode(enum DebugifyMode M) { Mode = M; }
+
+  bool isSyntheticDebugInfo() const {
+    return Mode == DebugifyMode::SyntheticDebugInfo;
+  }
+  bool isOriginalDebugInfoMode() const {
+    return Mode == DebugifyMode::OriginalDebugInfo;
+  }
 };
 
 /// DebugifyCustomPassManager wraps each pass with the debugify passes if
@@ -103,8 +225,10 @@ struct DebugifyEachInstrumentation {
 /// NOTE: We support legacy custom pass manager only.
 /// TODO: Add New PM support for custom pass manager.
 class DebugifyCustomPassManager : public legacy::PassManager {
-  DebugifyStatsMap DIStatsMap;
-  bool EnableDebugifyEach = false;
+  StringRef OrigDIVerifyBugsReportFilePath;
+  DebugifyStatsMap *DIStatsMap = nullptr;
+  DebugInfoPerPass *DebugInfoBeforePass = nullptr;
+  enum DebugifyMode Mode = DebugifyMode::NoDebugify;
 
 public:
   using super = legacy::PassManager;
@@ -112,29 +236,35 @@ public:
   void add(Pass *P) override {
     // Wrap each pass with (-check)-debugify passes if requested, making
     // exceptions for passes which shouldn't see -debugify instrumentation.
-    bool WrapWithDebugify = EnableDebugifyEach && !P->getAsImmutablePass() &&
-                            !isIRPrintingPass(P) && !isBitcodeWriterPass(P);
+    bool WrapWithDebugify = Mode != DebugifyMode::NoDebugify &&
+                            !P->getAsImmutablePass() && !isIRPrintingPass(P) &&
+                            !isBitcodeWriterPass(P);
     if (!WrapWithDebugify) {
       super::add(P);
       return;
     }
 
-    // Apply -debugify/-check-debugify before/after each pass and collect
-    // debug info loss statistics.
+    // Either apply -debugify/-check-debugify before/after each pass and collect
+    // debug info loss statistics, or collect and check original debug info in
+    // the optimizations.
     PassKind Kind = P->getPassKind();
     StringRef Name = P->getPassName();
 
     // TODO: Implement Debugify for LoopPass.
     switch (Kind) {
     case PT_Function:
-      super::add(createDebugifyFunctionPass());
+      super::add(createDebugifyFunctionPass(Mode, Name, DebugInfoBeforePass));
       super::add(P);
-      super::add(createCheckDebugifyFunctionPass(true, Name, &DIStatsMap));
+      super::add(createCheckDebugifyFunctionPass(
+          isSyntheticDebugInfo(), Name, DIStatsMap, Mode, DebugInfoBeforePass,
+          OrigDIVerifyBugsReportFilePath));
       break;
     case PT_Module:
-      super::add(createDebugifyModulePass());
+      super::add(createDebugifyModulePass(Mode, Name, DebugInfoBeforePass));
       super::add(P);
-      super::add(createCheckDebugifyModulePass(true, Name, &DIStatsMap));
+      super::add(createCheckDebugifyModulePass(
+          isSyntheticDebugInfo(), Name, DIStatsMap, Mode, DebugInfoBeforePass,
+          OrigDIVerifyBugsReportFilePath));
       break;
     default:
       super::add(P);
@@ -142,10 +272,31 @@ public:
     }
   }
 
-  void enableDebugifyEach() { EnableDebugifyEach = true; }
+  // Used within DebugifyMode::SyntheticDebugInfo mode.
+  void setDIStatsMap(DebugifyStatsMap &StatMap) { DIStatsMap = &StatMap; }
+  // Used within DebugifyMode::OriginalDebugInfo mode.
+  void setDebugInfoBeforePass(DebugInfoPerPass &PerPassDI) {
+    DebugInfoBeforePass = &PerPassDI;
+  }
+  void setOrigDIVerifyBugsReportFilePath(StringRef BugsReportFilePath) {
+    OrigDIVerifyBugsReportFilePath = BugsReportFilePath;
+  }
+  StringRef getOrigDIVerifyBugsReportFilePath() const {
+    return OrigDIVerifyBugsReportFilePath;
+  }
 
-  const DebugifyStatsMap &getDebugifyStatsMap() const { return DIStatsMap; }
+  void setDebugifyMode(enum DebugifyMode M) { Mode = M; }
+
+  bool isSyntheticDebugInfo() const {
+    return Mode == DebugifyMode::SyntheticDebugInfo;
+  }
+  bool isOriginalDebugInfoMode() const {
+    return Mode == DebugifyMode::OriginalDebugInfo;
+  }
+
+  const DebugifyStatsMap &getDebugifyStatsMap() const { return *DIStatsMap; }
+  DebugInfoPerPass &getDebugInfoPerPass() { return *DebugInfoBeforePass; }
 };
 } // namespace llvm
 
-#endif // LLVM_TRANSFORM_UTILS_DEBUGIFY_H
+#endif // LLVM_TRANSFORMS_UTILS_DEBUGIFY_H

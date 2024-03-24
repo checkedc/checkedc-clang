@@ -9,8 +9,8 @@
 ;; Ensure that if a jump table is generated that it has Mapping Symbols
 ;; marking the data-in-code region.
 
-define void @foo(i32* %ptr, i32 %b) nounwind ssp {
-  %tmp = load i32, i32* %ptr, align 4
+define void @foo(ptr %ptr, i32 %b) nounwind ssp {
+  %tmp = load i32, ptr %ptr, align 4
   switch i32 %tmp, label %exit [
     i32 0, label %bb0
     i32 1, label %bb1
@@ -18,16 +18,16 @@ define void @foo(i32* %ptr, i32 %b) nounwind ssp {
     i32 3, label %bb3
   ]
 bb0:
-  store i32 %b, i32* %ptr, align 4
+  store i32 %b, ptr %ptr, align 4
   br label %exit
 bb1:
-  store i32 1, i32* %ptr, align 4
+  store i32 1, ptr %ptr, align 4
   br label %exit
 bb2:
-  store i32 2, i32* %ptr, align 4
+  store i32 2, ptr %ptr, align 4
   br label %exit
 bb3:
-  store i32 4, i32* %ptr, align 4
+  store i32 4, ptr %ptr, align 4
   br label %exit
 exit:
   ret void
@@ -43,7 +43,7 @@ exit:
 ;; ARM-NEXT:     Section: [[MIXED_SECT:[^ ]+]]
 
 ;; ARM:        Symbol {
-;; ARM:          Name: $a
+;; ARM:          Name: $d
 ;; ARM-NEXT:     Value: 0x{{[0-9A-F]+}}
 ;; ARM-NEXT:     Size: 0
 ;; ARM-NEXT:     Binding: Local
@@ -52,7 +52,7 @@ exit:
 ;; ARM-NEXT:     Section: [[MIXED_SECT]]
 
 ;; ARM:        Symbol {
-;; ARM:          Name: $d
+;; ARM:          Name: $a
 ;; ARM-NEXT:     Value: 0x{{[0-9A-F]+}}
 ;; ARM-NEXT:     Size: 0
 ;; ARM-NEXT:     Binding: Local
@@ -63,8 +63,8 @@ exit:
 ;; ARM-NOT:     ${{[atd]}}
 
 ;; TMB:        Symbol {
-;; TMB:          Name: $d.1
-;; TMB-NEXT:     Value: 0x{{[0-9A-F]+}}
+;; TMB:          Name: $t
+;; TMB-NEXT:     Value: 0x0
 ;; TMB-NEXT:     Size: 0
 ;; TMB-NEXT:     Binding: Local
 ;; TMB-NEXT:     Type: None
@@ -72,8 +72,8 @@ exit:
 ;; TMB-NEXT:     Section: [[MIXED_SECT:[^ ]+]]
 
 ;; TMB:        Symbol {
-;; TMB:          Name: $t
-;; TMB-NEXT:     Value: 0x0
+;; TMB:          Name: $d.1
+;; TMB-NEXT:     Value: 0x{{[0-9A-F]+}}
 ;; TMB-NEXT:     Size: 0
 ;; TMB-NEXT:     Binding: Local
 ;; TMB-NEXT:     Type: None

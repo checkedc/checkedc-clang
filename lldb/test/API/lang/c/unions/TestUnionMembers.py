@@ -5,8 +5,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestUnionMembers(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def test_union_members(self):
         self._load_exe()
 
@@ -21,8 +19,8 @@ class TestUnionMembers(TestBase):
         self.process = self.target.LaunchSimple(
             None, None, self.get_process_working_directory())
         self.assertTrue(self.process.IsValid(), PROCESS_IS_VALID)
-        self.assertTrue(
-            self.process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            self.process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
 
         thread = lldbutil.get_stopped_thread(

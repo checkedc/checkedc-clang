@@ -265,6 +265,7 @@ class Inst <string n, string p, string t, Operation o> {
   string Prototype = p;
   string Types = t;
   string ArchGuard = "";
+  string TargetGuard = "";
 
   Operation Operation = o;
   bit BigEndianSafe = 0;
@@ -272,6 +273,7 @@ class Inst <string n, string p, string t, Operation o> {
   bit isScalarShift = 0;
   bit isScalarNarrowShift = 0;
   bit isVCVT_N = 0;
+  bit isVXAR = 0;
   // For immediate checks: the immediate will be assumed to specify the lane of
   // a Q register. Only used for intrinsics which end up calling polymorphic
   // builtins.

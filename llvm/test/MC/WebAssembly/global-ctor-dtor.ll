@@ -1,4 +1,4 @@
-; RUN: llc -filetype=obj %s -o - | obj2yaml | FileCheck %s
+; RUN: llc -mcpu=mvp -filetype=obj %s -o - | obj2yaml | FileCheck %s
 
 target triple = "wasm32-unknown-unknown"
 
@@ -9,14 +9,14 @@ declare void @func1()
 declare void @func2()
 declare void @func3()
 
-@llvm.global_ctors = appending global [2 x { i32, void ()*, i8* }] [
-  { i32, void ()*, i8* } { i32 65535, void ()* @func0, i8* null },
-  { i32, void ()*, i8* } { i32 42,    void ()* @func1, i8* null }
+@llvm.global_ctors = appending global [2 x { i32, ptr, ptr }] [
+  { i32, ptr, ptr } { i32 65535, ptr @func0, ptr null },
+  { i32, ptr, ptr } { i32 42,    ptr @func1, ptr null }
 ]
 
-@llvm.global_dtors = appending global [2 x { i32, void ()*, i8* }] [
-  { i32, void ()*, i8* } { i32 65535, void ()* @func2, i8* null },
-  { i32, void ()*, i8* } { i32 42,    void ()* @func3, i8* null }
+@llvm.global_dtors = appending global [2 x { i32, ptr, ptr }] [
+  { i32, ptr, ptr } { i32 65535, ptr @func2, ptr null },
+  { i32, ptr, ptr } { i32 42,    ptr @func3, ptr null }
 ]
 
 ; CHECK:        - Type:            IMPORT
@@ -25,7 +25,7 @@ declare void @func3()
 ; CHECK-NEXT:         Field:           __linear_memory
 ; CHECK-NEXT:         Kind:            MEMORY
 ; CHECK-NEXT:         Memory:
-; CHECK-NEXT:           Initial:         0x1
+; CHECK-NEXT:           Minimum:         0x1
 ; CHECK-NEXT:       - Module:          env
 ; CHECK-NEXT:         Field:           func3
 ; CHECK-NEXT:         Kind:            FUNCTION
@@ -53,7 +53,7 @@ declare void @func3()
 ; CHECK-NEXT:           Index:           0
 ; CHECK-NEXT:           ElemType:        FUNCREF
 ; CHECK-NEXT:           Limits:
-; CHECK-NEXT:             Initial:         0x2
+; CHECK-NEXT:             Minimum:         0x2
 ; CHECK-NEXT:   - Type:            FUNCTION
 ; CHECK-NEXT:     FunctionTypes:   [ 0, 1, 0, 1 ]
 ; CHECK-NEXT:   - Type:            ELEM

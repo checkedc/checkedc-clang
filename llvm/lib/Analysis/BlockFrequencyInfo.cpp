@@ -12,7 +12,6 @@
 
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/Analysis/BlockFrequencyInfoImpl.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
@@ -25,8 +24,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
+#include <optional>
 #include <string>
 
 using namespace llvm;
@@ -47,6 +46,7 @@ static cl::opt<GVDAGType> ViewBlockFreqPropagationDAG(
                clEnumValN(GVDT_Count, "count", "display a graph using the real "
                                                "profile count if available.")));
 
+namespace llvm {
 cl::opt<std::string>
     ViewBlockFreqFuncName("view-bfi-func-name", cl::Hidden,
                           cl::desc("The option to specify "
@@ -86,6 +86,7 @@ cl::opt<std::string> PrintBlockFreqFuncName(
     "print-bfi-func-name", cl::Hidden,
     cl::desc("The option to specify the name of the function "
              "whose block frequency info is printed."));
+} // namespace llvm
 
 namespace llvm {
 
@@ -203,19 +204,19 @@ BlockFrequency BlockFrequencyInfo::getBlockFreq(const BasicBlock *BB) const {
   return BFI ? BFI->getBlockFreq(BB) : 0;
 }
 
-Optional<uint64_t>
+std::optional<uint64_t>
 BlockFrequencyInfo::getBlockProfileCount(const BasicBlock *BB,
                                          bool AllowSynthetic) const {
   if (!BFI)
-    return None;
+    return std::nullopt;
 
   return BFI->getBlockProfileCount(*getFunction(), BB, AllowSynthetic);
 }
 
-Optional<uint64_t>
+std::optional<uint64_t>
 BlockFrequencyInfo::getProfileCountFromFreq(uint64_t Freq) const {
   if (!BFI)
-    return None;
+    return std::nullopt;
   return BFI->getProfileCountFromFreq(*getFunction(), Freq);
 }
 

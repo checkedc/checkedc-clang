@@ -12,8 +12,6 @@
 
 #include "llvm/IR/Module.h"
 #include "SymbolTableListTraitsImpl.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -39,7 +37,6 @@
 #include "llvm/IR/TypeFinder.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueSymbolTable.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Error.h"
@@ -51,6 +48,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -72,9 +70,8 @@ template class llvm::SymbolTableListTraits<GlobalIFunc>;
 //
 
 Module::Module(StringRef MID, LLVMContext &C)
-    : Context(C), ValSymTab(std::make_unique<ValueSymbolTable>()),
-      Materializer(), ModuleID(std::string(MID)),
-      SourceFileName(std::string(MID)), DL("") {
+    : Context(C), ValSymTab(std::make_unique<ValueSymbolTable>(-1)),
+      ModuleID(std::string(MID)), SourceFileName(std::string(MID)), DL("") {
   Context.addModule(this);
 }
 
@@ -112,6 +109,10 @@ Module::createRNG(const StringRef Name) const {
 /// if a global with the specified name is not found.
 GlobalValue *Module::getNamedValue(StringRef Name) const {
   return cast_or_null<GlobalValue>(getValueSymbolTable().lookup(Name));
+}
+
+unsigned Module::getNumNamedValues() const {
+  return getValueSymbolTable().size();
 }
 
 /// getMDKindID - Return a unique non-zero ID for the specified metadata kind.
@@ -473,6 +474,56 @@ std::vector<StructType *> Module::getIdentifiedStructTypes() const {
   return Ret;
 }
 
+std::string Module::getUniqueIntrinsicName(StringRef BaseName, Intrinsic::ID Id,
+                                           const FunctionType *Proto) {
+  auto Encode = [&BaseName](unsigned Suffix) {
+    return (Twine(BaseName) + "." + Twine(Suffix)).str();
+  };
+
+  {
+    // fast path - the prototype is already known
+    auto UinItInserted = UniquedIntrinsicNames.insert({{Id, Proto}, 0});
+    if (!UinItInserted.second)
+      return Encode(UinItInserted.first->second);
+  }
+
+  // Not known yet. A new entry was created with index 0. Check if there already
+  // exists a matching declaration, or select a new entry.
+
+  // Start looking for names with the current known maximum count (or 0).
+  auto NiidItInserted = CurrentIntrinsicIds.insert({BaseName, 0});
+  unsigned Count = NiidItInserted.first->second;
+
+  // This might be slow if a whole population of intrinsics already existed, but
+  // we cache the values for later usage.
+  std::string NewName;
+  while (true) {
+    NewName = Encode(Count);
+    GlobalValue *F = getNamedValue(NewName);
+    if (!F) {
+      // Reserve this entry for the new proto
+      UniquedIntrinsicNames[{Id, Proto}] = Count;
+      break;
+    }
+
+    // A declaration with this name already exists. Remember it.
+    FunctionType *FT = dyn_cast<FunctionType>(F->getValueType());
+    auto UinItInserted = UniquedIntrinsicNames.insert({{Id, FT}, Count});
+    if (FT == Proto) {
+      // It was a declaration for our prototype. This entry was allocated in the
+      // beginning. Update the count to match the existing declaration.
+      UinItInserted.first->second = Count;
+      break;
+    }
+
+    ++Count;
+  }
+
+  NiidItInserted.first->second = Count + 1;
+
+  return NewName;
+}
+
 // dropAllReferences() - This function causes all the subelements to "let go"
 // of all references that they are maintaining.  This allows one to 'delete' a
 // whole module at a time, even though there may be circular references... first
@@ -509,6 +560,11 @@ unsigned Module::getDwarfVersion() const {
   return cast<ConstantInt>(Val->getValue())->getZExtValue();
 }
 
+bool Module::isDwarf64() const {
+  auto *Val = cast_or_null<ConstantAsMetadata>(getModuleFlag("DWARF64"));
+  return Val && cast<ConstantInt>(Val->getValue())->isOne();
+}
+
 unsigned Module::getCodeViewFlag() const {
   auto *Val = cast_or_null<ConstantAsMetadata>(getModuleFlag("CodeView"));
   if (!Val)
@@ -516,9 +572,9 @@ unsigned Module::getCodeViewFlag() const {
   return cast<ConstantInt>(Val->getValue())->getZExtValue();
 }
 
-unsigned Module::getInstructionCount() {
+unsigned Module::getInstructionCount() const {
   unsigned NumInstrs = 0;
-  for (Function &F : FunctionList)
+  for (const Function &F : FunctionList)
     NumInstrs += F.getInstructionCount();
   return NumInstrs;
 }
@@ -540,7 +596,9 @@ PICLevel::Level Module::getPICLevel() const {
 }
 
 void Module::setPICLevel(PICLevel::Level PL) {
-  addModuleFlag(ModFlagBehavior::Max, "PIC Level", PL);
+  // The merge result of a non-PIC object and a PIC object can only be reliably
+  // used as a non-PIC object, so use the Min merge behavior.
+  addModuleFlag(ModFlagBehavior::Min, "PIC Level", PL);
 }
 
 PIELevel::Level Module::getPIELevel() const {
@@ -557,11 +615,11 @@ void Module::setPIELevel(PIELevel::Level PL) {
   addModuleFlag(ModFlagBehavior::Max, "PIE Level", PL);
 }
 
-Optional<CodeModel::Model> Module::getCodeModel() const {
+std::optional<CodeModel::Model> Module::getCodeModel() const {
   auto *Val = cast_or_null<ConstantAsMetadata>(getModuleFlag("Code Model"));
 
   if (!Val)
-    return None;
+    return std::nullopt;
 
   return static_cast<CodeModel::Model>(
       cast<ConstantInt>(Val->getValue())->getZExtValue());
@@ -614,7 +672,85 @@ void Module::setRtLibUseGOT() {
   addModuleFlag(ModFlagBehavior::Max, "RtLibUseGOT", 1);
 }
 
-void Module::setSDKVersion(const VersionTuple &V) {
+UWTableKind Module::getUwtable() const {
+  if (auto *Val = cast_or_null<ConstantAsMetadata>(getModuleFlag("uwtable")))
+    return UWTableKind(cast<ConstantInt>(Val->getValue())->getZExtValue());
+  return UWTableKind::None;
+}
+
+void Module::setUwtable(UWTableKind Kind) {
+  addModuleFlag(ModFlagBehavior::Max, "uwtable", uint32_t(Kind));
+}
+
+FramePointerKind Module::getFramePointer() const {
+  auto *Val = cast_or_null<ConstantAsMetadata>(getModuleFlag("frame-pointer"));
+  return static_cast<FramePointerKind>(
+      Val ? cast<ConstantInt>(Val->getValue())->getZExtValue() : 0);
+}
+
+void Module::setFramePointer(FramePointerKind Kind) {
+  addModuleFlag(ModFlagBehavior::Max, "frame-pointer", static_cast<int>(Kind));
+}
+
+StringRef Module::getStackProtectorGuard() const {
+  Metadata *MD = getModuleFlag("stack-protector-guard");
+  if (auto *MDS = dyn_cast_or_null<MDString>(MD))
+    return MDS->getString();
+  return {};
+}
+
+void Module::setStackProtectorGuard(StringRef Kind) {
+  MDString *ID = MDString::get(getContext(), Kind);
+  addModuleFlag(ModFlagBehavior::Error, "stack-protector-guard", ID);
+}
+
+StringRef Module::getStackProtectorGuardReg() const {
+  Metadata *MD = getModuleFlag("stack-protector-guard-reg");
+  if (auto *MDS = dyn_cast_or_null<MDString>(MD))
+    return MDS->getString();
+  return {};
+}
+
+void Module::setStackProtectorGuardReg(StringRef Reg) {
+  MDString *ID = MDString::get(getContext(), Reg);
+  addModuleFlag(ModFlagBehavior::Error, "stack-protector-guard-reg", ID);
+}
+
+StringRef Module::getStackProtectorGuardSymbol() const {
+  Metadata *MD = getModuleFlag("stack-protector-guard-symbol");
+  if (auto *MDS = dyn_cast_or_null<MDString>(MD))
+    return MDS->getString();
+  return {};
+}
+
+void Module::setStackProtectorGuardSymbol(StringRef Symbol) {
+  MDString *ID = MDString::get(getContext(), Symbol);
+  addModuleFlag(ModFlagBehavior::Error, "stack-protector-guard-symbol", ID);
+}
+
+int Module::getStackProtectorGuardOffset() const {
+  Metadata *MD = getModuleFlag("stack-protector-guard-offset");
+  if (auto *CI = mdconst::dyn_extract_or_null<ConstantInt>(MD))
+    return CI->getSExtValue();
+  return INT_MAX;
+}
+
+void Module::setStackProtectorGuardOffset(int Offset) {
+  addModuleFlag(ModFlagBehavior::Error, "stack-protector-guard-offset", Offset);
+}
+
+unsigned Module::getOverrideStackAlignment() const {
+  Metadata *MD = getModuleFlag("override-stack-alignment");
+  if (auto *CI = mdconst::dyn_extract_or_null<ConstantInt>(MD))
+    return CI->getZExtValue();
+  return 0;
+}
+
+void Module::setOverrideStackAlignment(unsigned Align) {
+  addModuleFlag(ModFlagBehavior::Error, "override-stack-alignment", Align);
+}
+
+static void addSDKVersionMD(const VersionTuple &V, Module &M, StringRef Name) {
   SmallVector<unsigned, 3> Entries;
   Entries.push_back(V.getMajor());
   if (auto Minor = V.getMinor()) {
@@ -624,20 +760,24 @@ void Module::setSDKVersion(const VersionTuple &V) {
     // Ignore the 'build' component as it can't be represented in the object
     // file.
   }
-  addModuleFlag(ModFlagBehavior::Warning, "SDK Version",
-                ConstantDataArray::get(Context, Entries));
+  M.addModuleFlag(Module::ModFlagBehavior::Warning, Name,
+                  ConstantDataArray::get(M.getContext(), Entries));
 }
 
-VersionTuple Module::getSDKVersion() const {
-  auto *CM = dyn_cast_or_null<ConstantAsMetadata>(getModuleFlag("SDK Version"));
+void Module::setSDKVersion(const VersionTuple &V) {
+  addSDKVersionMD(V, *this, "SDK Version");
+}
+
+static VersionTuple getSDKVersionMD(Metadata *MD) {
+  auto *CM = dyn_cast_or_null<ConstantAsMetadata>(MD);
   if (!CM)
     return {};
   auto *Arr = dyn_cast_or_null<ConstantDataArray>(CM->getValue());
   if (!Arr)
     return {};
-  auto getVersionComponent = [&](unsigned Index) -> Optional<unsigned> {
+  auto getVersionComponent = [&](unsigned Index) -> std::optional<unsigned> {
     if (Index >= Arr->getNumElements())
-      return None;
+      return std::nullopt;
     return (unsigned)Arr->getElementAsInteger(Index);
   };
   auto Major = getVersionComponent(0);
@@ -653,8 +793,12 @@ VersionTuple Module::getSDKVersion() const {
   return Result;
 }
 
+VersionTuple Module::getSDKVersion() const {
+  return getSDKVersionMD(getModuleFlag("SDK Version"));
+}
+
 GlobalVariable *llvm::collectUsedGlobalVariables(
-    const Module &M, SmallPtrSetImpl<GlobalValue *> &Set, bool CompilerUsed) {
+    const Module &M, SmallVectorImpl<GlobalValue *> &Vec, bool CompilerUsed) {
   const char *Name = CompilerUsed ? "llvm.compiler.used" : "llvm.used";
   GlobalVariable *GV = M.getGlobalVariable(Name);
   if (!GV || !GV->hasInitializer())
@@ -663,7 +807,7 @@ GlobalVariable *llvm::collectUsedGlobalVariables(
   const ConstantArray *Init = cast<ConstantArray>(GV->getInitializer());
   for (Value *Op : Init->operands()) {
     GlobalValue *G = cast<GlobalValue>(Op->stripPointerCasts());
-    Set.insert(G);
+    Vec.push_back(G);
   }
   return GV;
 }
@@ -686,4 +830,23 @@ void Module::setPartialSampleProfileRatio(const ModuleSummaryIndex &Index) {
                         ProfileSummary::PSK_Sample);
     }
   }
+}
+
+StringRef Module::getDarwinTargetVariantTriple() const {
+  if (const auto *MD = getModuleFlag("darwin.target_variant.triple"))
+    return cast<MDString>(MD)->getString();
+  return "";
+}
+
+void Module::setDarwinTargetVariantTriple(StringRef T) {
+  addModuleFlag(ModFlagBehavior::Override, "darwin.target_variant.triple",
+                MDString::get(getContext(), T));
+}
+
+VersionTuple Module::getDarwinTargetVariantSDKVersion() const {
+  return getSDKVersionMD(getModuleFlag("darwin.target_variant.SDK Version"));
+}
+
+void Module::setDarwinTargetVariantSDKVersion(VersionTuple Version) {
+  addSDKVersionMD(Version, *this, "darwin.target_variant.SDK Version");
 }

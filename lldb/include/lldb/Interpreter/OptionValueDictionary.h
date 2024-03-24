@@ -12,17 +12,20 @@
 #include <map>
 
 #include "lldb/Interpreter/OptionValue.h"
+#include "lldb/lldb-private-types.h"
 
 namespace lldb_private {
 
-class OptionValueDictionary : public OptionValue {
+class OptionValueDictionary
+    : public Cloneable<OptionValueDictionary, OptionValue> {
 public:
   OptionValueDictionary(uint32_t type_mask = UINT32_MAX,
+                        OptionEnumValues enum_values = OptionEnumValues(),
                         bool raw_value_dump = true)
-      : OptionValue(), m_type_mask(type_mask), m_values(),
+      : m_type_mask(type_mask), m_enum_values(enum_values),
         m_raw_value_dump(raw_value_dump) {}
 
-  ~OptionValueDictionary() override {}
+  ~OptionValueDictionary() override = default;
 
   // Virtual subclass pure virtual overrides
 
@@ -30,6 +33,8 @@ public:
 
   void DumpValue(const ExecutionContext *exe_ctx, Stream &strm,
                  uint32_t dump_mask) override;
+
+  llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) override;
 
   Status
   SetValueFromString(llvm::StringRef value,
@@ -40,7 +45,8 @@ public:
     m_value_was_set = false;
   }
 
-  lldb::OptionValueSP DeepCopy() const override;
+  lldb::OptionValueSP
+  DeepCopy(const lldb::OptionValueSP &new_parent) const override;
 
   bool IsAggregateValue() const override { return true; }
 
@@ -74,6 +80,7 @@ public:
 protected:
   typedef std::map<ConstString, lldb::OptionValueSP> collection;
   uint32_t m_type_mask;
+  OptionEnumValues m_enum_values;
   collection m_values;
   bool m_raw_value_dump;
 };

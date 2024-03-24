@@ -26,6 +26,7 @@ static_library("Analysis") {
     "ExprMutationAnalyzer.cpp",
     "IssueHash.cpp",
     "LiveVariables.cpp",
+    "MacroExpansionContext.cpp",
     "ObjCNoReturn.cpp",
     "PathDiagnostic.cpp",
     "PostOrderCFGView.cpp",
@@ -37,5 +38,6 @@ static_library("Analysis") {
     "ThreadSafetyLogical.cpp",
     "ThreadSafetyTIL.cpp",
     "UninitializedValues.cpp",
+    "UnsafeBufferUsage.cpp",
   ]
 }

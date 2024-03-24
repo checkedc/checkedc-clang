@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class StaticVariableTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -40,9 +38,9 @@ class StaticVariableTestCase(TestBase):
         self.expect(
             'target variable A::g_points',
             VARIABLES_DISPLAYED_CORRECTLY,
-            patterns=['\(PointType \[[1-9]*\]\) A::g_points = {'])
+            patterns=['\(PointType\[[1-9]*\]\) A::g_points = {'])
         self.expect('target variable g_points', VARIABLES_DISPLAYED_CORRECTLY,
-                    substrs=['(PointType [2]) g_points'])
+                    substrs=['(PointType[2]) g_points'])
 
         # On Mac OS X, gcc 4.2 emits the wrong debug info for A::g_points.
         # A::g_points is an array of two elements.
@@ -74,7 +72,7 @@ class StaticVariableTestCase(TestBase):
             'target variable A::g_points',
             VARIABLES_DISPLAYED_CORRECTLY,
             patterns=[
-                '\(PointType \[[1-9]*\]\) A::g_points = {', '(x = 1, y = 2)',
+                '\(PointType\[[1-9]*\]\) A::g_points = {', '(x = 1, y = 2)',
                 '(x = 11, y = 22)'
             ])
 
@@ -92,7 +90,7 @@ class StaticVariableTestCase(TestBase):
             'target variable g_points',
             VARIABLES_DISPLAYED_CORRECTLY,
             substrs=[
-                '(PointType [2]) g_points', '(x = 1, y = 2)',
+                '(PointType[2]) g_points', '(x = 1, y = 2)',
                 '(x = 11, y = 22)', '(x = 3, y = 4)', '(x = 33, y = 44)'
             ])
 
@@ -138,36 +136,36 @@ class StaticVariableTestCase(TestBase):
         for val in valList:
             self.DebugSBValue(val)
             name = val.GetName()
-            self.assertTrue(name in ['g_points', 'A::g_points'])
+            self.assertIn(name, ['g_points', 'A::g_points'])
             if name == 'g_points':
-                self.assertTrue(
-                    val.GetValueType() == lldb.eValueTypeVariableStatic)
+                self.assertEqual(
+                    val.GetValueType(), lldb.eValueTypeVariableStatic)
                 self.assertEqual(val.GetNumChildren(), 2)
             elif name == 'A::g_points':
-                self.assertTrue(
-                    val.GetValueType() == lldb.eValueTypeVariableGlobal)
+                self.assertEqual(
+                    val.GetValueType(), lldb.eValueTypeVariableGlobal)
                 self.assertEqual(val.GetNumChildren(), 2)
                 child1 = val.GetChildAtIndex(1)
                 self.DebugSBValue(child1)
                 child1_x = child1.GetChildAtIndex(0)
                 self.DebugSBValue(child1_x)
-                self.assertTrue(child1_x.GetTypeName() == 'int' and
-                                child1_x.GetValue() == '11')
+                self.assertEqual(child1_x.GetTypeName(), 'int')
+                self.assertEqual(child1_x.GetValue(), '11')
 
         # SBFrame.FindValue() should also work.
         val = frame.FindValue("A::g_points", lldb.eValueTypeVariableGlobal)
         self.DebugSBValue(val)
-        self.assertTrue(val.GetName() == 'A::g_points')
+        self.assertEqual(val.GetName(), 'A::g_points')
 
         # Also exercise the "parameter" and "local" scopes while we are at it.
         val = frame.FindValue("argc", lldb.eValueTypeVariableArgument)
         self.DebugSBValue(val)
-        self.assertTrue(val.GetName() == 'argc')
+        self.assertEqual(val.GetName(), 'argc')
 
         val = frame.FindValue("argv", lldb.eValueTypeVariableArgument)
         self.DebugSBValue(val)
-        self.assertTrue(val.GetName() == 'argv')
+        self.assertEqual(val.GetName(), 'argv')
 
         val = frame.FindValue("hello_world", lldb.eValueTypeVariableLocal)
         self.DebugSBValue(val)
-        self.assertTrue(val.GetName() == 'hello_world')
+        self.assertEqual(val.GetName(), 'hello_world')

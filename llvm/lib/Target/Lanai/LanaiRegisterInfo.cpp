@@ -128,7 +128,7 @@ static unsigned getRRMOpcodeVariant(unsigned Opcode) {
   }
 }
 
-void LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+bool LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                             int SPAdj, unsigned FIOperandNum,
                                             RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected");
@@ -147,14 +147,14 @@ void LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   // Addressable stack objects are addressed using neg. offsets from fp
   // or pos. offsets from sp/basepointer
-  if (!HasFP || (needsStackRealignment(MF) && FrameIndex >= 0))
+  if (!HasFP || (hasStackRealignment(MF) && FrameIndex >= 0))
     Offset += MF.getFrameInfo().getStackSize();
 
   Register FrameReg = getFrameRegister(MF);
   if (FrameIndex >= 0) {
     if (hasBasePointer(MF))
       FrameReg = getBaseRegister();
-    else if (needsStackRealignment(MF))
+    else if (hasStackRealignment(MF))
       FrameReg = Lanai::SP;
   }
 
@@ -165,7 +165,7 @@ void LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if ((isSPLSOpcode(MI.getOpcode()) && !isInt<10>(Offset)) ||
       !isInt<16>(Offset)) {
     assert(RS && "Register scavenging must be on");
-    unsigned Reg = RS->FindUnusedReg(&Lanai::GPRRegClass);
+    Register Reg = RS->FindUnusedReg(&Lanai::GPRRegClass);
     if (!Reg)
       Reg = RS->scavengeRegister(&Lanai::GPRRegClass, II, SPAdj);
     assert(Reg && "Register scavenger failed");
@@ -200,7 +200,7 @@ void LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
           .addReg(Reg)
           .addImm(LPCC::ICC_T);
       MI.eraseFromParent();
-      return;
+      return true;
     }
     if (isSPLSOpcode(MI.getOpcode()) || isRMOpcode(MI.getOpcode())) {
       MI.setDesc(TII->get(getRRMOpcodeVariant(MI.getOpcode())));
@@ -218,7 +218,7 @@ void LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     MI.getOperand(FIOperandNum + 1)
         .ChangeToRegister(Reg, /*isDef=*/false, /*isImp=*/false,
                           /*isKill=*/true);
-    return;
+    return false;
   }
 
   // ALU arithmetic ops take unsigned immediates. If the offset is negative,
@@ -239,13 +239,14 @@ void LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, /*isDef=*/false);
     MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
   }
+  return false;
 }
 
 bool LanaiRegisterInfo::hasBasePointer(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   // When we need stack realignment and there are dynamic allocas, we can't
   // reference off of the stack pointer, so we reserve a base pointer.
-  if (needsStackRealignment(MF) && MFI.hasVarSizedObjects())
+  if (hasStackRealignment(MF) && MFI.hasVarSizedObjects())
     return true;
 
   return false;

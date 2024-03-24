@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace misc {
+namespace clang::tidy::misc {
 
 namespace {
 
@@ -127,7 +125,10 @@ void DefinitionsInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
          "in a header file; function definitions in header files can lead to "
          "ODR violations")
         << IsFullSpec << FD;
-    diag(FD->getLocation(), /*FixDescription=*/"make as 'inline'",
+    // inline is not allowed for main function.
+    if (FD->isMain())
+      return;
+    diag(FD->getLocation(), /*Description=*/"make as 'inline'",
          DiagnosticIDs::Note)
         << FixItHint::CreateInsertion(FD->getInnerLocStart(), "inline ");
   } else if (const auto *VD = dyn_cast<VarDecl>(ND)) {
@@ -146,6 +147,9 @@ void DefinitionsInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
     // Ignore inline variables.
     if (VD->isInline())
       return;
+    // Ignore partial specializations.
+    if (isa<VarTemplatePartialSpecializationDecl>(VD))
+      return;
 
     diag(VD->getLocation(),
          "variable %0 defined in a header file; "
@@ -154,6 +158,4 @@ void DefinitionsInHeadersCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace misc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::misc

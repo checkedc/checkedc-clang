@@ -5,11 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// Coding style: https://mlir.llvm.org/getting_started/DeveloperGuide/
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef OPTIMIZER_DIALECT_FIRATTR_H
-#define OPTIMIZER_DIALECT_FIRATTR_H
+#ifndef FORTRAN_OPTIMIZER_DIALECT_FIRATTR_H
+#define FORTRAN_OPTIMIZER_DIALECT_FIRATTR_H
 
-#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 
 namespace mlir {
 class DialectAsmParser;
@@ -25,6 +29,8 @@ struct RealAttributeStorage;
 struct TypeAttributeStorage;
 } // namespace detail
 
+using KindTy = unsigned;
+
 class ExactTypeAttr
     : public mlir::Attribute::AttrBase<ExactTypeAttr, mlir::Attribute,
                                        detail::TypeAttributeStorage> {
@@ -32,7 +38,7 @@ public:
   using Base::Base;
   using ValueType = mlir::Type;
 
-  static constexpr llvm::StringRef getAttrName() { return "instance"; }
+  static constexpr llvm::StringRef getAttrName() { return "type_is"; }
   static ExactTypeAttr get(mlir::Type value);
 
   mlir::Type getType() const;
@@ -45,7 +51,7 @@ public:
   using Base::Base;
   using ValueType = mlir::Type;
 
-  static constexpr llvm::StringRef getAttrName() { return "subsumed"; }
+  static constexpr llvm::StringRef getAttrName() { return "class_is"; }
   static SubclassAttr get(mlir::Type value);
 
   mlir::Type getType() const;
@@ -123,7 +129,7 @@ public:
   static constexpr llvm::StringRef getAttrName() { return "real"; }
   static RealAttr get(mlir::MLIRContext *ctxt, const ValueType &key);
 
-  int getFKind() const;
+  KindTy getFKind() const;
   llvm::APFloat getValue() const;
 };
 
@@ -136,4 +142,9 @@ void printFirAttribute(FIROpsDialect *dialect, mlir::Attribute attr,
 
 } // namespace fir
 
-#endif // OPTIMIZER_DIALECT_FIRATTR_H
+#include "flang/Optimizer/Dialect/FIREnumAttr.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "flang/Optimizer/Dialect/FIRAttr.h.inc"
+
+#endif // FORTRAN_OPTIMIZER_DIALECT_FIRATTR_H

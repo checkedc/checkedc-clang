@@ -68,8 +68,10 @@ namespace PR46791 { // also PR45782
   struct D : B, C {};
 
   static_assert(trait<A>::specialization == 0);
-  static_assert(trait<B>::specialization == 1); // FIXME expected-error {{failed}}
-  static_assert(trait<C>::specialization == 2); // FIXME expected-error {{failed}}
+  static_assert(trait<B>::specialization == 1); // FIXME expected-error {{failed}} \
+                                                // expected-note {{evaluates to '0 == 1'}}
+  static_assert(trait<C>::specialization == 2); // FIXME expected-error {{failed}} \
+                                                // expected-note {{evaluates to '0 == 2'}}
   static_assert(trait<D>::specialization == 0); // FIXME-error {{ambiguous partial specialization}}
 }
 
@@ -79,4 +81,25 @@ namespace TypeQualifier {
   template<int> struct A { using type = int; };
   template<typename T> A<sizeof(sizeof(T::error))>::type f() {} // expected-note {{'int' cannot be used prior to '::'}}
   int k = f<int>(); // expected-error {{no matching}}
+}
+
+namespace MemberOfInstantiationDependentBase {
+  template<typename T> struct A { template<int> void f(int); };
+  template<typename T> struct B { using X = A<T>; };
+  template<typename T> struct C1 : B<int> {
+    using X = typename C1::X;
+    void f(X *p) {
+      p->f<0>(0);
+      p->template f<0>(0);
+    }
+  };
+  template<typename T> struct C2 : B<int> {
+    using X = typename C2<T>::X;
+    void f(X *p) {
+      p->f<0>(0);
+      p->template f<0>(0);
+    }
+  };
+  void q(C1<int> *c) { c->f(0); }
+  void q(C2<int> *c) { c->f(0); }
 }

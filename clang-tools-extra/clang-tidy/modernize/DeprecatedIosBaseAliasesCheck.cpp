@@ -9,24 +9,23 @@
 #include "DeprecatedIosBaseAliasesCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 static constexpr std::array<StringRef, 5> DeprecatedTypes = {
     "::std::ios_base::io_state", "::std::ios_base::open_mode",
     "::std::ios_base::seek_dir", "::std::ios_base::streamoff",
     "::std::ios_base::streampos"};
 
-static llvm::Optional<const char *> getReplacementType(StringRef Type) {
-  return llvm::StringSwitch<llvm::Optional<const char *>>(Type)
+static std::optional<const char *> getReplacementType(StringRef Type) {
+  return llvm::StringSwitch<std::optional<const char *>>(Type)
       .Case("io_state", "iostate")
       .Case("open_mode", "openmode")
       .Case("seek_dir", "seekdir")
-      .Default(llvm::None);
+      .Default(std::nullopt);
 }
 
 void DeprecatedIosBaseAliasesCheck::registerMatchers(MatchFinder *Finder) {
@@ -59,7 +58,7 @@ void DeprecatedIosBaseAliasesCheck::check(
   SourceLocation EndLoc = IoStateLoc.getLocWithOffset(TypeName.size() - 1);
 
   if (Replacement) {
-    auto FixName = *Replacement;
+    const char *FixName = *Replacement;
     auto Builder = diag(IoStateLoc, "'std::ios_base::%0' is deprecated; use "
                                     "'std::ios_base::%1' instead")
                    << TypeName << FixName;
@@ -71,6 +70,4 @@ void DeprecatedIosBaseAliasesCheck::check(
     diag(IoStateLoc, "'std::ios_base::%0' is deprecated") << TypeName;
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

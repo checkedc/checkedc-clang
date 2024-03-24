@@ -12,9 +12,7 @@
 #include "../ClangTidyCheck.h"
 #include "../utils/FileExtensionsUtils.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 
 /// Finds and fixes header guards.
 /// The check supports these options:
@@ -38,6 +36,9 @@ public:
   void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
                            Preprocessor *ModuleExpanderPP) override;
 
+  /// Ensure that the provided header guard is a non-reserved identifier.
+  std::string sanitizeHeaderGuard(StringRef Guard);
+
   /// Returns ``true`` if the check should suggest inserting a trailing comment
   /// on the ``#endif`` of the header guard. It will use the same name as
   /// returned by ``HeaderGuardCheck::getHeaderGuard``.
@@ -60,8 +61,6 @@ private:
   utils::FileExtensionsSet HeaderFileExtensions;
 };
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_HEADERGUARD_H

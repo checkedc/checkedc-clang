@@ -16,10 +16,8 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/MemoryOpRemark.h"
 
 using namespace llvm;
 using namespace llvm::ore;
@@ -27,16 +25,37 @@ using namespace llvm::ore;
 #define DEBUG_TYPE "annotation-remarks"
 #define REMARK_PASS DEBUG_TYPE
 
-static void runImpl(Function &F) {
+static void tryEmitAutoInitRemark(ArrayRef<Instruction *> Instructions,
+                                  OptimizationRemarkEmitter &ORE,
+                                  const TargetLibraryInfo &TLI) {
+  // For every auto-init annotation generate a separate remark.
+  for (Instruction *I : Instructions) {
+    if (!AutoInitRemark::canHandle(I))
+      continue;
+
+    Function &F = *I->getParent()->getParent();
+    const DataLayout &DL = F.getParent()->getDataLayout();
+    AutoInitRemark Remark(ORE, REMARK_PASS, DL, TLI);
+    Remark.visit(I);
+  }
+}
+
+static void runImpl(Function &F, const TargetLibraryInfo &TLI) {
   if (!OptimizationRemarkEmitter::allowExtraAnalysis(F, REMARK_PASS))
     return;
 
+  // Track all annotated instructions aggregated based on their debug location.
+  DenseMap<MDNode *, SmallVector<Instruction *, 4>> DebugLoc2Annotated;
+
   OptimizationRemarkEmitter ORE(&F);
-  // For now, just generate a summary of the annotated instructions.
+  // First, generate a summary of the annotated instructions.
   MapVector<StringRef, unsigned> Mapping;
   for (Instruction &I : instructions(F)) {
     if (!I.hasMetadata(LLVMContext::MD_annotation))
       continue;
+    auto Iter = DebugLoc2Annotated.insert({I.getDebugLoc().getAsMDNode(), {}});
+    Iter.first->second.push_back(&I);
+
     for (const MDOperand &Op :
          I.getMetadata(LLVMContext::MD_annotation)->operands()) {
       auto Iter = Mapping.insert({cast<MDString>(Op.get())->getString(), 0});
@@ -44,47 +63,26 @@ static void runImpl(Function &F) {
     }
   }
 
-  Instruction *IP = &*F.begin()->begin();
   for (const auto &KV : Mapping)
-    ORE.emit(OptimizationRemarkAnalysis(REMARK_PASS, "AnnotationSummary", IP)
+    ORE.emit(OptimizationRemarkAnalysis(REMARK_PASS, "AnnotationSummary",
+                                        F.getSubprogram(), &F.front())
              << "Annotated " << NV("count", KV.second) << " instructions with "
              << NV("type", KV.first));
-}
 
-namespace {
+  // For each debug location, look for all the instructions with annotations and
+  // generate more detailed remarks to be displayed at that location.
+  for (auto &KV : DebugLoc2Annotated) {
+    // Don't generate remarks with no debug location.
+    if (!KV.first)
+      continue;
 
-struct AnnotationRemarksLegacy : public FunctionPass {
-  static char ID;
-
-  AnnotationRemarksLegacy() : FunctionPass(ID) {
-    initializeAnnotationRemarksLegacyPass(*PassRegistry::getPassRegistry());
+    tryEmitAutoInitRemark(KV.second, ORE, TLI);
   }
-
-  bool runOnFunction(Function &F) override {
-    runImpl(F);
-    return false;
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-  }
-};
-
-} // end anonymous namespace
-
-char AnnotationRemarksLegacy::ID = 0;
-
-INITIALIZE_PASS_BEGIN(AnnotationRemarksLegacy, "annotation-remarks",
-                      "Annotation Remarks", false, false)
-INITIALIZE_PASS_END(AnnotationRemarksLegacy, "annotation-remarks",
-                    "Annotation Remarks", false, false)
-
-FunctionPass *llvm::createAnnotationRemarksLegacyPass() {
-  return new AnnotationRemarksLegacy();
 }
 
 PreservedAnalyses AnnotationRemarksPass::run(Function &F,
                                              FunctionAnalysisManager &AM) {
-  runImpl(F);
+  auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
+  runImpl(F, TLI);
   return PreservedAnalyses::all();
 }

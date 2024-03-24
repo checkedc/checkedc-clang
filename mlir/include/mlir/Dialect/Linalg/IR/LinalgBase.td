@@ -13,6 +13,9 @@
 #ifndef LINALG_BASE
 #define LINALG_BASE
 
+include "mlir/Dialect/Utils/StructuredOpsUtils.td"
+include "mlir/Dialect/Linalg/IR/LinalgEnums.td"
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 
 def Linalg_Dialect : Dialect {
@@ -33,12 +36,47 @@ def Linalg_Dialect : Dialect {
   }];
   let cppNamespace = "::mlir::linalg";
   let dependentDialects = [
-    "AffineDialect", "StandardOpsDialect", "tensor::TensorDialect"
+    "arith::ArithDialect",
+    "AffineDialect",
+    "math::MathDialect",
+    "memref::MemRefDialect",
+    "tensor::TensorDialect",
   ];
+  let useDefaultAttributePrinterParser = 1;
+  let hasCanonicalizer = 1;
+  let hasOperationAttrVerify = 1;
+  let hasConstantMaterializer = 1;
+  let useFoldAPI = kEmitFoldAdaptorFolder;
+  let extraClassDeclaration = [{
+    /// Attribute name used to to memoize indexing maps for named ops.
+    constexpr const static ::llvm::StringLiteral
+        kMemoizedIndexingMapsAttrName = "linalg.memoized_indexing_maps";
+
+    using RegionBuilderFunType = llvm::function_ref<
+      void(ImplicitLocOpBuilder &b, Block &, ArrayRef<NamedAttribute>)>;
+    RegionBuilderFunType getRegionBuilder(StringRef name) {
+      return namedStructuredOpRegionBuilders.lookup(name);
+    }
+    private:
+      llvm::StringMap<RegionBuilderFunType> namedStructuredOpRegionBuilders;
+  }];
 }
 
-// Whether a type is a RangeType.
-def LinalgIsRangeTypePred : CPred<"$_self.isa<RangeType>()">;
-def Range : DialectType<Linalg_Dialect, LinalgIsRangeTypePred, "range">;
+// Define the function attribute enums matching the OpDSL functions.
+def UnaryFnAttr : EnumAttr<Linalg_Dialect, UnaryFn, "unary_fn"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+def BinaryFnAttr : EnumAttr<Linalg_Dialect, BinaryFn, "binary_fn"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+def TypeFnAttr : EnumAttr<Linalg_Dialect, TypeFn, "type_fn"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
+def IteratorTypeEnum : EnumAttr<Linalg_Dialect, IteratorType, "iterator_type"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+def IteratorTypeArrayAttr : TypedArrayAttrBase<IteratorTypeEnum,
+  "Iterator type should be an enum.">;
 
 #endif // LINALG_BASE

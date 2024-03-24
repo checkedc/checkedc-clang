@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// \file
+/// \file
 /// Contains the Analyses and Result Interpretation to select likely functions
 /// to Speculatively compile before they are called. [Purely Experimentation]
 //===----------------------------------------------------------------------===//
@@ -30,7 +30,7 @@ protected:
   bool isStraightLine(const Function &F);
 
 public:
-  using ResultTy = Optional<DenseMap<StringRef, DenseSet<StringRef>>>;
+  using ResultTy = std::optional<DenseMap<StringRef, DenseSet<StringRef>>>;
 };
 
 // Direct calls in high frequency basic blocks are extracted.

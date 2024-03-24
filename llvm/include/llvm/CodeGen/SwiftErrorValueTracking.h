@@ -12,16 +12,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SWIFTERRORVALUETRACKING_H
-#define SWIFTERRORVALUETRACKING_H
+#ifndef LLVM_CODEGEN_SWIFTERRORVALUETRACKING_H
+#define LLVM_CODEGEN_SWIFTERRORVALUETRACKING_H
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/Register.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DebugLoc.h"
-#include <functional>
-#include <type_traits>
 #include <utility>
 
 

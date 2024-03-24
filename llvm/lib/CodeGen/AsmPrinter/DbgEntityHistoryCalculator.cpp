@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/DbgEntityHistoryCalculator.h"
-#include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -27,6 +25,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <map>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -35,22 +34,6 @@ using namespace llvm;
 
 namespace {
 using EntryIndex = DbgValueHistoryMap::EntryIndex;
-}
-
-// If @MI is a DBG_VALUE with debug value described by a
-// defined register, returns the number of this register.
-// In the other case, returns 0.
-static Register isDescribedByReg(const MachineInstr &MI) {
-  assert(MI.isDebugValue());
-  assert(MI.getNumOperands() == 4);
-  // If the location of variable is an entry value (DW_OP_LLVM_entry_value)
-  // do not consider it as a register location.
-  if (MI.getDebugExpression()->isEntryValue())
-    return 0;
-  // If location of variable is described using a register (directly or
-  // indirectly), this register is always a first operand.
-  return MI.getDebugOperand(0).isReg() ? MI.getDebugOperand(0).getReg()
-                                       : Register();
 }
 
 void InstructionOrdering::initialize(const MachineFunction &MF) {
@@ -93,7 +76,7 @@ bool DbgValueHistoryMap::startDbgValue(InlinedEntity Var,
   auto &Entries = VarEntries[Var];
   if (!Entries.empty() && Entries.back().isDbgValue() &&
       !Entries.back().isClosed() &&
-      Entries.back().getInstr()->isIdenticalTo(MI)) {
+      Entries.back().getInstr()->isEquivalentDbgInstr(MI)) {
     LLVM_DEBUG(dbgs() << "Coalescing identical DBG_VALUE entries:\n"
                       << "\t" << Entries.back().getInstr() << "\t" << MI
                       << "\n");
@@ -127,20 +110,20 @@ void DbgValueHistoryMap::Entry::endEntry(EntryIndex Index) {
 /// range in Ranges. EndMI can be nullptr to indicate that the range is
 /// unbounded. Assumes Ranges is ordered and disjoint. Returns true and points
 /// to the first intersecting scope range if one exists.
-static Optional<ArrayRef<InsnRange>::iterator>
+static std::optional<ArrayRef<InsnRange>::iterator>
 intersects(const MachineInstr *StartMI, const MachineInstr *EndMI,
            const ArrayRef<InsnRange> &Ranges,
            const InstructionOrdering &Ordering) {
   for (auto RangesI = Ranges.begin(), RangesE = Ranges.end();
        RangesI != RangesE; ++RangesI) {
     if (EndMI && Ordering.isBefore(EndMI, RangesI->first))
-      return None;
+      return std::nullopt;
     if (EndMI && !Ordering.isBefore(RangesI->second, EndMI))
       return RangesI;
     if (Ordering.isBefore(StartMI, RangesI->second))
       return RangesI;
   }
-  return None;
+  return std::nullopt;
 }
 
 void DbgValueHistoryMap::trimLocationRanges(
@@ -220,7 +203,7 @@ void DbgValueHistoryMap::trimLocationRanges(
       if (auto R = intersects(StartMI, EndMI, ScopeRanges, Ordering)) {
         // Adjust ScopeRanges to exclude ranges which subsequent location ranges
         // cannot possibly intersect.
-        ScopeRanges = ArrayRef<InsnRange>(R.getValue(), ScopeRanges.end());
+        ScopeRanges = ArrayRef<InsnRange>(*R, ScopeRanges.end());
       } else {
         // If the location range does not intersect any scope range then the
         // DBG_VALUE which opened this location range is usless, mark it for
@@ -268,9 +251,26 @@ void DbgValueHistoryMap::trimLocationRanges(
 
     // Now actually remove the entries. Iterate backwards so that our remaining
     // ToRemove indices are valid after each erase.
-    for (auto Itr = ToRemove.rbegin(), End = ToRemove.rend(); Itr != End; ++Itr)
-      HistoryMapEntries.erase(HistoryMapEntries.begin() + *Itr);
+    for (EntryIndex Idx : llvm::reverse(ToRemove))
+      HistoryMapEntries.erase(HistoryMapEntries.begin() + Idx);
   }
+}
+
+bool DbgValueHistoryMap::hasNonEmptyLocation(const Entries &Entries) const {
+  for (const auto &Entry : Entries) {
+    if (!Entry.isDbgValue())
+      continue;
+
+    const MachineInstr *MI = Entry.getInstr();
+    assert(MI->isDebugValue());
+    // A DBG_VALUE $noreg is an empty variable location
+    if (MI->isUndefDebugValue())
+      continue;
+
+    return true;
+  }
+
+  return false;
 }
 
 void DbgLabelInstrMap::addInstr(InlinedEntity Label, const MachineInstr &MI) {
@@ -316,23 +316,43 @@ static void addRegDescribedVar(RegDescribedVarsMap &RegVars, unsigned RegNo,
 }
 
 /// Create a clobbering entry and end all open debug value entries
-/// for \p Var that are described by \p RegNo using that entry.
+/// for \p Var that are described by \p RegNo using that entry. Inserts into \p
+/// FellowRegisters the set of Registers that were also used to describe \p Var
+/// alongside \p RegNo.
 static void clobberRegEntries(InlinedEntity Var, unsigned RegNo,
                               const MachineInstr &ClobberingInstr,
                               DbgValueEntriesMap &LiveEntries,
-                              DbgValueHistoryMap &HistMap) {
+                              DbgValueHistoryMap &HistMap,
+                              SmallVectorImpl<Register> &FellowRegisters) {
   EntryIndex ClobberIndex = HistMap.startClobber(Var, ClobberingInstr);
-
   // Close all entries whose values are described by the register.
   SmallVector<EntryIndex, 4> IndicesToErase;
+  // If a given register appears in a live DBG_VALUE_LIST for Var alongside the
+  // clobbered register, and never appears in a live DBG_VALUE* for Var without
+  // the clobbered register, then it is no longer linked to the variable.
+  SmallSet<Register, 4> MaybeRemovedRegisters;
+  SmallSet<Register, 4> KeepRegisters;
   for (auto Index : LiveEntries[Var]) {
     auto &Entry = HistMap.getEntry(Var, Index);
     assert(Entry.isDbgValue() && "Not a DBG_VALUE in LiveEntries");
-    if (isDescribedByReg(*Entry.getInstr()) == RegNo) {
+    if (Entry.getInstr()->isDebugEntryValue())
+      continue;
+    if (Entry.getInstr()->hasDebugOperandForReg(RegNo)) {
       IndicesToErase.push_back(Index);
       Entry.endEntry(ClobberIndex);
+      for (const auto &MO : Entry.getInstr()->debug_operands())
+        if (MO.isReg() && MO.getReg() && MO.getReg() != RegNo)
+          MaybeRemovedRegisters.insert(MO.getReg());
+    } else {
+      for (const auto &MO : Entry.getInstr()->debug_operands())
+        if (MO.isReg() && MO.getReg())
+          KeepRegisters.insert(MO.getReg());
     }
   }
+
+  for (Register Reg : MaybeRemovedRegisters)
+    if (!KeepRegisters.contains(Reg))
+      FellowRegisters.push_back(Reg);
 
   // Drop all entries that have ended.
   for (auto Index : IndicesToErase)
@@ -361,17 +381,24 @@ static void handleNewDebugValue(InlinedEntity Var, const MachineInstr &DV,
         IndicesToErase.push_back(Index);
         Entry.endEntry(NewIndex);
       }
-      if (Register Reg = isDescribedByReg(DV))
-        TrackedRegs[Reg] |= !Overlaps;
+      if (!DV.isDebugEntryValue())
+        for (const MachineOperand &Op : DV.debug_operands())
+          if (Op.isReg() && Op.getReg())
+            TrackedRegs[Op.getReg()] |= !Overlaps;
     }
 
     // If the new debug value is described by a register, add tracking of
     // that register if it is not already tracked.
-    if (Register NewReg = isDescribedByReg(DV)) {
-      if (!TrackedRegs.count(NewReg))
-        addRegDescribedVar(RegVars, NewReg, Var);
-      LiveEntries[Var].insert(NewIndex);
-      TrackedRegs[NewReg] = true;
+    if (!DV.isDebugEntryValue()) {
+      for (const MachineOperand &Op : DV.debug_operands()) {
+        if (Op.isReg() && Op.getReg()) {
+          Register NewReg = Op.getReg();
+          if (!TrackedRegs.count(NewReg))
+            addRegDescribedVar(RegVars, NewReg, Var);
+          LiveEntries[Var].insert(NewIndex);
+          TrackedRegs[NewReg] = true;
+        }
+      }
     }
 
     // Drop tracking of registers that are no longer used.
@@ -394,9 +421,16 @@ static void clobberRegisterUses(RegDescribedVarsMap &RegVars,
                                 DbgValueEntriesMap &LiveEntries,
                                 const MachineInstr &ClobberingInstr) {
   // Iterate over all variables described by this register and add this
-  // instruction to their history, clobbering it.
-  for (const auto &Var : I->second)
-    clobberRegEntries(Var, I->first, ClobberingInstr, LiveEntries, HistMap);
+  // instruction to their history, clobbering it. All registers that also
+  // describe the clobbered variables (i.e. in variadic debug values) will have
+  // those Variables removed from their DescribedVars.
+  for (const auto &Var : I->second) {
+    SmallVector<Register, 4> FellowRegisters;
+    clobberRegEntries(Var, I->first, ClobberingInstr, LiveEntries, HistMap,
+                      FellowRegisters);
+    for (Register RegNo : FellowRegisters)
+      dropRegDescribedVar(RegVars, RegNo, Var);
+  }
   RegVars.erase(I);
 }
 
@@ -461,7 +495,7 @@ void llvm::calculateDbgEntityHistory(const MachineFunction *MF,
             continue;
           // If this is a virtual register, only clobber it since it doesn't
           // have aliases.
-          if (Register::isVirtualRegister(MO.getReg()))
+          if (MO.getReg().isVirtual())
             clobberRegisterUses(RegVars, MO.getReg(), DbgValues, LiveEntries,
                                 MI);
           // If this is a register def operand, it may end a debug value

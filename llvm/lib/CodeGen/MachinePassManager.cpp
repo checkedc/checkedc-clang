@@ -41,17 +41,12 @@ Error MachineFunctionPassManager::run(Module &M,
     // current pipeline is the top-level pipeline. Callbacks are not used after
     // current pipeline.
     PI.pushBeforeNonSkippedPassCallback([&MFAM](StringRef PassID, Any IR) {
-      assert(any_isa<const MachineFunction *>(IR));
+      assert(any_cast<const MachineFunction *>(&IR));
       const MachineFunction *MF = any_cast<const MachineFunction *>(IR);
       assert(MF && "Machine function should be valid for printing");
       std::string Banner = std::string("After ") + std::string(PassID);
       verifyMachineFunction(&MFAM, Banner, *MF);
     });
-  }
-
-  if (DebugLogging) {
-    dbgs() << "Starting " << getTypeName<MachineFunction>()
-           << " pass manager run.\n";
   }
 
   for (auto &F : InitializationFuncs) {
@@ -64,9 +59,6 @@ Error MachineFunctionPassManager::run(Module &M,
   do {
     // Run machine module passes
     for (; MachineModulePasses.count(Idx) && Idx != Size; ++Idx) {
-      if (DebugLogging)
-        dbgs() << "Running pass: " << Passes[Idx]->name() << " on "
-               << M.getName() << '\n';
       if (auto Err = MachineModulePasses.at(Idx)(M, MFAM))
         return Err;
     }
@@ -108,11 +100,6 @@ Error MachineFunctionPassManager::run(Module &M,
   for (auto &F : FinalizationFuncs) {
     if (auto Err = F(M, MFAM))
       return Err;
-  }
-
-  if (DebugLogging) {
-    dbgs() << "Finished " << getTypeName<MachineFunction>()
-           << " pass manager run.\n";
   }
 
   return Error::success();

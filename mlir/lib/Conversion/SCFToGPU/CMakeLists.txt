@@ -9,14 +9,16 @@ add_mlir_conversion_library(MLIRSCFToGPU
   MLIRConversionPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffine
+  MLIRAffineDialect
   MLIRAffineToStandard
-  MLIRComplex
-  MLIRGPU
+  MLIRArithDialect
+  MLIRComplexDialect
+  MLIRGPUTransforms
   MLIRIR
-  MLIRLinalg
+  MLIRLinalgDialect
+  MLIRMemRefDialect
   MLIRPass
-  MLIRStandard
   MLIRSupport
+  MLIRSideEffectInterfaces
   MLIRTransforms
   )

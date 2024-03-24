@@ -9,8 +9,6 @@ from lldbsuite.test import lldbutil
 
 class TestCppNsImport(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def test_with_run_command(self):
         """Tests imported namespaces in C++."""
         self.build()
@@ -47,8 +45,8 @@ class TestCppNsImport(TestBase):
         self.assertTrue(process.IsValid(), PROCESS_IS_VALID)
 
         # Get the thread of the process
-        self.assertTrue(
-            process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
@@ -120,8 +118,8 @@ class TestCppNsImport(TestBase):
         process.Continue()
 
         # Get the thread of the process
-        self.assertTrue(
-            process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)

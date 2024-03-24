@@ -23,8 +23,58 @@ def FastmathFlagsInterface : OpInterface<"FastmathFlagsInterface"> {
   let cppNamespace = "::mlir::LLVM";
 
   let methods = [
-    InterfaceMethod<"Get fastmath flags", "::mlir::LLVM::FastmathFlags", "fastmathFlags">,
+    InterfaceMethod<
+      /*desc=*/        "Returns a FastmathFlagsAttr attribute for the operation",
+      /*returnType=*/  "FastmathFlagsAttr",
+      /*methodName=*/  "getFastmathAttr",
+      /*args=*/        (ins),
+      /*methodBody=*/  [{}],
+      /*defaultImpl=*/ [{
+        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
+        return op.getFastmathFlagsAttr();
+      }]
+      >,
+    StaticInterfaceMethod<
+      /*desc=*/        [{Returns the name of the FastmathFlagsAttr attribute
+                         for the operation}],
+      /*returnType=*/  "StringRef",
+      /*methodName=*/  "getFastmathAttrName",
+      /*args=*/        (ins),
+      /*methodBody=*/  [{}],
+      /*defaultImpl=*/ [{
+        return "fastmathFlags";
+      }]
+      >
   ];
 }
+
+//===----------------------------------------------------------------------===//
+// LLVM dialect type interfaces.
+//===----------------------------------------------------------------------===//
+
+// An interface for LLVM pointer element types.
+def LLVM_PointerElementTypeInterface
+    : TypeInterface<"PointerElementTypeInterface"> {
+  let cppNamespace = "::mlir::LLVM";
+
+  let description = [{
+    An interface for types that are allowed as elements of LLVM pointer type.
+    Such types must have a size.
+  }];
+
+  let methods = [
+    InterfaceMethod<
+      /*description=*/"Returns the size of the type in bytes.",
+      /*retTy=*/"unsigned",
+      /*methodName=*/"getSizeInBytes",
+      /*args=*/(ins "const DataLayout &":$dataLayout),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return dataLayout.getTypeSize($_type);
+      }]
+    >
+  ];
+}
+
 
 #endif // LLVM_OPS_INTERFACES

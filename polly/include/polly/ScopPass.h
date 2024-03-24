@@ -20,12 +20,24 @@
 #include "polly/ScopInfo.h"
 #include "llvm/ADT/PriorityWorklist.h"
 #include "llvm/Analysis/RegionPass.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassManagerImpl.h"
 
-using namespace llvm;
-
 namespace polly {
+using llvm::AllAnalysesOn;
+using llvm::AnalysisManager;
+using llvm::DominatorTreeAnalysis;
+using llvm::InnerAnalysisManagerProxy;
+using llvm::LoopAnalysis;
+using llvm::OuterAnalysisManagerProxy;
+using llvm::PassManager;
+using llvm::RegionInfoAnalysis;
+using llvm::ScalarEvolutionAnalysis;
+using llvm::SmallPriorityWorklist;
+using llvm::TargetIRAnalysis;
+using llvm::TargetTransformInfo;
+
 class Scop;
 class SPMUpdater;
 struct ScopStandardAnalysisResults;
@@ -112,7 +124,7 @@ extern template class OuterAnalysisManagerProxy<FunctionAnalysisManager, Scop,
 namespace polly {
 
 template <typename AnalysisManagerT, typename IRUnitT, typename... ExtraArgTs>
-class OwningInnerAnalysisManagerProxy
+class OwningInnerAnalysisManagerProxy final
     : public InnerAnalysisManagerProxy<AnalysisManagerT, IRUnitT> {
 public:
   OwningInnerAnalysisManagerProxy()
@@ -150,7 +162,7 @@ class ScopPass : public RegionPass {
   Scop *S;
 
 protected:
-  explicit ScopPass(char &ID) : RegionPass(ID), S(0) {}
+  explicit ScopPass(char &ID) : RegionPass(ID), S(nullptr) {}
 
   /// runOnScop - This method must be overloaded to perform the
   /// desired Polyhedral transformation or analysis.
@@ -163,7 +175,7 @@ protected:
   /// getAnalysisUsage - Subclasses that override getAnalysisUsage
   /// must call this.
   ///
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const override;
+  void getAnalysisUsage(AnalysisUsage &AU) const override;
 
 private:
   bool runOnRegion(Region *R, RGPassManager &RGM) override;
@@ -176,9 +188,10 @@ struct ScopStandardAnalysisResults {
   ScalarEvolution &SE;
   LoopInfo &LI;
   RegionInfo &RI;
+  TargetTransformInfo &TTI;
 };
 
-class SPMUpdater {
+class SPMUpdater final {
 public:
   SPMUpdater(SmallPriorityWorklist<Region *, 4> &Worklist,
              ScopAnalysisManager &SAM)
@@ -199,21 +212,28 @@ private:
   bool InvalidateCurrentScop;
   SmallPriorityWorklist<Region *, 4> &Worklist;
   ScopAnalysisManager &SAM;
-  template <typename ScopPassT> friend class FunctionToScopPassAdaptor;
+  template <typename ScopPassT> friend struct FunctionToScopPassAdaptor;
 };
 
 template <typename ScopPassT>
-class FunctionToScopPassAdaptor
-    : public PassInfoMixin<FunctionToScopPassAdaptor<ScopPassT>> {
-public:
+struct FunctionToScopPassAdaptor final
+    : PassInfoMixin<FunctionToScopPassAdaptor<ScopPassT>> {
   explicit FunctionToScopPassAdaptor(ScopPassT Pass) : Pass(std::move(Pass)) {}
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
-    PreservedAnalyses PA = PreservedAnalyses::all();
-    auto &SD = AM.getResult<ScopAnalysis>(F);
-    auto &SI = AM.getResult<ScopInfoAnalysis>(F);
-    if (SI.empty())
-      return PA;
+    ScopDetection &SD = AM.getResult<ScopAnalysis>(F);
+    ScopInfo &SI = AM.getResult<ScopInfoAnalysis>(F);
+    if (SI.empty()) {
+      // With no scops having been detected, no IR changes have been made and
+      // therefore all analyses are preserved. However, we must still free the
+      // Scop analysis results which may hold AssertingVH that cause an error
+      // if its value is destroyed.
+      PreservedAnalyses PA = PreservedAnalyses::all();
+      PA.abandon<ScopInfoAnalysis>();
+      PA.abandon<ScopAnalysis>();
+      AM.invalidate(F, PA);
+      return PreservedAnalyses::all();
+    }
 
     SmallPriorityWorklist<Region *, 4> Worklist;
     for (auto &S : SI)
@@ -224,7 +244,8 @@ public:
                                       AM.getResult<ScopInfoAnalysis>(F),
                                       AM.getResult<ScalarEvolutionAnalysis>(F),
                                       AM.getResult<LoopAnalysis>(F),
-                                      AM.getResult<RegionInfoAnalysis>(F)};
+                                      AM.getResult<RegionInfoAnalysis>(F),
+                                      AM.getResult<TargetIRAnalysis>(F)};
 
     ScopAnalysisManager &SAM =
         AM.getResult<ScopAnalysisManagerFunctionProxy>(F).getManager();
@@ -233,7 +254,7 @@ public:
 
     while (!Worklist.empty()) {
       Region *R = Worklist.pop_back_val();
-      if (!SD.isMaxRegionInScop(*R))
+      if (!SD.isMaxRegionInScop(*R, /*Verify=*/false))
         continue;
       Scop *scop = SI.getScop(R);
       if (!scop)
@@ -243,20 +264,18 @@ public:
       PreservedAnalyses PassPA = Pass.run(*scop, SAM, AR, Updater);
 
       SAM.invalidate(*scop, PassPA);
-      PA.intersect(std::move(PassPA));
       if (Updater.invalidateCurrentScop())
         SI.recompute();
     };
 
-    PA.preserveSet<AllAnalysesOn<Scop>>();
-    PA.preserve<ScopAnalysisManagerFunctionProxy>();
-    PA.preserve<DominatorTreeAnalysis>();
-    PA.preserve<ScopAnalysis>();
-    PA.preserve<ScopInfoAnalysis>();
-    PA.preserve<ScalarEvolutionAnalysis>();
-    PA.preserve<LoopAnalysis>();
-    PA.preserve<RegionInfoAnalysis>();
-    return PA;
+    // FIXME: For the same reason as we add a BarrierNoopPass in the legacy pass
+    // manager, do not preserve any analyses. While CodeGeneration may preserve
+    // IR analyses sufficiently to process another Scop in the same function (it
+    // has to, otherwise the ScopDetection result itself would need to be
+    // invalidated), it is not sufficient for other purposes. For instance,
+    // CodeGeneration does not inform LoopInfo about new loops in the
+    // Polly-generated IR.
+    return PreservedAnalyses::none();
   }
 
 private:

@@ -1,4 +1,4 @@
-; RUN: llc < %s -march=mips -mcpu=mips32 -mips-ssection-threshold=8 \
+; RUN: llc < %s -mtriple=mips -mcpu=mips32 -mips-ssection-threshold=8 \
 ; RUN:     -relocation-model=static -mattr=+noabicalls -mgpopt \
 ; RUN:   | FileCheck %s
 
@@ -7,7 +7,7 @@
 ; small data section. Also test that explicitly placing something in the small
 ; data section uses %gp_rel addressing mode.
 
-@a = global [2 x i32] zeroinitializer, section ".rodata", align 4
+@a = constant [2 x i32] zeroinitializer, section ".rodata", align 4
 @b = global [4 x i32] zeroinitializer, section ".sdata", align 4
 @c = global [4 x i32] zeroinitializer, section ".sbss", align 4
 
@@ -17,7 +17,7 @@
 
 define i32 @g() {
 entry:
-  %0 = load i32, i32* getelementptr inbounds ([2 x i32], [2 x i32]* @a, i32 0, i32 0), align 4
+  %0 = load i32, ptr @a, align 4
   ret i32 %0
 }
 
@@ -26,7 +26,7 @@ entry:
 
 define i32 @f() {
 entry:
-  %0 = load i32, i32* getelementptr inbounds ([4 x i32], [4 x i32]* @b, i32 0, i32 0), align 4
+  %0 = load i32, ptr @b, align 4
   ret i32 %0
 }
 
@@ -35,7 +35,7 @@ entry:
 
 define i32 @h() {
 entry:
-  %0 = load i32, i32* getelementptr inbounds ([4 x i32], [4 x i32]* @c, i32 0, i32 0), align 4
+  %0 = load i32, ptr @c, align 4
   ret i32 %0
 }
 

@@ -2,24 +2,25 @@
 # RUN: llvm-mc -filetype=obj -triple=powerpc %s -o %t.o
 
 # RUN: ld.lld -shared %t.o -o %t.so
-# RUN: llvm-readobj -r %t.so | FileCheck --check-prefix=IE-REL %s
+# RUN: llvm-readobj -d -r %t.so | FileCheck --check-prefix=IE-REL %s
 # RUN: llvm-objdump -d --no-show-raw-insn %t.so | FileCheck --check-prefix=IE %s
 
 # RUN: ld.lld %t.o -o %t
 # RUN: llvm-readelf -r %t | FileCheck --check-prefix=NOREL %s
 # RUN: llvm-objdump -d --no-show-raw-insn %t | FileCheck --check-prefix=LE %s
 
+# IE-REL:      FLAGS STATIC_TLS
 ## A non-preemptable symbol (b) has 0 st_shndx.
 # IE-REL:      .rela.dyn {
-# IE-REL-NEXT:   0x20224 R_PPC_TPREL32 - 0xC
-# IE-REL-NEXT:   0x20220 R_PPC_TPREL32 a 0x0
+# IE-REL-NEXT:   0x20238 R_PPC_TPREL32 - 0xC
+# IE-REL-NEXT:   0x20234 R_PPC_TPREL32 a 0x0
 # IE-REL-NEXT: }
 
-## &.got[0] - _GLOBAL_OFFSET_TABLE_ = 0
-# IE:      lwz 10, 0(9)
+## &.got[3] - _GLOBAL_OFFSET_TABLE_ = 12
+# IE:      lwz 10, 12(9)
 # IE-NEXT: add 10, 10, 2
-## &.got[1] - _GLOBAL_OFFSET_TABLE_ = 4
-# IE-NEXT: lwz 8, 4(7)
+## &.got[4] - _GLOBAL_OFFSET_TABLE_ = 16
+# IE-NEXT: lwz 8, 16(7)
 # IE-NEXT: lbzx 10, 8, 2
 
 # NOREL: no relocations

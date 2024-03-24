@@ -15,8 +15,6 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -54,7 +52,7 @@ void FaultMaps::serializeToFaultMapSection() {
   // Create the section.
   MCSection *FaultMapSection =
       OutContext.getObjectFileInfo()->getFaultMapSection();
-  OS.SwitchSection(FaultMapSection);
+  OS.switchSection(FaultMapSection);
 
   // Emit a dummy symbol to force section inclusion.
   OS.emitLabel(OutContext.getOrCreateSymbol(Twine("__LLVM_FaultMaps")));
@@ -87,7 +85,7 @@ void FaultMaps::emitFunctionInfo(const MCSymbol *FnLabel,
 
   OS.emitInt32(0); // Reserved
 
-  for (auto &Fault : FFI) {
+  for (const auto &Fault : FFI) {
     LLVM_DEBUG(dbgs() << WFMP << "    fault type: "
                       << faultTypeToString(Fault.Kind) << "\n");
     OS.emitInt32(Fault.Kind);
@@ -113,40 +111,4 @@ const char *FaultMaps::faultTypeToString(FaultMaps::FaultKind FT) {
   case FaultMaps::FaultingStore:
     return "FaultingStore";
   }
-}
-
-raw_ostream &llvm::
-operator<<(raw_ostream &OS,
-           const FaultMapParser::FunctionFaultInfoAccessor &FFI) {
-  OS << "Fault kind: "
-     << FaultMaps::faultTypeToString((FaultMaps::FaultKind)FFI.getFaultKind())
-     << ", faulting PC offset: " << FFI.getFaultingPCOffset()
-     << ", handling PC offset: " << FFI.getHandlerPCOffset();
-  return OS;
-}
-
-raw_ostream &llvm::
-operator<<(raw_ostream &OS, const FaultMapParser::FunctionInfoAccessor &FI) {
-  OS << "FunctionAddress: " << format_hex(FI.getFunctionAddr(), 8)
-     << ", NumFaultingPCs: " << FI.getNumFaultingPCs() << "\n";
-  for (unsigned i = 0, e = FI.getNumFaultingPCs(); i != e; ++i)
-    OS << FI.getFunctionFaultInfoAt(i) << "\n";
-  return OS;
-}
-
-raw_ostream &llvm::operator<<(raw_ostream &OS, const FaultMapParser &FMP) {
-  OS << "Version: " << format_hex(FMP.getFaultMapVersion(), 2) << "\n";
-  OS << "NumFunctions: " << FMP.getNumFunctions() << "\n";
-
-  if (FMP.getNumFunctions() == 0)
-    return OS;
-
-  FaultMapParser::FunctionInfoAccessor FI;
-
-  for (unsigned i = 0, e = FMP.getNumFunctions(); i != e; ++i) {
-    FI = (i == 0) ? FMP.getFirstFunctionInfo() : FI.getNextFunctionInfo();
-    OS << FI;
-  }
-
-  return OS;
 }

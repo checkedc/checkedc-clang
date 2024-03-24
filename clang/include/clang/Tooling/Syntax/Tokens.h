@@ -27,14 +27,13 @@
 #ifndef LLVM_CLANG_TOOLING_SYNTAX_TOKENS_H
 #define LLVM_CLANG_TOOLING_SYNTAX_TOKENS_H
 
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/Token.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
@@ -192,14 +191,19 @@ public:
     return ExpandedTokens;
   }
 
+  /// Builds a cache to make future calls to expandedToken(SourceRange) faster.
+  /// Creates an index only once. Further calls to it will be no-op.
+  void indexExpandedTokens();
+
   /// Returns the subrange of expandedTokens() corresponding to the closed
   /// token range R.
+  /// Consider calling indexExpandedTokens() before for faster lookups.
   llvm::ArrayRef<syntax::Token> expandedTokens(SourceRange R) const;
 
   /// Returns the subrange of spelled tokens corresponding to AST node spanning
   /// \p Expanded. This is the text that should be replaced if a refactoring
   /// were to rewrite the node. If \p Expanded is empty, the returned value is
-  /// llvm::None.
+  /// std::nullopt.
   ///
   /// Will fail if the expanded tokens do not correspond to a sequence of
   /// spelled tokens. E.g. for the following example:
@@ -224,7 +228,7 @@ public:
   ///
   /// EXPECTS: \p Expanded is a subrange of expandedTokens().
   /// Complexity is logarithmic.
-  llvm::Optional<llvm::ArrayRef<syntax::Token>>
+  std::optional<llvm::ArrayRef<syntax::Token>>
   spelledForExpanded(llvm::ArrayRef<syntax::Token> Expanded) const;
 
   /// Find the subranges of expanded tokens, corresponding to \p Spelled.
@@ -273,7 +277,7 @@ public:
   /// If \p Spelled starts a mapping (e.g. if it's a macro name or '#' starting
   /// a preprocessor directive) return the subrange of expanded tokens that the
   /// macro expands to.
-  llvm::Optional<Expansion>
+  std::optional<Expansion>
   expansionStartingAt(const syntax::Token *Spelled) const;
   /// Returns all expansions (partially) expanded from the specified tokens.
   /// This is the expansions whose Spelled range intersects \p Spelled.
@@ -366,6 +370,8 @@ private:
   /// same stream as 'clang -E' (excluding the preprocessor directives like
   /// #file, etc.).
   std::vector<syntax::Token> ExpandedTokens;
+  // Index of ExpandedTokens for faster lookups by SourceLocation.
+  llvm::DenseMap<SourceLocation, unsigned> ExpandedTokIndex;
   llvm::DenseMap<FileID, MarkedFile> Files;
   // The value is never null, pointer instead of reference to avoid disabling
   // implicit assignment operator.
@@ -418,7 +424,7 @@ public:
 
   /// Finalizes token collection. Should be called after preprocessing is
   /// finished, i.e. after running Execute().
-  LLVM_NODISCARD TokenBuffer consume() &&;
+  [[nodiscard]] TokenBuffer consume() &&;
 
 private:
   /// Maps from a start to an end spelling location of transformations

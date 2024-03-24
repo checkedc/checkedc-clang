@@ -16,19 +16,25 @@
 #define LLVM_CODEGEN_GLOBALISEL_INSTRUCTIONSELECTOR_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/CodeGenCoverage.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
+#include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/IR/Function.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
+#include <optional>
 #include <vector>
 
 namespace llvm {
 
+class BlockFrequencyInfo;
+class CodeGenCoverage;
+class MachineBasicBlock;
+class ProfileSummaryInfo;
 class APInt;
 class APFloat;
 class GISelKnownBits;
@@ -39,7 +45,6 @@ class MachineOperand;
 class MachineRegisterInfo;
 class RegisterBankInfo;
 class TargetInstrInfo;
-class TargetRegisterClass;
 class TargetRegisterInfo;
 
 /// Container class for CodeGen predicate results.
@@ -136,6 +141,11 @@ enum {
   /// - InsnID - Instruction ID
   /// - The predicate to test
   GIM_CheckAPFloatImmPredicate,
+  /// Check an immediate predicate on the specified instruction
+  /// - InsnID - Instruction ID
+  /// - OpIdx - Operand index
+  /// - The predicate to test
+  GIM_CheckImmOperandPredicate,
   /// Check a memory operation has the specified atomic ordering.
   /// - InsnID - Instruction ID
   /// - Ordering - The AtomicOrdering value
@@ -185,6 +195,10 @@ enum {
   /// - InsnID - Instruction ID
   /// - PredicateID - The ID of the predicate function to call
   GIM_CheckCxxInsnPredicate,
+
+  /// Check if there's no use of the first result.
+  /// - InsnID - Instruction ID
+  GIM_CheckHasNoUse,
 
   /// Check the type for the specified operand
   /// - InsnID - Instruction ID
@@ -430,24 +444,31 @@ public:
   CodeGenCoverage *CoverageInfo = nullptr;
   GISelKnownBits *KnownBits = nullptr;
   MachineFunction *MF = nullptr;
+  ProfileSummaryInfo *PSI = nullptr;
+  BlockFrequencyInfo *BFI = nullptr;
+  // For some predicates, we need to track the current MBB.
+  MachineBasicBlock *CurMBB = nullptr;
 
   virtual void setupGeneratedPerFunctionState(MachineFunction &MF) {
     llvm_unreachable("TableGen should have emitted implementation");
   }
 
   /// Setup per-MF selector state.
-  virtual void setupMF(MachineFunction &mf,
-                       GISelKnownBits &KB,
-                       CodeGenCoverage &covinfo) {
+  virtual void setupMF(MachineFunction &mf, GISelKnownBits *KB,
+                       CodeGenCoverage &covinfo, ProfileSummaryInfo *psi,
+                       BlockFrequencyInfo *bfi) {
     CoverageInfo = &covinfo;
-    KnownBits = &KB;
+    KnownBits = KB;
     MF = &mf;
+    PSI = psi;
+    BFI = bfi;
+    CurMBB = nullptr;
     setupGeneratedPerFunctionState(mf);
   }
 
 protected:
   using ComplexRendererFns =
-      Optional<SmallVector<std::function<void(MachineInstrBuilder &)>, 4>>;
+      std::optional<SmallVector<std::function<void(MachineInstrBuilder &)>, 4>>;
   using RecordedMIVector = SmallVector<MachineInstr *, 4>;
   using NewMIVector = SmallVector<MachineInstrBuilder, 4>;
 
@@ -463,6 +484,12 @@ protected:
 
     MatcherState(unsigned MaxRenderers);
   };
+
+  bool shouldOptForSize(const MachineFunction *MF) const {
+    const auto &F = MF->getFunction();
+    return F.hasOptSize() || F.hasMinSize() ||
+           (PSI && BFI && CurMBB && llvm::shouldOptForSize(*CurMBB, PSI, BFI));
+  }
 
 public:
   template <class PredicateBitset, class ComplexMatcherMemFn,

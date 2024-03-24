@@ -15,7 +15,7 @@
 #ifndef HEADER
 #define HEADER
 
-// ALL:       [[IDENT_T_TY:%.+]] = type { i32, i32, i32, i32, i8* }
+// ALL:       [[IDENT_T_TY:%.+]] = type { i32, i32, i32, i32, ptr }
 
 // ALL:       define {{.*}}void [[FOO:@.+]]()
 
@@ -27,25 +27,27 @@ int main() {
   // ALL:      			[[A_ADDR:%.+]] = alloca i8
   char a;
 
-// ALL:       			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num([[IDENT_T_TY]]* [[DEFAULT_LOC:@.+]])
-// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_master([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]])
+// ALL:       			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num(ptr [[DEFAULT_LOC:@.+]])
+// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_master(ptr [[DEFAULT_LOC]], i32 [[GTID]])
 // ALL-NEXT:  			[[IS_MASTER:%.+]] = icmp ne i32 [[RES]], 0
 // ALL-NEXT:  			br i1 [[IS_MASTER]], label {{%?}}[[THEN:.+]], label {{%?}}[[EXIT:.+]]
 // ALL:       			[[THEN]]
-// ALL-NEXT:  			store i8 2, i8* [[A_ADDR]]
-// ALL-NEXT:  			call {{.*}}void @__kmpc_end_master([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]])
+// ALL-NEXT:  			store i8 2, ptr [[A_ADDR]]
+// IRBUILDER-NEXT:		br label %[[AFTER:[^ ,]+]]
+// IRBUILDER:			[[AFTER]]
+// ALL-NEXT:  			call {{.*}}void @__kmpc_end_master(ptr [[DEFAULT_LOC]], i32 [[GTID]])
 // ALL-NEXT:  			br label {{%?}}[[EXIT]]
 // ALL:       			[[EXIT]]
 #pragma omp master
   a = 2;
-// IRBUILDER: 			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num([[IDENT_T_TY]]* [[DEFAULT_LOC:@.+]])
-// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_master([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]])
+// IRBUILDER: 			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num(ptr [[DEFAULT_LOC:@.+]])
+// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_master(ptr [[DEFAULT_LOC]], i32 [[GTID]])
 // ALL-NEXT:  			[[IS_MASTER:%.+]] = icmp ne i32 [[RES]], 0
 // ALL-NEXT:  			br i1 [[IS_MASTER]], label {{%?}}[[THEN:.+]], label {{%?}}[[EXIT:.+]]
 // ALL:       			[[THEN]]
 // IRBUILDER-NEXT:  call {{.*}}void [[FOO]]()
 // NORMAL-NEXT:  		invoke {{.*}}void [[FOO]]()
-// ALL:       			call {{.*}}void @__kmpc_end_master([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]])
+// ALL:       			call {{.*}}void @__kmpc_end_master(ptr [[DEFAULT_LOC]], i32 [[GTID]])
 // ALL-NEXT:  			br label {{%?}}[[EXIT]]
 // ALL:       			[[EXIT]]
 #pragma omp master
@@ -53,6 +55,41 @@ int main() {
   // ALL-NOT:   call i32 @__kmpc_master
   // ALL-NOT:   call void @__kmpc_end_master
   return a;
+}
+
+// ALL-LABEL:        lambda_master
+// TERM_DEBUG-LABEL: lambda_master
+void lambda_master(int a, int b) {
+  auto l = [=]() {
+#pragma omp master
+    {
+      // ALL: call i32 @__kmpc_master(
+      int c = a + b;
+    }
+  };
+
+  l();
+
+  auto l1 = [=]() {
+#pragma omp parallel
+#pragma omp master
+    {
+      // ALL: call i32 @__kmpc_master(
+      int c = a + b;
+    }
+  };
+
+  l1();
+
+  auto l2 = [=]() {
+#pragma omp parallel master
+    {
+      // ALL: call i32 @__kmpc_master(
+      int c = a + b;
+    }
+  };
+
+  l2();
 }
 
 // ALL-LABEL:      parallel_master

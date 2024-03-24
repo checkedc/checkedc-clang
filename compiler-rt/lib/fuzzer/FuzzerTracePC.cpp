@@ -106,6 +106,15 @@ void TracePC::PrintModuleInfo() {
   }
   if (size_t NumExtraCounters = ExtraCountersEnd() - ExtraCountersBegin())
     Printf("INFO: %zd Extra Counters\n", NumExtraCounters);
+
+  size_t MaxFeatures = CollectFeatures([](uint32_t) {});
+  if (MaxFeatures > std::numeric_limits<uint32_t>::max())
+    Printf("WARNING: The coverage PC tables may produce up to %zu features.\n"
+           "This exceeds the maximum 32-bit value. Some features may be\n"
+           "ignored, and fuzzing may become less precise. If possible,\n"
+           "consider refactoring the fuzzer into several smaller fuzzers\n"
+           "linked against only a portion of the current target.\n",
+           MaxFeatures);
 }
 
 ATTRIBUTE_NO_SANITIZE_ALL
@@ -124,13 +133,14 @@ inline ALWAYS_INLINE uintptr_t GetPreviousInstructionPc(uintptr_t PC) {
   // so we return (pc-2) in that case in order to be safe.
   // For A32 mode we return (pc-4) because all instructions are 32 bit long.
   return (PC - 3) & (~1);
-#elif defined(__powerpc__) || defined(__powerpc64__) || defined(__aarch64__)
-  // PCs are always 4 byte aligned.
-  return PC - 4;
 #elif defined(__sparc__) || defined(__mips__)
   return PC - 8;
-#else
+#elif defined(__riscv__)
+  return PC - 2;
+#elif defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
   return PC - 1;
+#else
+  return PC - 4;
 #endif
 }
 
@@ -148,7 +158,7 @@ ALWAYS_INLINE uintptr_t TracePC::GetNextInstructionPc(uintptr_t PC) {
 }
 
 void TracePC::UpdateObservedPCs() {
-  Vector<uintptr_t> CoveredFuncs;
+  std::vector<uintptr_t> CoveredFuncs;
   auto ObservePC = [&](const PCTableEntry *TE) {
     if (ObservedPCs.insert(TE).second && DoPrintNewPCs) {
       PrintPC("\tNEW_PC: %p %F %L", "\tNEW_PC: %p",
@@ -291,8 +301,8 @@ void TracePC::PrintCoverage(bool PrintAllCounters) {
       FunctionStr = FunctionStr.substr(3);
     std::string LineStr = DescribePC("%l", VisualizePC);
     size_t NumEdges = Last - First;
-    Vector<uintptr_t> UncoveredPCs;
-    Vector<uintptr_t> CoveredPCs;
+    std::vector<uintptr_t> UncoveredPCs;
+    std::vector<uintptr_t> CoveredPCs;
     for (auto TE = First; TE < Last; TE++)
       if (!ObservedPCs.count(TE))
         UncoveredPCs.push_back(TE->PC);
@@ -356,7 +366,7 @@ void TracePC::AddValueForMemcmp(void *caller_pc, const void *s1, const void *s2,
   uint8_t HammingDistance = 0;
   for (; I < Len; I++) {
     if (B1[I] != B2[I] || (StopAtZero && B1[I] == 0)) {
-      HammingDistance = Popcountll(B1[I] ^ B2[I]);
+      HammingDistance = static_cast<uint8_t>(Popcountll(B1[I] ^ B2[I]));
       break;
     }
   }
@@ -382,6 +392,7 @@ void TracePC::HandleCmp(uintptr_t PC, T Arg1, T Arg2) {
   ValueProfileMap.AddValue(PC * 128 + 64 + AbsoluteDistance);
 }
 
+ATTRIBUTE_NO_SANITIZE_MEMORY
 static size_t InternalStrnlen(const char *S, size_t MaxLen) {
   size_t Len = 0;
   for (; Len < MaxLen && S[Len]; Len++) {}
@@ -389,7 +400,8 @@ static size_t InternalStrnlen(const char *S, size_t MaxLen) {
 }
 
 // Finds min of (strlen(S1), strlen(S2)).
-// Needed bacause one of these strings may actually be non-zero terminated.
+// Needed because one of these strings may actually be non-zero terminated.
+ATTRIBUTE_NO_SANITIZE_MEMORY
 static size_t InternalStrnlen2(const char *S1, const char *S2) {
   size_t Len = 0;
   for (; S1[Len] && S2[Len]; Len++)  {}

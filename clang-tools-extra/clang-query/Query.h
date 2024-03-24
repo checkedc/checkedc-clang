@@ -12,13 +12,12 @@
 #include "QuerySession.h"
 #include "clang/ASTMatchers/Dynamic/VariantValue.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/Optional.h"
 #include <string>
 
 namespace clang {
 namespace query {
 
-enum OutputKind { OK_Diag, OK_Print, OK_DetailedAST };
+enum OutputKind { OK_Diag, OK_Print, OK_DetailedAST, OK_SrcLoc };
 
 enum QueryKind {
   QK_Invalid,
@@ -149,6 +148,7 @@ struct SetExclusiveOutputQuery : Query {
     QS.DiagOutput = false;
     QS.DetailedASTOutput = false;
     QS.PrintOutput = false;
+    QS.SrcLocOutput = false;
     QS.*Var = true;
     return true;
   }

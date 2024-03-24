@@ -7,16 +7,16 @@
 // RUN: ld.lld -O 0 %t.o -o %t.so -shared
 // RUN: llvm-readobj -S --section-data --symbols %t.so | FileCheck --check-prefix=NOMERGE %s
 
-        .section	.rodata1,"aMS",@progbits,1
-	.asciz	"abc"
+        .section        .rodata1,"aMS",@progbits,1
+        .asciz  "abc"
 foo:
-	.ascii	"a"
+        .ascii  "a"
 bar:
         .asciz  "bc"
         .asciz  "bc"
 
         .section        .rodata2,"aMS",@progbits,2
-        .align  2
+        .p2align  1
 zed:
         .short  20
         .short  0
@@ -54,7 +54,7 @@ zed:
 // NOTAIL-NEXT: AddressAlignment: 1
 // NOTAIL-NEXT: EntrySize: 1
 // NOTAIL-NEXT: SectionData (
-// NOTAIL-NEXT:   0000: 62630061 626300                     |bc.abc.|
+// NOTAIL-NEXT:   0000: 61626300 626300                     |abc.bc.|
 // NOTAIL-NEXT: )
 
 // NOMERGE:      Name:    .rodata1
@@ -94,11 +94,11 @@ zed:
 // CHECK-NEXT: )
 
 
-// CHECK:      Name:    bar
-// CHECK-NEXT: Value: 0x20E
-
 // CHECK:      Name:    foo
 // CHECK-NEXT: Value: 0x20D
+
+// CHECK:      Name:    bar
+// CHECK-NEXT: Value: 0x20E
 
 // CHECK:      Name: zed
 // CHECK-NEXT: Value: 0x212

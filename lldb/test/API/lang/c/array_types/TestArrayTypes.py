@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class ArrayTypesTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -42,8 +40,7 @@ class ArrayTypesTestCase(TestBase):
                              'stop reason = breakpoint'])
 
         # The breakpoint should have a hit count of 1.
-        self.expect("breakpoint list -f", BREAKPOINT_HIT_ONCE,
-                    substrs=['resolved, hit count = 1'])
+        lldbutil.check_breakpoint(self, bpno = 1, expected_hit_count = 1)
 
         # Issue 'variable list' command on several array-type variables.
 
@@ -71,12 +68,12 @@ class ArrayTypesTestCase(TestBase):
         self.expect(
             "frame variable --show-types ushort_matrix",
             VARIABLES_DISPLAYED_CORRECTLY,
-            startstr='(unsigned short [2][3])')
+            startstr='(unsigned short[2][3])')
 
         self.expect(
             "frame variable --show-types long_6",
             VARIABLES_DISPLAYED_CORRECTLY,
-            startstr='(long [6])')
+            startstr='(long[6])')
 
     @expectedFailureNetBSD
     @add_test_categories(['pyapi'])
@@ -216,8 +213,8 @@ class ArrayTypesTestCase(TestBase):
         # Last, check that "long_6" has a value type of eValueTypeVariableLocal
         # and "argc" has eValueTypeVariableArgument.
         from lldbsuite.test.lldbutil import value_type_to_str
-        self.assertTrue(
-            variable.GetValueType() == lldb.eValueTypeVariableLocal,
+        self.assertEqual(
+            variable.GetValueType(), lldb.eValueTypeVariableLocal,
             "Variable 'long_6' should have '%s' value type." %
             value_type_to_str(
                 lldb.eValueTypeVariableLocal))

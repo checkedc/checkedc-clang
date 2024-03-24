@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SUPPORT_TYPEUTILITIES_H
-#define MLIR_SUPPORT_TYPEUTILITIES_H
+#ifndef MLIR_IR_TYPEUTILITIES_H
+#define MLIR_IR_TYPEUTILITIES_H
 
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/STLExtras.h"
@@ -55,44 +55,48 @@ LogicalResult verifyCompatibleShape(ArrayRef<int64_t> shape1,
 /// does not matter.
 LogicalResult verifyCompatibleShape(Type type1, Type type2);
 
+/// Returns success if the given two arrays have the same number of elements and
+/// each pair wise entries have compatible shape.
+LogicalResult verifyCompatibleShapes(TypeRange types1, TypeRange types2);
+
+/// Returns success if all given types have compatible shapes. That is, they are
+/// all scalars (not shaped), or they are all shaped types and any ranked shapes
+/// have compatible dimensions. The element type does not matter.
+LogicalResult verifyCompatibleShapes(TypeRange types);
+
+/// Dimensions are compatible if all non-dynamic dims are equal.
+LogicalResult verifyCompatibleDims(ArrayRef<int64_t> dims);
+
 //===----------------------------------------------------------------------===//
 // Utility Iterators
 //===----------------------------------------------------------------------===//
 
 // An iterator for the element types of an op's operands of shaped types.
 class OperandElementTypeIterator final
-    : public llvm::mapped_iterator<Operation::operand_iterator,
-                                   Type (*)(Value)> {
+    : public llvm::mapped_iterator_base<OperandElementTypeIterator,
+                                        Operation::operand_iterator, Type> {
 public:
-  using reference = Type;
+  using BaseT::BaseT;
 
-  /// Initializes the result element type iterator to the specified operand
-  /// iterator.
-  explicit OperandElementTypeIterator(Operation::operand_iterator it);
-
-private:
-  static Type unwrap(Value value);
+  /// Map the element to the iterator result type.
+  Type mapElement(Value value) const;
 };
 
 using OperandElementTypeRange = iterator_range<OperandElementTypeIterator>;
 
 // An iterator for the tensor element types of an op's results of shaped types.
 class ResultElementTypeIterator final
-    : public llvm::mapped_iterator<Operation::result_iterator,
-                                   Type (*)(Value)> {
+    : public llvm::mapped_iterator_base<ResultElementTypeIterator,
+                                        Operation::result_iterator, Type> {
 public:
-  using reference = Type;
+  using BaseT::BaseT;
 
-  /// Initializes the result element type iterator to the specified result
-  /// iterator.
-  explicit ResultElementTypeIterator(Operation::result_iterator it);
-
-private:
-  static Type unwrap(Value value);
+  /// Map the element to the iterator result type.
+  Type mapElement(Value value) const;
 };
 
 using ResultElementTypeRange = iterator_range<ResultElementTypeIterator>;
 
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_SUPPORT_TYPEUTILITIES_H
+#endif // MLIR_IR_TYPEUTILITIES_H

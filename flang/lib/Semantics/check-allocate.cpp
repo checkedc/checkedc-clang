@@ -8,6 +8,7 @@
 
 #include "check-allocate.h"
 #include "assignment.h"
+#include "definable.h"
 #include "flang/Evaluate/fold.h"
 #include "flang/Evaluate/type.h"
 #include "flang/Parser/parse-tree.h"
@@ -128,10 +129,10 @@ static std::optional<AllocateCheckerInfo> CheckAllocateOptions(
   const parser::Expr *parserSourceExpr{nullptr};
   for (const parser::AllocOpt &allocOpt :
       std::get<std::list<parser::AllocOpt>>(allocateStmt.t)) {
-    std::visit(
+    common::visit(
         common::visitors{
             [&](const parser::StatOrErrmsg &statOrErr) {
-              std::visit(
+              common::visit(
                   common::visitors{
                       [&](const parser::StatVariable &) {
                         if (info.gotStat) { // C943
@@ -187,7 +188,7 @@ static std::optional<AllocateCheckerInfo> CheckAllocateOptions(
   }
 
   if (info.gotSource || info.gotMold) {
-    if (const auto *expr{GetExpr(DEREF(parserSourceExpr))}) {
+    if (const auto *expr{GetExpr(context, DEREF(parserSourceExpr))}) {
       parser::CharBlock at{parserSourceExpr->source};
       info.sourceExprType = expr->GetType();
       if (!info.sourceExprType) {
@@ -532,6 +533,19 @@ bool AllocationCheckerHelper::RunChecks(SemanticsContext &context) {
     return false;
   }
   context.CheckIndexVarRedefine(name_);
+  if (allocateObject_.typedExpr && allocateObject_.typedExpr->v) {
+    if (auto whyNot{
+            WhyNotDefinable(name_.source, context.FindScope(name_.source),
+                {DefinabilityFlag::PointerDefinition,
+                    DefinabilityFlag::AcceptAllocatable},
+                *allocateObject_.typedExpr->v)}) {
+      context
+          .Say(name_.source,
+              "Name in ALLOCATE statement is not definable"_err_en_US)
+          .Attach(std::move(*whyNot));
+      return false;
+    }
+  }
   return RunCoarrayRelatedChecks(context);
 }
 
@@ -541,7 +555,7 @@ bool AllocationCheckerHelper::RunCoarrayRelatedChecks(
     CHECK(context.AnyFatalError());
     return false;
   }
-  if (IsCoarray(*symbol_)) {
+  if (evaluate::IsCoarray(*symbol_)) {
     if (allocateInfo_.gotTypeSpec) {
       // C938
       if (const DerivedTypeSpec *

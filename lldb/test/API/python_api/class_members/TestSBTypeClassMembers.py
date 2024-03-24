@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class SBTypeMemberFunctionsTest(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -24,7 +22,6 @@ class SBTypeMemberFunctionsTest(TestBase):
         self.line = line_number(self.source, '// set breakpoint here')
 
     @skipUnlessDarwin
-    @add_test_categories(['pyapi'])
     def test(self):
         """Test SBType APIs to fetch member function types."""
         d = {'EXE': self.exe_name}
@@ -46,7 +43,7 @@ class SBTypeMemberFunctionsTest(TestBase):
         self.assertTrue(process, PROCESS_IS_VALID)
 
         # Get Frame #0.
-        self.assertEquals(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(

@@ -5,15 +5,22 @@ set(LLVM_LINK_COMPONENTS
 )
 
 add_tablegen(mlir-tblgen MLIR
+  DESTINATION "${MLIR_TOOLS_INSTALL_DIR}"
+  EXPORT MLIR
+  AttrOrTypeDefGen.cpp
+  AttrOrTypeFormatGen.cpp
   DialectGen.cpp
   DirectiveCommonGen.cpp
   EnumsGen.cpp
+  FormatGen.cpp
   LLVMIRConversionGen.cpp
   LLVMIRIntrinsicGen.cpp
   mlir-tblgen.cpp
+  OpClass.cpp
   OpDefinitionsGen.cpp
   OpDocGen.cpp
   OpFormatGen.cpp
+  OpGenHelpers.cpp
   OpInterfacesGen.cpp
   OpPythonBindingGen.cpp
   PassCAPIGen.cpp
@@ -21,14 +28,12 @@ add_tablegen(mlir-tblgen MLIR
   PassGen.cpp
   RewriterGen.cpp
   SPIRVUtilsGen.cpp
-  StructsGen.cpp
-  TypeDefGen.cpp
   )
 
 set_target_properties(mlir-tblgen PROPERTIES FOLDER "Tablegenning")
 target_link_libraries(mlir-tblgen
   PRIVATE
   MLIRSupportIndentedOstream
-  MLIRTableGen)
+  MLIRTblgenLib)
 
 mlir_check_all_link_libraries(mlir-tblgen)

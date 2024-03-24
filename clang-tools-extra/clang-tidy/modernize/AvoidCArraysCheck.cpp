@@ -38,9 +38,7 @@ AST_MATCHER(clang::ParmVarDecl, isArgvOfMain) {
 
 } // namespace
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 void AvoidCArraysCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -57,15 +55,10 @@ void AvoidCArraysCheck::registerMatchers(MatchFinder *Finder) {
 void AvoidCArraysCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *ArrayType = Result.Nodes.getNodeAs<TypeLoc>("typeloc");
 
-  static constexpr llvm::StringLiteral UseArray = llvm::StringLiteral(
-      "do not declare C-style arrays, use std::array<> instead");
-  static constexpr llvm::StringLiteral UseVector = llvm::StringLiteral(
-      "do not declare C VLA arrays, use std::vector<> instead");
-
   diag(ArrayType->getBeginLoc(),
-       ArrayType->getTypePtr()->isVariableArrayType() ? UseVector : UseArray);
+       "do not declare %select{C-style|C VLA}0 arrays, use "
+       "%select{std::array<>|std::vector<>}0 instead")
+      << ArrayType->getTypePtr()->isVariableArrayType();
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

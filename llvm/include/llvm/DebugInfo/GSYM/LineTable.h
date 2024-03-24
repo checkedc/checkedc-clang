@@ -169,19 +169,19 @@ public:
   /// Return the first line entry if the line table isn't empty.
   ///
   /// \returns An optional line entry with the first line entry if the line
-  /// table isn't empty, or llvm::None if the line table is emtpy.
-  Optional<LineEntry> first() const {
+  /// table isn't empty, or std::nullopt if the line table is emtpy.
+  std::optional<LineEntry> first() const {
     if (Lines.empty())
-      return llvm::None;
+      return std::nullopt;
     return Lines.front();
   }
   /// Return the last line entry if the line table isn't empty.
   ///
   /// \returns An optional line entry with the last line entry if the line
-  /// table isn't empty, or llvm::None if the line table is emtpy.
-  Optional<LineEntry> last() const {
+  /// table isn't empty, or std::nullopt if the line table is emtpy.
+  std::optional<LineEntry> last() const {
     if (Lines.empty())
-      return llvm::None;
+      return std::nullopt;
     return Lines.back();
   }
   void push(const LineEntry &LE) {
@@ -230,4 +230,4 @@ raw_ostream &operator<<(raw_ostream &OS, const gsym::LineTable &LT);
 } // namespace gsym
 } // namespace llvm
 
-#endif // #ifndef LLVM_DEBUGINFO_GSYM_LINETABLE_H
+#endif // LLVM_DEBUGINFO_GSYM_LINETABLE_H

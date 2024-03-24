@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class ObjCCheckerTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
@@ -49,12 +47,12 @@ class ObjCCheckerTestCase(TestBase):
         process = target.LaunchSimple(
             None, None, self.get_process_working_directory())
 
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
 
         threads = lldbutil.get_threads_stopped_at_breakpoint(
             process, main_bkpt)
-        self.assertTrue(len(threads) == 1)
+        self.assertEqual(len(threads), 1)
         thread = threads[0]
 
         #
@@ -73,7 +71,7 @@ class ObjCCheckerTestCase(TestBase):
 
         # Make sure the error is helpful:
         err_string = expr_error.GetCString()
-        self.assertTrue("selector" in err_string)
+        self.assertIn("selector", err_string)
 
         #
         # Check that we correctly insert the checker for an
@@ -85,5 +83,5 @@ class ObjCCheckerTestCase(TestBase):
         expr_value = frame.EvaluateExpression("[my_simple getBigStruct]", False)
         expr_error = expr_value.GetError()
         
-        self.assertTrue(expr_error.Success())
+        self.assertSuccess(expr_error)
         

@@ -1,4 +1,4 @@
-//===--- VarBypassDetector.h - Bypass jumps detector --------------*- C++ -*-=//
+//===--- VarBypassDetector.cpp - Bypass jumps detector ------------*- C++ -*-=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -77,7 +77,7 @@ bool VarBypassDetector::BuildScopeInformation(const Stmt *S,
         return false;
       ++StmtsToSkip;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case Stmt::GotoStmtClass:
     FromScopes.push_back({S, ParentScope});

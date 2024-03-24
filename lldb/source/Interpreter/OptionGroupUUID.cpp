@@ -13,17 +13,13 @@
 using namespace lldb;
 using namespace lldb_private;
 
-OptionGroupUUID::OptionGroupUUID() : m_uuid() {}
-
-OptionGroupUUID::~OptionGroupUUID() {}
-
 static constexpr OptionDefinition g_option_table[] = {
     {LLDB_OPT_SET_1, false, "uuid", 'u', OptionParser::eRequiredArgument,
      nullptr, {}, 0, eArgTypeModuleUUID, "A module UUID value."},
 };
 
 llvm::ArrayRef<OptionDefinition> OptionGroupUUID::GetDefinitions() {
-  return llvm::makeArrayRef(g_option_table);
+  return llvm::ArrayRef(g_option_table);
 }
 
 Status OptionGroupUUID::SetOptionValue(uint32_t option_idx,

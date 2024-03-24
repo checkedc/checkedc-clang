@@ -11,6 +11,7 @@
 #include "mlir-c/IR.h"
 #include "mlir/CAPI/AffineMap.h"
 #include "mlir/CAPI/IR.h"
+#include "mlir/CAPI/Support.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Types.h"
@@ -66,6 +67,22 @@ MlirType mlirIndexTypeGet(MlirContext ctx) {
 //===----------------------------------------------------------------------===//
 // Floating-point types.
 //===----------------------------------------------------------------------===//
+
+bool mlirTypeIsAFloat8E5M2(MlirType type) {
+  return unwrap(type).isFloat8E5M2();
+}
+
+MlirType mlirFloat8E5M2TypeGet(MlirContext ctx) {
+  return wrap(FloatType::getFloat8E5M2(unwrap(ctx)));
+}
+
+bool mlirTypeIsAFloat8E4M3FN(MlirType type) {
+  return unwrap(type).isFloat8E4M3FN();
+}
+
+MlirType mlirFloat8E4M3FNTypeGet(MlirContext ctx) {
+  return wrap(FloatType::getFloat8E4M3FN(unwrap(ctx)));
+}
 
 bool mlirTypeIsABF16(MlirType type) { return unwrap(type).isBF16(); }
 
@@ -148,12 +165,18 @@ int64_t mlirShapedTypeGetDimSize(MlirType type, intptr_t dim) {
   return unwrap(type).cast<ShapedType>().getDimSize(static_cast<unsigned>(dim));
 }
 
+int64_t mlirShapedTypeGetDynamicSize() { return ShapedType::kDynamic; }
+
 bool mlirShapedTypeIsDynamicSize(int64_t size) {
   return ShapedType::isDynamic(size);
 }
 
 bool mlirShapedTypeIsDynamicStrideOrOffset(int64_t val) {
-  return ShapedType::isDynamicStrideOrOffset(val);
+  return ShapedType::isDynamic(val);
+}
+
+int64_t mlirShapedTypeGetDynamicStrideOrOffset() {
+  return ShapedType::kDynamic;
 }
 
 //===----------------------------------------------------------------------===//
@@ -164,15 +187,14 @@ bool mlirTypeIsAVector(MlirType type) { return unwrap(type).isa<VectorType>(); }
 
 MlirType mlirVectorTypeGet(intptr_t rank, const int64_t *shape,
                            MlirType elementType) {
-  return wrap(
-      VectorType::get(llvm::makeArrayRef(shape, static_cast<size_t>(rank)),
-                      unwrap(elementType)));
+  return wrap(VectorType::get(llvm::ArrayRef(shape, static_cast<size_t>(rank)),
+                              unwrap(elementType)));
 }
 
-MlirType mlirVectorTypeGetChecked(intptr_t rank, const int64_t *shape,
-                                  MlirType elementType, MlirLocation loc) {
+MlirType mlirVectorTypeGetChecked(MlirLocation loc, intptr_t rank,
+                                  const int64_t *shape, MlirType elementType) {
   return wrap(VectorType::getChecked(
-      unwrap(loc), llvm::makeArrayRef(shape, static_cast<size_t>(rank)),
+      unwrap(loc), llvm::ArrayRef(shape, static_cast<size_t>(rank)),
       unwrap(elementType)));
 }
 
@@ -191,26 +213,31 @@ bool mlirTypeIsAUnrankedTensor(MlirType type) {
 }
 
 MlirType mlirRankedTensorTypeGet(intptr_t rank, const int64_t *shape,
-                                 MlirType elementType) {
-  return wrap(RankedTensorType::get(
-      llvm::makeArrayRef(shape, static_cast<size_t>(rank)),
-      unwrap(elementType)));
+                                 MlirType elementType, MlirAttribute encoding) {
+  return wrap(
+      RankedTensorType::get(llvm::ArrayRef(shape, static_cast<size_t>(rank)),
+                            unwrap(elementType), unwrap(encoding)));
 }
 
-MlirType mlirRankedTensorTypeGetChecked(intptr_t rank, const int64_t *shape,
+MlirType mlirRankedTensorTypeGetChecked(MlirLocation loc, intptr_t rank,
+                                        const int64_t *shape,
                                         MlirType elementType,
-                                        MlirLocation loc) {
+                                        MlirAttribute encoding) {
   return wrap(RankedTensorType::getChecked(
-      unwrap(loc), llvm::makeArrayRef(shape, static_cast<size_t>(rank)),
-      unwrap(elementType)));
+      unwrap(loc), llvm::ArrayRef(shape, static_cast<size_t>(rank)),
+      unwrap(elementType), unwrap(encoding)));
+}
+
+MlirAttribute mlirRankedTensorTypeGetEncoding(MlirType type) {
+  return wrap(unwrap(type).cast<RankedTensorType>().getEncoding());
 }
 
 MlirType mlirUnrankedTensorTypeGet(MlirType elementType) {
   return wrap(UnrankedTensorType::get(unwrap(elementType)));
 }
 
-MlirType mlirUnrankedTensorTypeGetChecked(MlirType elementType,
-                                          MlirLocation loc) {
+MlirType mlirUnrankedTensorTypeGetChecked(MlirLocation loc,
+                                          MlirType elementType) {
   return wrap(UnrankedTensorType::getChecked(unwrap(loc), unwrap(elementType)));
 }
 
@@ -221,74 +248,77 @@ MlirType mlirUnrankedTensorTypeGetChecked(MlirType elementType,
 bool mlirTypeIsAMemRef(MlirType type) { return unwrap(type).isa<MemRefType>(); }
 
 MlirType mlirMemRefTypeGet(MlirType elementType, intptr_t rank,
-                           const int64_t *shape, intptr_t numMaps,
-                           MlirAffineMap const *affineMaps,
-                           unsigned memorySpace) {
-  SmallVector<AffineMap, 1> maps;
-  (void)unwrapList(numMaps, affineMaps, maps);
-  return wrap(
-      MemRefType::get(llvm::makeArrayRef(shape, static_cast<size_t>(rank)),
-                      unwrap(elementType), maps, memorySpace));
+                           const int64_t *shape, MlirAttribute layout,
+                           MlirAttribute memorySpace) {
+  return wrap(MemRefType::get(
+      llvm::ArrayRef(shape, static_cast<size_t>(rank)), unwrap(elementType),
+      mlirAttributeIsNull(layout)
+          ? MemRefLayoutAttrInterface()
+          : unwrap(layout).cast<MemRefLayoutAttrInterface>(),
+      unwrap(memorySpace)));
 }
 
-MlirType mlirMemRefTypeGetChecked(MlirType elementType, intptr_t rank,
-                                  const int64_t *shape, intptr_t numMaps,
-                                  MlirAffineMap const *affineMaps,
-                                  unsigned memorySpace, MlirLocation loc) {
-  SmallVector<AffineMap, 1> maps;
-  (void)unwrapList(numMaps, affineMaps, maps);
+MlirType mlirMemRefTypeGetChecked(MlirLocation loc, MlirType elementType,
+                                  intptr_t rank, const int64_t *shape,
+                                  MlirAttribute layout,
+                                  MlirAttribute memorySpace) {
   return wrap(MemRefType::getChecked(
-      unwrap(loc), llvm::makeArrayRef(shape, static_cast<size_t>(rank)),
-      unwrap(elementType), maps, memorySpace));
+      unwrap(loc), llvm::ArrayRef(shape, static_cast<size_t>(rank)),
+      unwrap(elementType),
+      mlirAttributeIsNull(layout)
+          ? MemRefLayoutAttrInterface()
+          : unwrap(layout).cast<MemRefLayoutAttrInterface>(),
+      unwrap(memorySpace)));
 }
 
 MlirType mlirMemRefTypeContiguousGet(MlirType elementType, intptr_t rank,
                                      const int64_t *shape,
-                                     unsigned memorySpace) {
-  return wrap(
-      MemRefType::get(llvm::makeArrayRef(shape, static_cast<size_t>(rank)),
-                      unwrap(elementType), llvm::None, memorySpace));
+                                     MlirAttribute memorySpace) {
+  return wrap(MemRefType::get(llvm::ArrayRef(shape, static_cast<size_t>(rank)),
+                              unwrap(elementType), MemRefLayoutAttrInterface(),
+                              unwrap(memorySpace)));
 }
 
-MlirType mlirMemRefTypeContiguousGetChecked(MlirType elementType, intptr_t rank,
+MlirType mlirMemRefTypeContiguousGetChecked(MlirLocation loc,
+                                            MlirType elementType, intptr_t rank,
                                             const int64_t *shape,
-                                            unsigned memorySpace,
-                                            MlirLocation loc) {
+                                            MlirAttribute memorySpace) {
   return wrap(MemRefType::getChecked(
-      unwrap(loc), llvm::makeArrayRef(shape, static_cast<size_t>(rank)),
-      unwrap(elementType), llvm::None, memorySpace));
+      unwrap(loc), llvm::ArrayRef(shape, static_cast<size_t>(rank)),
+      unwrap(elementType), MemRefLayoutAttrInterface(), unwrap(memorySpace)));
 }
 
-intptr_t mlirMemRefTypeGetNumAffineMaps(MlirType type) {
-  return static_cast<intptr_t>(
-      unwrap(type).cast<MemRefType>().getAffineMaps().size());
+MlirAttribute mlirMemRefTypeGetLayout(MlirType type) {
+  return wrap(unwrap(type).cast<MemRefType>().getLayout());
 }
 
-MlirAffineMap mlirMemRefTypeGetAffineMap(MlirType type, intptr_t pos) {
-  return wrap(unwrap(type).cast<MemRefType>().getAffineMaps()[pos]);
+MlirAffineMap mlirMemRefTypeGetAffineMap(MlirType type) {
+  return wrap(unwrap(type).cast<MemRefType>().getLayout().getAffineMap());
 }
 
-unsigned mlirMemRefTypeGetMemorySpace(MlirType type) {
-  return unwrap(type).cast<MemRefType>().getMemorySpace();
+MlirAttribute mlirMemRefTypeGetMemorySpace(MlirType type) {
+  return wrap(unwrap(type).cast<MemRefType>().getMemorySpace());
 }
 
 bool mlirTypeIsAUnrankedMemRef(MlirType type) {
   return unwrap(type).isa<UnrankedMemRefType>();
 }
 
-MlirType mlirUnrankedMemRefTypeGet(MlirType elementType, unsigned memorySpace) {
-  return wrap(UnrankedMemRefType::get(unwrap(elementType), memorySpace));
+MlirType mlirUnrankedMemRefTypeGet(MlirType elementType,
+                                   MlirAttribute memorySpace) {
+  return wrap(
+      UnrankedMemRefType::get(unwrap(elementType), unwrap(memorySpace)));
 }
 
-MlirType mlirUnrankedMemRefTypeGetChecked(MlirType elementType,
-                                          unsigned memorySpace,
-                                          MlirLocation loc) {
+MlirType mlirUnrankedMemRefTypeGetChecked(MlirLocation loc,
+                                          MlirType elementType,
+                                          MlirAttribute memorySpace) {
   return wrap(UnrankedMemRefType::getChecked(unwrap(loc), unwrap(elementType),
-                                             memorySpace));
+                                             unwrap(memorySpace)));
 }
 
-unsigned mlirUnrankedMemrefGetMemorySpace(MlirType type) {
-  return unwrap(type).cast<UnrankedMemRefType>().getMemorySpace();
+MlirAttribute mlirUnrankedMemrefGetMemorySpace(MlirType type) {
+  return wrap(unwrap(type).cast<UnrankedMemRefType>().getMemorySpace());
 }
 
 //===----------------------------------------------------------------------===//
@@ -348,4 +378,25 @@ MlirType mlirFunctionTypeGetResult(MlirType type, intptr_t pos) {
   assert(pos >= 0 && "pos in array must be positive");
   return wrap(
       unwrap(type).cast<FunctionType>().getResult(static_cast<unsigned>(pos)));
+}
+
+//===----------------------------------------------------------------------===//
+// Opaque type.
+//===----------------------------------------------------------------------===//
+
+bool mlirTypeIsAOpaque(MlirType type) { return unwrap(type).isa<OpaqueType>(); }
+
+MlirType mlirOpaqueTypeGet(MlirContext ctx, MlirStringRef dialectNamespace,
+                           MlirStringRef typeData) {
+  return wrap(
+      OpaqueType::get(StringAttr::get(unwrap(ctx), unwrap(dialectNamespace)),
+                      unwrap(typeData)));
+}
+
+MlirStringRef mlirOpaqueTypeGetDialectNamespace(MlirType type) {
+  return wrap(unwrap(type).cast<OpaqueType>().getDialectNamespace().strref());
+}
+
+MlirStringRef mlirOpaqueTypeGetData(MlirType type) {
+  return wrap(unwrap(type).cast<OpaqueType>().getTypeData());
 }

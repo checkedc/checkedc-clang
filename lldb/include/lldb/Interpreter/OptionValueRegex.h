@@ -14,11 +14,10 @@
 
 namespace lldb_private {
 
-class OptionValueRegex : public OptionValue {
+class OptionValueRegex : public Cloneable<OptionValueRegex, OptionValue> {
 public:
   OptionValueRegex(const char *value = nullptr)
-      : OptionValue(), m_regex(llvm::StringRef::withNullAsEmpty(value)),
-        m_default_regex_str(llvm::StringRef::withNullAsEmpty(value).str()) {}
+      : m_regex(value), m_default_regex_str(value) {}
 
   ~OptionValueRegex() override = default;
 
@@ -29,19 +28,18 @@ public:
   void DumpValue(const ExecutionContext *exe_ctx, Stream &strm,
                  uint32_t dump_mask) override;
 
+  llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) override {
+    return m_regex.GetText();
+  }
+
   Status
   SetValueFromString(llvm::StringRef value,
                      VarSetOperationType op = eVarSetOperationAssign) override;
-  Status
-  SetValueFromString(const char *,
-                     VarSetOperationType = eVarSetOperationAssign) = delete;
 
   void Clear() override {
     m_regex = RegularExpression(m_default_regex_str);
     m_value_was_set = false;
   }
-
-  lldb::OptionValueSP DeepCopy() const override;
 
   // Subclass specific functions
   const RegularExpression *GetCurrentValue() const {

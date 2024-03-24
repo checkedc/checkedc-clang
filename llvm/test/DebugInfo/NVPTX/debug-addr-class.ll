@@ -1,35 +1,36 @@
 ; RUN: llc -mtriple=nvptx64-nvidia-cuda < %s | FileCheck %s
+; RUN: %if ptxas %{ llc -mtriple=nvptx64-nvidia-cuda < %s | %ptxas-verify %}
 
 @GLOBAL = addrspace(1) externally_initialized global i32 0, align 4, !dbg !0
 @SHARED = addrspace(3) externally_initialized global i32 undef, align 4, !dbg !6
 
-define void @test(float, float*, float*, i32) !dbg !17 {
+define void @test(float, ptr, ptr, i32) !dbg !17 {
   %5 = alloca float, align 4
-  %6 = alloca float*, align 8
-  %7 = alloca float*, align 8
+  %6 = alloca ptr, align 8
+  %7 = alloca ptr, align 8
   %8 = alloca i32, align 4
-  store float %0, float* %5, align 4
-  call void @llvm.dbg.declare(metadata float* %5, metadata !22, metadata !DIExpression()), !dbg !23
-  store float* %1, float** %6, align 8
-  call void @llvm.dbg.declare(metadata float** %6, metadata !24, metadata !DIExpression()), !dbg !25
-  store float* %2, float** %7, align 8
-  call void @llvm.dbg.declare(metadata float** %7, metadata !26, metadata !DIExpression()), !dbg !27
-  store i32 %3, i32* %8, align 4
-  call void @llvm.dbg.declare(metadata i32* %8, metadata !28, metadata !DIExpression()), !dbg !29
-  %9 = load float, float* %5, align 4, !dbg !30
-  %10 = load float*, float** %6, align 8, !dbg !31
-  %11 = load i32, i32* %8, align 4, !dbg !32
+  store float %0, ptr %5, align 4
+  call void @llvm.dbg.declare(metadata ptr %5, metadata !22, metadata !DIExpression()), !dbg !23
+  store ptr %1, ptr %6, align 8
+  call void @llvm.dbg.declare(metadata ptr %6, metadata !24, metadata !DIExpression()), !dbg !25
+  store ptr %2, ptr %7, align 8
+  call void @llvm.dbg.declare(metadata ptr %7, metadata !26, metadata !DIExpression()), !dbg !27
+  store i32 %3, ptr %8, align 4
+  call void @llvm.dbg.declare(metadata ptr %8, metadata !28, metadata !DIExpression()), !dbg !29
+  %9 = load float, ptr %5, align 4, !dbg !30
+  %10 = load ptr, ptr %6, align 8, !dbg !31
+  %11 = load i32, ptr %8, align 4, !dbg !32
   %12 = sext i32 %11 to i64, !dbg !31
-  %13 = getelementptr inbounds float, float* %10, i64 %12, !dbg !31
-  %14 = load float, float* %13, align 4, !dbg !31
+  %13 = getelementptr inbounds float, ptr %10, i64 %12, !dbg !31
+  %14 = load float, ptr %13, align 4, !dbg !31
   %15 = fmul contract float %9, %14, !dbg !33
-  %16 = load float*, float** %7, align 8, !dbg !34
-  %17 = load i32, i32* %8, align 4, !dbg !35
+  %16 = load ptr, ptr %7, align 8, !dbg !34
+  %17 = load i32, ptr %8, align 4, !dbg !35
   %18 = sext i32 %17 to i64, !dbg !34
-  %19 = getelementptr inbounds float, float* %16, i64 %18, !dbg !34
-  store float %15, float* %19, align 4, !dbg !36
-  store i32 0, i32* addrspacecast (i32 addrspace(1)* @GLOBAL to i32*), align 4, !dbg !37
-  store i32 0, i32* addrspacecast (i32 addrspace(3)* @SHARED to i32*), align 4, !dbg !38
+  %19 = getelementptr inbounds float, ptr %16, i64 %18, !dbg !34
+  store float %15, ptr %19, align 4, !dbg !36
+  store i32 0, ptr addrspacecast (ptr addrspace(1) @GLOBAL to ptr), align 4, !dbg !37
+  store i32 0, ptr addrspacecast (ptr addrspace(3) @SHARED to ptr), align 4, !dbg !38
   ret void, !dbg !39
 }
 
@@ -51,14 +52,14 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 !7 = distinct !DIGlobalVariable(name: "SHARED", scope: !2, file: !8, line: 4, type: !9, isLocal: false, isDefinition: true)
 !8 = !DIFile(filename: "test.cu", directory: "/tmp")
 !9 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
-!10 = !{void (float, float*, float*, i32)* @test, !"kernel", i32 1}
+!10 = !{ptr @test, !"kernel", i32 1}
 !11 = !{i32 2, !"Dwarf Version", i32 2}
 !12 = !{i32 2, !"Debug Info Version", i32 3}
 !13 = !{i32 1, !"wchar_size", i32 4}
 !14 = !{i32 4, !"nvvm-reflect-ftz", i32 0}
 !15 = !{i32 7, !"PIC Level", i32 2}
 !16 = !{!"clang version 9.0.0 (trunk 351969) (llvm/trunk 351973)"}
-!17 = distinct !DISubprogram(name: "test", linkageName: "test", scope: !8, file: !8, line: 6, type: !18, scopeLine: 6, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2, retainedNodes: !4)
+!17 = distinct !DISubprogram(name: "test", linkageName: "test", scope: !8, file: !8, line: 6, type: !18, scopeLine: 6, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2, retainedNodes: !40)
 !18 = !DISubroutineType(types: !19)
 !19 = !{null, !20, !21, !21, !9}
 !20 = !DIBasicType(name: "float", size: 32, encoding: DW_ATE_float)
@@ -81,6 +82,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 !37 = !DILocation(line: 8, column: 10, scope: !17)
 !38 = !DILocation(line: 9, column: 10, scope: !17)
 !39 = !DILocation(line: 10, column: 1, scope: !17)
+!40 = !{!22, !24, !26, !28}
 
 ; CHECK:        .section        .debug_abbrev
 ; CHECK-NEXT:        {
@@ -255,8 +257,8 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 109
 ; CHECK-NEXT:.b8 112
 ; CHECK-NEXT:.b8 0
-; CHECK-NEXT:.b64 Lfunc_begin0                       // DW_AT_low_pc
-; CHECK-NEXT:.b64 Lfunc_end0                         // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__func_begin0                    // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__func_end0                      // DW_AT_high_pc
 ; CHECK-NEXT:.b8 2                                   // Abbrev [2] 0x65:0x1a DW_TAG_variable
 ; CHECK-NEXT:.b8 71                                  // DW_AT_name
 ; CHECK-NEXT:.b8 76
@@ -297,8 +299,8 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 3
 ; CHECK-NEXT:.b64 SHARED
 ; CHECK-NEXT:.b8 4                                   // Abbrev [4] 0xa0:0x45 DW_TAG_subprogram
-; CHECK-NEXT:.b64 Lfunc_begin0                       // DW_AT_low_pc
-; CHECK-NEXT:.b64 Lfunc_end0                         // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__func_begin0                    // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__func_end0                      // DW_AT_high_pc
 ; CHECK-NEXT:.b8 1                                   // DW_AT_frame_base
 ; CHECK-NEXT:.b8 156
 ; CHECK-NEXT:.b8 116                                 // DW_AT_MIPS_linkage_name
@@ -319,19 +321,19 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 0
 ; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
-; CHECK-NEXT:.b32 234                                // DW_AT_type
+; CHECK-NEXT:.b32 229                                // DW_AT_type
 ; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xc9:0x9 DW_TAG_formal_parameter
 ; CHECK-NEXT:.b8 120                                 // DW_AT_name
 ; CHECK-NEXT:.b8 0
 ; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
-; CHECK-NEXT:.b32 229                                // DW_AT_type
+; CHECK-NEXT:.b32 238                                // DW_AT_type
 ; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xd2:0x9 DW_TAG_formal_parameter
 ; CHECK-NEXT:.b8 121                                 // DW_AT_name
 ; CHECK-NEXT:.b8 0
 ; CHECK-NEXT:.b8 1                                   // DW_AT_decl_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
-; CHECK-NEXT:.b32 229                                // DW_AT_type
+; CHECK-NEXT:.b32 238                                // DW_AT_type
 ; CHECK-NEXT:.b8 5                                   // Abbrev [5] 0xdb:0x9 DW_TAG_formal_parameter
 ; CHECK-NEXT:.b8 105                                 // DW_AT_name
 ; CHECK-NEXT:.b8 0
@@ -339,9 +341,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 6                                   // DW_AT_decl_line
 ; CHECK-NEXT:.b32 127                                // DW_AT_type
 ; CHECK-NEXT:.b8 0                                   // End Of Children Mark
-; CHECK-NEXT:.b8 6                                   // Abbrev [6] 0xe5:0x5 DW_TAG_pointer_type
-; CHECK-NEXT:.b32 234                                // DW_AT_type
-; CHECK-NEXT:.b8 3                                   // Abbrev [3] 0xea:0x9 DW_TAG_base_type
+; CHECK-NEXT:.b8 3                                   // Abbrev [3] 0xe5:0x9 DW_TAG_base_type
 ; CHECK-NEXT:.b8 102                                 // DW_AT_name
 ; CHECK-NEXT:.b8 108
 ; CHECK-NEXT:.b8 111
@@ -350,6 +350,8 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 ; CHECK-NEXT:.b8 0
 ; CHECK-NEXT:.b8 4                                   // DW_AT_encoding
 ; CHECK-NEXT:.b8 4                                   // DW_AT_byte_size
+; CHECK-NEXT:.b8 6                                   // Abbrev [6] 0xee:0x5 DW_TAG_pointer_type
+; CHECK-NEXT:.b32 229                                // DW_AT_type
 ; CHECK-NEXT:.b8 0                                   // End Of Children Mark
 ; CHECK-NEXT:        }
 ; CHECK-NEXT:         .section        .debug_loc      {       }

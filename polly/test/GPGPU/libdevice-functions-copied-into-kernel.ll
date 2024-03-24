@@ -1,9 +1,5 @@
-; RUN: opt %loadPolly -analyze -polly-scops < %s \
-; RUN: -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll \
-; RUN:     | FileCheck %s --check-prefix=SCOP
-; RUN: opt %loadPolly -analyze -polly-codegen-ppcg -polly-acc-dump-kernel-ir \
-; RUN: -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll \
-; RUN:     < %s | FileCheck %s --check-prefix=KERNEL-IR
+; RUN: opt %loadPolly -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll -polly-print-scops -disable-output < %s | FileCheck %s --check-prefix=SCOP
+; RUN: opt %loadPolly -polly-codegen-ppcg -polly-acc-dump-kernel-ir -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll -disable-output < %s | FileCheck %s --check-prefix=KERNEL-IR
 ; RUN: opt %loadPolly -S -polly-codegen-ppcg  < %s \
 ; RUN: -polly-acc-libdevice=%S/Inputs/libdevice-functions-copied-into-kernel_libdevice.ll \
 ; RUN:     | FileCheck %s --check-prefix=HOST-IR
@@ -29,7 +25,7 @@
 
 ; Check that kernel launch is generated in host IR.
 ; the declare would not be generated unless a call to a kernel exists.
-; HOST-IR: declare void @polly_launchKernel(i8*, i32, i32, i32, i32, i32, i8*)
+; HOST-IR: declare void @polly_launchKernel(ptr, i32, i32, i32, i32, i32, ptr)
 
 
 ; void f(float *A, float *B, int N) {
@@ -46,7 +42,7 @@
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @f(float* %A, float* %B, i32 %N) {
+define void @f(ptr %A, ptr %B, i32 %N) {
 entry:
   br label %entry.split
 
@@ -59,16 +55,16 @@ for.body.lr.ph:                                   ; preds = %entry.split
 
 for.body:                                         ; preds = %for.body.lr.ph, %for.body
   %indvars.iv = phi i64 [ 0, %for.body.lr.ph ], [ %indvars.iv.next, %for.body ]
-  %A.arr.i = getelementptr inbounds float, float* %A, i64 %indvars.iv
-  %A.arr.i.val = load float, float* %A.arr.i, align 4
+  %A.arr.i = getelementptr inbounds float, ptr %A, i64 %indvars.iv
+  %A.arr.i.val = load float, ptr %A.arr.i, align 4
   ; Call to intrinsics that should be part of the kernel.
   %expf = tail call float @expf(float %A.arr.i.val)
   %cosf = tail call float @cosf(float %expf)
   %logf = tail call float @logf(float %cosf)
-  %powi = tail call float @llvm.powi.f32(float %logf, i32 2)
+  %powi = tail call float @llvm.powi.f32.i32(float %logf, i32 2)
   %exp = tail call float @llvm.exp.f32(float %powi)
-  %B.arr.i = getelementptr inbounds float, float* %B, i64 %indvars.iv
-  store float %exp, float* %B.arr.i, align 4
+  %B.arr.i = getelementptr inbounds float, ptr %B, i64 %indvars.iv
+  store float %exp, ptr %B.arr.i, align 4
 
   %indvars.iv.next = add nuw nsw i64 %indvars.iv, 1
   %wide.trip.count = zext i32 %N to i64
@@ -86,7 +82,7 @@ for.end:                                          ; preds = %for.cond.for.end_cr
 declare float @expf(float) #0
 declare float @cosf(float) #0
 declare float @logf(float) #0
-declare float @llvm.powi.f32(float, i32) #0
+declare float @llvm.powi.f32.i32(float, i32) #0
 declare float @llvm.exp.f32(float) #0
 
 attributes #0 = { nounwind readnone }

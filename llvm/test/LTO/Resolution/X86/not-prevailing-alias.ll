@@ -21,23 +21,23 @@
 
 ; Check that 'barAlias' and 'varAlias' produced as undefined.
 ; RUN: llvm-readelf --symbols %t2.o.1 | FileCheck %s --check-prefix=SYMBOLS
+; SYMBOLS: FUNC    GLOBAL DEFAULT    2 zed
 ; SYMBOLS: NOTYPE  GLOBAL DEFAULT  UND barAlias
 ; SYMBOLS: NOTYPE  GLOBAL DEFAULT  UND varAlias
-; SYMBOLS: FUNC    GLOBAL DEFAULT    2 zed
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-@barAlias = alias void(), void()* @bar
+@barAlias = alias void(), ptr @bar
 define void @bar() {
   ret void
 }
 
 @var = global i32 99
-@varAlias = alias i32, i32* @var
+@varAlias = alias i32, ptr @var
 
 define i32 @zed() {
   call void @barAlias()
-  %1 = load i32, i32* @varAlias, align 4
+  %1 = load i32, ptr @varAlias, align 4
   ret i32 %1
 }

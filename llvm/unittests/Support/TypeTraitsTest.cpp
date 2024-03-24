@@ -6,8 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/FunctionExtras.h"
+#include "llvm/ADT/PointerIntPair.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/type_traits.h"
 #include "gtest/gtest.h"
+#include <optional>
 
 namespace {
 
@@ -90,6 +97,31 @@ TEST(Triviality, Tester) {
   TrivialityTester<Z &&, false, true>();
   TrivialityTester<A &&, false, true>();
   TrivialityTester<B &&, false, true>();
+}
+
+// Test that the following ADT behave as expected wrt. trivially copyable trait
+//
+// NB: It is important that this trait behaves the same for (at least) these
+// types for all supported compilers to prevent ABI issue when llvm is compiled
+// with compiler A and an other project using llvm is compiled with compiler B.
+
+TEST(Triviality, ADT) {
+
+  TrivialityTester<llvm::SmallVector<int>, false, false>();
+  TrivialityTester<llvm::SmallString<8>, false, false>();
+
+  TrivialityTester<std::function<int()>, false, false>();
+#if !defined(__FreeBSD__)
+  TrivialityTester<std::pair<int, bool>, true, true>();
+#endif
+  TrivialityTester<llvm::unique_function<int()>, false, false>();
+  TrivialityTester<llvm::StringRef, true, true>();
+  TrivialityTester<llvm::ArrayRef<int>, true, true>();
+  TrivialityTester<llvm::PointerIntPair<int *, 2>, true, true>();
+#if defined(_LIBCPP_VERSION) ||                                                \
+    (defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE >= 8)
+  TrivialityTester<std::optional<int>, true, true>();
+#endif
 }
 
 } // namespace triviality

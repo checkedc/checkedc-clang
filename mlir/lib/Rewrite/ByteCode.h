@@ -19,16 +19,16 @@
 namespace mlir {
 namespace pdl_interp {
 class RecordMatchOp;
-} // end namespace pdl_interp
+} // namespace pdl_interp
 
 namespace detail {
 class PDLByteCode;
 
 /// Use generic bytecode types. ByteCodeField refers to the actual bytecode
-/// entries (set to uint8_t for "byte" bytecode). ByteCodeAddr refers to size of
-/// indices into the bytecode. Correctness is checked with static asserts.
+/// entries. ByteCodeAddr refers to size of indices into the bytecode.
 using ByteCodeField = uint16_t;
 using ByteCodeAddr = uint32_t;
+using OwningOpRange = llvm::OwningArrayRef<Operation *>;
 
 //===----------------------------------------------------------------------===//
 // PDLByteCodePattern
@@ -38,19 +38,27 @@ using ByteCodeAddr = uint32_t;
 class PDLByteCodePattern : public Pattern {
 public:
   static PDLByteCodePattern create(pdl_interp::RecordMatchOp matchOp,
+                                   PDLPatternConfigSet *configSet,
                                    ByteCodeAddr rewriterAddr);
 
   /// Return the bytecode address of the rewriter for this pattern.
   ByteCodeAddr getRewriterAddr() const { return rewriterAddr; }
 
+  /// Return the configuration set for this pattern, or null if there is none.
+  PDLPatternConfigSet *getConfigSet() const { return configSet; }
+
 private:
   template <typename... Args>
-  PDLByteCodePattern(ByteCodeAddr rewriterAddr, Args &&...patternArgs)
-      : Pattern(std::forward<Args>(patternArgs)...),
-        rewriterAddr(rewriterAddr) {}
+  PDLByteCodePattern(ByteCodeAddr rewriterAddr, PDLPatternConfigSet *configSet,
+                     Args &&...patternArgs)
+      : Pattern(std::forward<Args>(patternArgs)...), rewriterAddr(rewriterAddr),
+        configSet(configSet) {}
 
   /// The address of the rewriter for this pattern.
   ByteCodeAddr rewriterAddr;
+
+  /// The optional config set for this pattern.
+  PDLPatternConfigSet *configSet;
 };
 
 //===----------------------------------------------------------------------===//
@@ -62,13 +70,15 @@ private:
 /// threads/drivers.
 class PDLByteCodeMutableState {
 public:
-  /// Initialize the state from a bytecode instance.
-  void initialize(PDLByteCode &bytecode);
-
   /// Set the new benefit for a bytecode pattern. The `patternIndex` corresponds
   /// to the position of the pattern within the range returned by
   /// `PDLByteCode::getPatterns`.
   void updatePatternBenefit(unsigned patternIndex, PatternBenefit benefit);
+
+  /// Cleanup any allocated state after a match/rewrite has been completed. This
+  /// method should be called irregardless of whether the match+rewrite was a
+  /// success or not.
+  void cleanupAfterMatchAndRewrite();
 
 private:
   /// Allow access to data fields.
@@ -77,6 +87,31 @@ private:
   /// The mutable block of memory used during the matching and rewriting phases
   /// of the bytecode.
   std::vector<const void *> memory;
+
+  /// A mutable block of memory used during the matching and rewriting phase of
+  /// the bytecode to store ranges of operations. These are always stored by
+  /// owning references, because at no point in the execution of the byte code
+  /// we get an indexed range (view) of operations.
+  std::vector<OwningOpRange> opRangeMemory;
+
+  /// A mutable block of memory used during the matching and rewriting phase of
+  /// the bytecode to store ranges of types.
+  std::vector<TypeRange> typeRangeMemory;
+  /// A set of type ranges that have been allocated by the byte code interpreter
+  /// to provide a guaranteed lifetime.
+  std::vector<llvm::OwningArrayRef<Type>> allocatedTypeRangeMemory;
+
+  /// A mutable block of memory used during the matching and rewriting phase of
+  /// the bytecode to store ranges of values.
+  std::vector<ValueRange> valueRangeMemory;
+  /// A set of value ranges that have been allocated by the byte code
+  /// interpreter to provide a guaranteed lifetime.
+  std::vector<llvm::OwningArrayRef<Value>> allocatedValueRangeMemory;
+
+  /// The current index of ranges being iterated over for each level of nesting.
+  /// These are always maintained at 0 for the loops that are not active, so we
+  /// do not need to have a separate initialization phase for each loop.
+  std::vector<unsigned> loopIndex;
 
   /// The up-to-date benefits of the patterns held by the bytecode. The order
   /// of this array corresponds 1-1 with the array of patterns in `PDLByteCode`.
@@ -98,11 +133,19 @@ public:
     MatchResult(Location loc, const PDLByteCodePattern &pattern,
                 PatternBenefit benefit)
         : location(loc), pattern(&pattern), benefit(benefit) {}
+    MatchResult(const MatchResult &) = delete;
+    MatchResult &operator=(const MatchResult &) = delete;
+    MatchResult(MatchResult &&other) = default;
+    MatchResult &operator=(MatchResult &&) = default;
 
     /// The location of operations to be replaced.
     Location location;
     /// Memory values defined in the matcher that are passed to the rewriter.
-    SmallVector<const void *, 4> values;
+    SmallVector<const void *> values;
+    /// Memory used for the range input values.
+    SmallVector<TypeRange, 0> typeRangeValues;
+    SmallVector<ValueRange, 0> valueRangeValues;
+
     /// The originating pattern that was matched. This is always non-null, but
     /// represented with a pointer to allow for assignment.
     const PDLByteCodePattern *pattern;
@@ -113,8 +156,9 @@ public:
   /// Create a ByteCode instance from the given module containing operations in
   /// the PDL interpreter dialect.
   PDLByteCode(ModuleOp module,
+              SmallVector<std::unique_ptr<PDLPatternConfigSet>> configs,
+              const DenseMap<Operation *, PDLPatternConfigSet *> &configMap,
               llvm::StringMap<PDLConstraintFunction> constraintFns,
-              llvm::StringMap<PDLCreateFunction> createFns,
               llvm::StringMap<PDLRewriteFunction> rewriteFns);
 
   /// Return the patterns held by the bytecode.
@@ -131,9 +175,9 @@ public:
              PDLByteCodeMutableState &state) const;
 
   /// Run the rewriter of the given pattern that was previously matched in
-  /// `match`.
-  void rewrite(PatternRewriter &rewriter, const MatchResult &match,
-               PDLByteCodeMutableState &state) const;
+  /// `match`. Returns if a failure was encountered during the rewrite.
+  LogicalResult rewrite(PatternRewriter &rewriter, const MatchResult &match,
+                        PDLByteCodeMutableState &state) const;
 
 private:
   /// Execute the given byte code starting at the provided instruction `inst`.
@@ -143,10 +187,13 @@ private:
                        PDLByteCodeMutableState &state,
                        SmallVectorImpl<MatchResult> *matches) const;
 
+  /// The set of pattern configs referenced within the bytecode.
+  SmallVector<std::unique_ptr<PDLPatternConfigSet>> configs;
+
   /// A vector containing pointers to uniqued data. The storage is intentionally
   /// opaque such that we can store a wide range of data types. The types of
   /// data stored here include:
-  ///  * Attribute, Identifier, OperationName, Type
+  ///  * Attribute, OperationName, Type
   std::vector<const void *> uniquedData;
 
   /// A vector containing the generated bytecode for the matcher.
@@ -160,14 +207,21 @@ private:
 
   /// A set of user defined functions invoked via PDL.
   std::vector<PDLConstraintFunction> constraintFunctions;
-  std::vector<PDLCreateFunction> createFunctions;
   std::vector<PDLRewriteFunction> rewriteFunctions;
 
   /// The maximum memory index used by a value.
   ByteCodeField maxValueMemoryIndex = 0;
+
+  /// The maximum number of different types of ranges.
+  ByteCodeField maxOpRangeCount = 0;
+  ByteCodeField maxTypeRangeCount = 0;
+  ByteCodeField maxValueRangeCount = 0;
+
+  /// The maximum number of nested loops.
+  ByteCodeField maxLoopLevel = 0;
 };
 
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 #endif // MLIR_REWRITE_BYTECODE_H_

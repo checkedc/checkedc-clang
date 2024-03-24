@@ -72,7 +72,7 @@ struct C {
     int a;
     // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:5, col:9> col:9 a 'int'
   } b;
-  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-12]]:3, line:[[@LINE-1]]:5> col:5 b 'struct (anonymous struct at {{.*}}:[[@LINE-12]]:3)':'C::(anonymous struct at {{.*}}:[[@LINE-12]]:3)'
+  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-12]]:3, line:[[@LINE-1]]:5> col:5 b 'struct (unnamed struct at {{.*}}:[[@LINE-12]]:3)':'C::(unnamed struct at {{.*}}:[[@LINE-12]]:3)'
 
   union {
     // CHECK-NEXT: CXXRecordDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:3, line:[[@LINE+12]]:3> line:[[@LINE-1]]:3 union definition
@@ -132,9 +132,9 @@ struct D {
   int a;
   // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:7> col:7 a 'int'
   int b[10];
-  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:11> col:7 b 'int [10]'
+  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:11> col:7 b 'int[10]'
   int c[];
-  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:9> col:7 c 'int []'
+  // CHECK-NEXT: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:3, col:9> col:7 c 'int[]'
 };
 
 union E;
@@ -204,7 +204,7 @@ union G {
   } b;
   // FIXME: note that it talks about 'struct G' below; the same happens in
   // other cases with union G as well.
-  // CHECK: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-15]]:3, line:[[@LINE-3]]:5> col:5 b 'struct (anonymous struct at {{.*}}:[[@LINE-15]]:3)':'G::(anonymous struct at {{.*}}:[[@LINE-15]]:3)'
+  // CHECK: FieldDecl 0x{{[^ ]*}} <line:[[@LINE-15]]:3, line:[[@LINE-3]]:5> col:5 b 'struct (unnamed struct at {{.*}}:[[@LINE-15]]:3)':'G::(unnamed struct at {{.*}}:[[@LINE-15]]:3)'
 
   union {
     // CHECK-NEXT: CXXRecordDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:3, line:[[@LINE+13]]:3> line:[[@LINE-1]]:3 union definition
@@ -287,4 +287,30 @@ template <typename... Bases>
 struct Derived6 : virtual public Bases... {
   // CHECK: CXXRecordDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, line:[[@LINE+2]]:1> line:[[@LINE-1]]:8 struct Derived6 definition
   // CHECK: virtual public 'Bases'...
+};
+
+class NonTrivial {
+// CHECK: |-CXXRecordDecl {{.*}} referenced class NonTrivial definition
+ public:
+  NonTrivial();
+// CHECK: | |-CXXConstructorDecl {{.*}} referenced NonTrivial 'void ()'
+  ~NonTrivial();
+// CHECK: | |-CXXDestructorDecl {{.*}} referenced ~NonTrivial 'void () noexcept'
+};
+
+struct CheckFullExpression {
+// CHECK: |-CXXRecordDecl {{.*}} struct CheckFullExpression definition
+  NonTrivial value = NonTrivial();
+// CHECK: | |-FieldDecl {{.*}} value 'NonTrivial':'NonTrivial'
+// CHECK-NEXT: | | `-ExprWithCleanups {{.*}} 'NonTrivial':'NonTrivial'
+// CHECK-NEXT: | |   `-CXXBindTemporaryExpr {{.*}} 'NonTrivial':'NonTrivial' (CXXTemporary{{.*}})
+// CHECK-NEXT: | |     `-CXXTemporaryObjectExpr {{.*}} 'NonTrivial':'NonTrivial' 'void ()'
+};
+
+struct CheckNoCleanup {
+// CHECK: `-CXXRecordDecl {{.*}} struct CheckNoCleanup definition
+  static constexpr char kConstant = '+';
+// CHECK: `-VarDecl {{.*}} kConstant 'const char' static inline constexpr cinit
+// CHECK-NEXT: |-value: Int 43
+// CHECK-NEXT: `-CharacterLiteral {{.*}} 'char' 43
 };

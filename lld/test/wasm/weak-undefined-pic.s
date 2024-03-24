@@ -12,6 +12,8 @@
 # RUN: wasm-ld --unresolved-symbols=ignore-all %t.o -o %t2.wasm
 # RUN: obj2yaml %t2.wasm | FileCheck %s
 
+.functype foo () -> (i32)
+
 .globl get_foo_addr
 get_foo_addr:
   .functype get_foo_addr () -> (i32)
@@ -20,16 +22,17 @@ get_foo_addr:
 
 .globl _start
 _start:
-  .functype _start () -> ()
+  .functype _start () -> (i32)
   call get_foo_addr
+  call foo
+  drop
   end_function
 
 .weak foo
-.functype foo () -> (i32)
 
 # Verify that we do not generate dynamic relocations for the GOT entry.
 
-# CHECK-NOT: __wasm_apply_relocs
+# CHECK-NOT: __wasm_apply_global_relocs
 
 # Verify that we do not generate an import for foo
 
@@ -45,7 +48,7 @@ _start:
 # CHECK-NEXT:           Value:           66560
 # Global 'undefined_weak:foo' representing the GOT entry for foo
 # Unlike other internal GOT entries that need to be mutable this one
-# is immutable and not updated by `__wasm_apply_relocs`
+# is immutable and not updated by `__wasm_apply_global_relocs`
 # CHECK-NEXT:       - Index:           1
 # CHECK-NEXT:         Type:            I32
 # CHECK-NEXT:         Mutable:         false
@@ -75,7 +78,10 @@ _start:
 # RUN: obj2yaml %t3.wasm | FileCheck %s --check-prefix=IMPORT
 
 #      IMPORT:  - Type:            IMPORT
-#      IMPORT:      - Module:          GOT.func
+#      IMPORT:        Field:           foo
+# IMPORT-NEXT:        Kind:            FUNCTION
+# IMPORT-NEXT:        SigIndex:        0
+# IMPORT-NEXT:      - Module:          GOT.func
 # IMPORT-NEXT:        Field:           foo
 # IMPORT-NEXT:        Kind:            GLOBAL
 # IMPORT-NEXT:        GlobalType:      I32

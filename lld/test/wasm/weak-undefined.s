@@ -1,9 +1,11 @@
 # RUN: llvm-mc -filetype=obj -triple=wasm32-unknown-unknown -o %t.o %s
-# RUN: wasm-ld -strip-debug %t.o -o %t.wasm
+# RUN: wasm-ld -strip-all %t.o -o %t.wasm
 # RUN: obj2yaml %t.wasm | FileCheck %s
 
 # Test that undefined weak externals (global_var) and (foo) don't cause
 # link failures and resolve to zero.
+
+.functype foo () -> (i32)
 
 .globl  get_address_of_foo
 get_address_of_foo:
@@ -30,7 +32,6 @@ _start:
 
 .weak foo
 .weak global_var
-.functype foo () -> (i32)
 
 
 # CHECK:      --- !WASM
@@ -54,11 +55,11 @@ _start:
 # CHECK-NEXT:         ElemType:        FUNCREF
 # CHECK-NEXT:         Limits:
 # CHECK-NEXT:           Flags:           [ HAS_MAX ]
-# CHECK-NEXT:           Initial:         0x1
+# CHECK-NEXT:           Minimum:         0x1
 # CHECK-NEXT:           Maximum:         0x1
 # CHECK-NEXT:   - Type:            MEMORY
 # CHECK-NEXT:     Memories:
-# CHECK-NEXT:       - Initial:         0x2
+# CHECK-NEXT:       - Minimum:         0x2
 # CHECK-NEXT:   - Type:            GLOBAL
 # CHECK-NEXT:     Globals:
 # CHECK-NEXT:       - Index:           0

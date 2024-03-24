@@ -47,7 +47,7 @@ TEST(TypeSwitchTest, CasesResult) {
     return TypeSwitch<Base *, int>(&value)
         .Case<DerivedA, DerivedB, DerivedD>([](auto *) { return 0; })
         .Case([](DerivedC *) { return 1; })
-        .Default([](Base *) { return -1; });
+        .Default(-1);
   };
   EXPECT_EQ(0, translate(DerivedA()));
   EXPECT_EQ(0, translate(DerivedB()));
@@ -85,4 +85,32 @@ TEST(TypeSwitchTest, CasesVoid) {
   EXPECT_EQ(1, translate(DerivedC()));
   EXPECT_EQ(0, translate(DerivedD()));
   EXPECT_EQ(-1, translate(DerivedE()));
+}
+
+TEST(TypeSwitchTest, CaseOptional) {
+  auto translate = [](auto value) {
+    return TypeSwitch<Base *, std::optional<int>>(&value)
+        .Case([](DerivedA *) { return 0; })
+        .Case([](DerivedC *) { return std::nullopt; })
+        .Default([](Base *) { return -1; });
+  };
+  EXPECT_EQ(0, translate(DerivedA()));
+  EXPECT_EQ(std::nullopt, translate(DerivedC()));
+  EXPECT_EQ(-1, translate(DerivedD()));
+  EXPECT_EQ(std::nullopt,
+            (TypeSwitch<Base *, std::optional<int>>(nullptr).Default(
+                [](Base *) { return std::nullopt; })));
+}
+
+TEST(TypeSwitchTest, CasesOptional) {
+  auto translate = [](auto value) {
+    return TypeSwitch<Base *, std::optional<int>>(&value)
+        .Case<DerivedB, DerivedC>([](auto *) { return std::nullopt; })
+        .Case([](DerivedA *) { return 0; })
+        .Default([](Base *) { return -1; });
+  };
+  EXPECT_EQ(0, translate(DerivedA()));
+  EXPECT_EQ(std::nullopt, translate(DerivedB()));
+  EXPECT_EQ(std::nullopt, translate(DerivedC()));
+  EXPECT_EQ(-1, translate(DerivedD()));
 }

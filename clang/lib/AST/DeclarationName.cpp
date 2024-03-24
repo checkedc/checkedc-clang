@@ -72,15 +72,9 @@ int DeclarationName::compare(DeclarationName LHS, DeclarationName RHS) {
     }
     unsigned LN = LHSSelector.getNumArgs(), RN = RHSSelector.getNumArgs();
     for (unsigned I = 0, N = std::min(LN, RN); I != N; ++I) {
-      switch (LHSSelector.getNameForSlot(I).compare(
-          RHSSelector.getNameForSlot(I))) {
-      case -1:
-        return -1;
-      case 1:
-        return 1;
-      default:
-        break;
-      }
+      if (int Compare = LHSSelector.getNameForSlot(I).compare(
+              RHSSelector.getNameForSlot(I)))
+        return Compare;
     }
 
     return compareInt(LN, RN);
@@ -236,7 +230,7 @@ std::string DeclarationName::getAsString() const {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
   OS << *this;
-  return OS.str();
+  return Result;
 }
 
 void *DeclarationName::getFETokenInfoSlow() const {
@@ -392,14 +386,13 @@ DeclarationNameLoc::DeclarationNameLoc(DeclarationName Name) {
   case DeclarationName::CXXConstructorName:
   case DeclarationName::CXXDestructorName:
   case DeclarationName::CXXConversionFunctionName:
-    NamedType.TInfo = nullptr;
+    setNamedTypeLoc(nullptr);
     break;
   case DeclarationName::CXXOperatorName:
-    CXXOperatorName.BeginOpNameLoc = SourceLocation().getRawEncoding();
-    CXXOperatorName.EndOpNameLoc = SourceLocation().getRawEncoding();
+    setCXXOperatorNameRange(SourceRange());
     break;
   case DeclarationName::CXXLiteralOperatorName:
-    CXXLiteralOperatorName.OpNameLoc = SourceLocation().getRawEncoding();
+    setCXXLiteralOperatorNameLoc(SourceLocation());
     break;
   case DeclarationName::ObjCZeroArgSelector:
   case DeclarationName::ObjCOneArgSelector:
@@ -426,7 +419,7 @@ bool DeclarationNameInfo::containsUnexpandedParameterPack() const {
   case DeclarationName::CXXConstructorName:
   case DeclarationName::CXXDestructorName:
   case DeclarationName::CXXConversionFunctionName:
-    if (TypeSourceInfo *TInfo = LocInfo.NamedType.TInfo)
+    if (TypeSourceInfo *TInfo = LocInfo.getNamedTypeInfo())
       return TInfo->getType()->containsUnexpandedParameterPack();
 
     return Name.getCXXNameType()->containsUnexpandedParameterPack();
@@ -449,7 +442,7 @@ bool DeclarationNameInfo::isInstantiationDependent() const {
   case DeclarationName::CXXConstructorName:
   case DeclarationName::CXXDestructorName:
   case DeclarationName::CXXConversionFunctionName:
-    if (TypeSourceInfo *TInfo = LocInfo.NamedType.TInfo)
+    if (TypeSourceInfo *TInfo = LocInfo.getNamedTypeInfo())
       return TInfo->getType()->isInstantiationDependentType();
 
     return Name.getCXXNameType()->isInstantiationDependentType();
@@ -461,7 +454,7 @@ std::string DeclarationNameInfo::getAsString() const {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
   OS << *this;
-  return OS.str();
+  return Result;
 }
 
 raw_ostream &clang::operator<<(raw_ostream &OS, DeclarationNameInfo DNInfo) {
@@ -486,7 +479,7 @@ void DeclarationNameInfo::printName(raw_ostream &OS, PrintingPolicy Policy) cons
   case DeclarationName::CXXConstructorName:
   case DeclarationName::CXXDestructorName:
   case DeclarationName::CXXConversionFunctionName:
-    if (TypeSourceInfo *TInfo = LocInfo.NamedType.TInfo) {
+    if (TypeSourceInfo *TInfo = LocInfo.getNamedTypeInfo()) {
       if (Name.getNameKind() == DeclarationName::CXXDestructorName)
         OS << '~';
       else if (Name.getNameKind() == DeclarationName::CXXConversionFunctionName)
@@ -508,20 +501,16 @@ SourceLocation DeclarationNameInfo::getEndLocPrivate() const {
   case DeclarationName::CXXDeductionGuideName:
     return NameLoc;
 
-  case DeclarationName::CXXOperatorName: {
-    unsigned raw = LocInfo.CXXOperatorName.EndOpNameLoc;
-    return SourceLocation::getFromRawEncoding(raw);
-  }
+  case DeclarationName::CXXOperatorName:
+    return LocInfo.getCXXOperatorNameEndLoc();
 
-  case DeclarationName::CXXLiteralOperatorName: {
-    unsigned raw = LocInfo.CXXLiteralOperatorName.OpNameLoc;
-    return SourceLocation::getFromRawEncoding(raw);
-  }
+  case DeclarationName::CXXLiteralOperatorName:
+    return LocInfo.getCXXLiteralOperatorNameLoc();
 
   case DeclarationName::CXXConstructorName:
   case DeclarationName::CXXDestructorName:
   case DeclarationName::CXXConversionFunctionName:
-    if (TypeSourceInfo *TInfo = LocInfo.NamedType.TInfo)
+    if (TypeSourceInfo *TInfo = LocInfo.getNamedTypeInfo())
       return TInfo->getTypeLoc().getEndLoc();
     else
       return NameLoc;

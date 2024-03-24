@@ -3,7 +3,7 @@ Test lldb settings command.
 """
 
 
-
+import json
 import os
 import re
 import lldb
@@ -13,8 +13,6 @@ from lldbsuite.test import lldbutil
 
 
 class SettingsCommandTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def test_apropos_should_also_search_settings_description(self):
@@ -24,6 +22,42 @@ class SettingsCommandTestCase(TestBase):
                     substrs=["target.env-vars",
                              "environment variables",
                              "executable's environment"])
+
+    def test_set_interpreter_repeat_prev_command(self):
+        """Test the `interpreter.repeat-previous-command` setting."""
+        self.build()
+
+        exe = self.getBuildArtifact("a.out")
+        self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
+        setting = "interpreter.repeat-previous-command"
+
+        def cleanup(setting):
+            self.runCmd(
+                "settings clear %s" %
+                setting, check=False)
+
+        # Execute the cleanup function during test case tear down.
+        self.addTearDownHook(cleanup(setting))
+
+        # First, check for the setting default value.
+        self.expect("setting show %s" % setting,
+                    substrs=["interpreter.repeat-previous-command (boolean) = true"])
+
+        # Then, invert the setting, and check that was set correctly
+        self.runCmd("setting set %s false" % setting)
+        self.expect("setting show %s" % setting,
+                    substrs=["interpreter.repeat-previous-command (boolean) = false"])
+
+
+        ci  = self.dbg.GetCommandInterpreter()
+        self.assertTrue(ci.IsValid(), "Invalid command interpreter.")
+        # Now, test the functionnality
+        res = lldb.SBCommandReturnObject()
+        ci.HandleCommand('breakpoint set -n main', res)
+        self.assertTrue(res.Succeeded(), "Command failed.")
+        ci.HandleCommand('', res)
+        self.assertTrue(res.Succeeded(), "Empty command failed.")
+        self.assertEqual(self.dbg.GetSelectedTarget().GetNumBreakpoints(), 1)
 
     def test_append_target_env_vars(self):
         """Test that 'append target.run-args' works."""
@@ -203,12 +237,10 @@ class SettingsCommandTestCase(TestBase):
                     substrs=["5ah"])
 
     @skipIfDarwinEmbedded   # <rdar://problem/34446098> debugserver on ios etc can't write files
-    @skipIfReproducer
     def test_run_args_and_env_vars(self):
         self.do_test_run_args_and_env_vars(use_launchsimple=False)
 
     @skipIfDarwinEmbedded   # <rdar://problem/34446098> debugserver on ios etc can't write files
-    @skipIfReproducer
     def test_launchsimple_args_and_env_vars(self):
         self.do_test_run_args_and_env_vars(use_launchsimple=True)
 
@@ -237,6 +269,11 @@ class SettingsCommandTestCase(TestBase):
                 break
         self.assertTrue(found_env_var,
                         "MY_ENV_VAR was not set in LunchInfo object")
+
+        self.assertEqual(launch_info.GetNumArguments(), 3)
+        self.assertEqual(launch_info.GetArgumentAtIndex(0), "A")
+        self.assertEqual(launch_info.GetArgumentAtIndex(1), "B")
+        self.assertEqual(launch_info.GetArgumentAtIndex(2), "C")
 
         self.expect(
             'target show-launch-environment',
@@ -288,7 +325,6 @@ class SettingsCommandTestCase(TestBase):
                 "Environment variable 'MY_ENV_VAR' successfully passed."])
 
     @skipIfRemote  # it doesn't make sense to send host env to remote target
-    @skipIfReproducer
     def test_pass_host_env_vars(self):
         """Test that the host env vars are passed to the launched process."""
         self.build()
@@ -385,7 +421,6 @@ class SettingsCommandTestCase(TestBase):
                 "The host environment variable 'MY_HOST_ENV_VAR2' successfully passed."])
 
     @skipIfDarwinEmbedded   # <rdar://problem/34446098> debugserver on ios etc can't write files
-    @skipIfReproducer
     def test_set_error_output_path(self):
         """Test that setting target.error/output-path for the launched process works."""
         self.build()
@@ -742,3 +777,69 @@ class SettingsCommandTestCase(TestBase):
         # finally, confirm that trying to set a setting that does not exist still fails.
         # (SHOWING a setting that does not exist does not currently yield an error.)
         self.expect('settings set target.setting-which-does-not-exist true', error=True)
+
+    def test_settings_set_exists(self):
+        cmdinterp = self.dbg.GetCommandInterpreter()
+
+        # An unknown option should succeed.
+        self.expect('settings set -e foo bar')
+        self.expect('settings set --exists foo bar')
+
+        # A known option should fail if its argument is invalid.
+        self.expect("settings set auto-confirm bogus", error=True)
+
+    def get_setting_json(self, setting_path = None):
+        settings_data = self.dbg.GetSetting(setting_path)
+        stream = lldb.SBStream()
+        settings_data.GetAsJSON(stream)
+        return json.loads(stream.GetData())
+
+    def verify_setting_value_json(self, setting_path, setting_value):
+        self.runCmd("settings set %s %s" % (setting_path, setting_value))
+        settings_json = self.get_setting_json(setting_path)
+        self.assertEqual(settings_json, setting_value)
+
+    def test_settings_api(self):
+        """
+            Test that ensures SBDebugger::GetSetting() APIs
+            can correctly fetch settings.
+        """
+
+        # Test basic values and embedding special JSON escaping characters.
+        self.runCmd("settings set auto-confirm true")
+        self.runCmd("settings set tab-size 2")
+        arg_value = "hello \"world\""
+        self.runCmd('settings set target.arg0 %s' % arg_value)
+
+        settings_json = self.get_setting_json()
+        self.assertEqual(settings_json["auto-confirm"], True)
+        self.assertEqual(settings_json["tab-size"], 2)
+        self.assertEqual(settings_json["target"]["arg0"], arg_value)
+
+        settings_data = self.get_setting_json("target.arg0")
+        self.assertEqual(settings_data, arg_value)
+
+        # Test OptionValueFileSpec
+        self.verify_setting_value_json("platform.module-cache-directory", self.get_process_working_directory())
+
+        # Test OptionValueArray
+        setting_path = "target.run-args"
+        setting_value = ["value1", "value2", "value3"]
+        self.runCmd("settings set %s %s" % (setting_path, " ".join(setting_value)))
+        settings_json = self.get_setting_json(setting_path)
+        self.assertEqual(settings_json, setting_value)
+
+        # Test OptionValueFormatEntity
+        setting_value = """thread #${thread.index}{, name = \\'${thread.name}\\
+        '}{, queue = ${ansi.fg.green}\\'${thread.queue}\\'${ansi.normal}}{,
+        activity = ${ansi.fg.green}\\'${thread.info.activity.name}\\'${ansi.normal}}
+        {, ${thread.info.trace_messages} messages}{, stop reason = ${ansi.fg.red}$
+        {thread.stop-reason}${ansi.normal}}{\\\\nReturn value: ${thread.return-value}}
+        {\\\\nCompleted expression: ${thread.completed-expression}}\\\\n"""
+        self.verify_setting_value_json("thread-stop-format", setting_value)
+
+        # Test OptionValueRegex
+        self.verify_setting_value_json("target.process.thread.step-avoid-regexp", "^std::")
+
+        # Test OptionValueLanguage
+        self.verify_setting_value_json("repl-lang", "c++")

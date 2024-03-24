@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 static bool areTypesCompatible(QualType Left, QualType Right) {
   if (const auto *LeftRefType = Left->getAs<ReferenceType>())
@@ -35,27 +33,24 @@ void InefficientAlgorithmCheck::registerMatchers(MatchFinder *Finder) {
       "::std::unordered_set", "::std::unordered_map",
       "::std::unordered_multiset", "::std::unordered_multimap"));
 
-  const auto Matcher = traverse(
-      TK_AsIs,
+  const auto Matcher =
       callExpr(
           callee(functionDecl(Algorithms)),
           hasArgument(
-              0, cxxConstructExpr(has(ignoringParenImpCasts(cxxMemberCallExpr(
+              0, cxxMemberCallExpr(
                      callee(cxxMethodDecl(hasName("begin"))),
                      on(declRefExpr(
                             hasDeclaration(decl().bind("IneffContObj")),
                             anyOf(hasType(ContainerMatcher.bind("IneffCont")),
                                   hasType(pointsTo(
                                       ContainerMatcher.bind("IneffContPtr")))))
-                            .bind("IneffContExpr"))))))),
+                            .bind("IneffContExpr")))),
           hasArgument(
-              1, cxxConstructExpr(has(ignoringParenImpCasts(cxxMemberCallExpr(
-                     callee(cxxMethodDecl(hasName("end"))),
-                     on(declRefExpr(
-                         hasDeclaration(equalsBoundNode("IneffContObj"))))))))),
-          hasArgument(2, expr().bind("AlgParam")),
-          unless(isInTemplateInstantiation()))
-          .bind("IneffAlg"));
+              1, cxxMemberCallExpr(callee(cxxMethodDecl(hasName("end"))),
+                                   on(declRefExpr(hasDeclaration(
+                                       equalsBoundNode("IneffContObj")))))),
+          hasArgument(2, expr().bind("AlgParam")))
+          .bind("IneffAlg");
 
   Finder->addMatcher(Matcher, this);
 }
@@ -71,9 +66,8 @@ void InefficientAlgorithmCheck::check(const MatchFinder::MatchResult &Result) {
     PtrToContainer = true;
   }
   const llvm::StringRef IneffContName = IneffCont->getName();
-  const bool Unordered =
-      IneffContName.find("unordered") != llvm::StringRef::npos;
-  const bool Maplike = IneffContName.find("map") != llvm::StringRef::npos;
+  const bool Unordered = IneffContName.contains("unordered");
+  const bool Maplike = IneffContName.contains("map");
 
   // Store if the key type of the container is compatible with the value
   // that is searched for.
@@ -87,8 +81,7 @@ void InefficientAlgorithmCheck::check(const MatchFinder::MatchResult &Result) {
     const Expr *Arg = AlgCall->getArg(3);
     const QualType AlgCmp =
         Arg->getType().getUnqualifiedType().getCanonicalType();
-    const unsigned CmpPosition =
-        (IneffContName.find("map") == llvm::StringRef::npos) ? 1 : 2;
+    const unsigned CmpPosition = IneffContName.contains("map") ? 2 : 1;
     const QualType ContainerCmp = IneffCont->getTemplateArgs()[CmpPosition]
                                       .getAsType()
                                       .getUnqualifiedType()
@@ -153,6 +146,4 @@ void InefficientAlgorithmCheck::check(const MatchFinder::MatchResult &Result) {
       << Hint;
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

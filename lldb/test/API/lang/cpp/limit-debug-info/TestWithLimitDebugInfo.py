@@ -6,9 +6,7 @@ from lldbsuite.test import lldbutil
 
 class TestWithLimitDebugInfo(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
-    @skipIf(debug_info=no_match(["dwarf"]))
+    @add_test_categories(["dwarf", "dwo"])
     def test_limit_debug_info(self):
         self.build()
 
@@ -36,8 +34,8 @@ class TestWithLimitDebugInfo(TestBase):
         self.assertTrue(process.IsValid(), PROCESS_IS_VALID)
 
         # Get the thread of the process
-        self.assertTrue(
-            process.GetState() == lldb.eStateStopped,
+        self.assertEqual(
+            process.GetState(), lldb.eStateStopped,
             PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
@@ -52,6 +50,6 @@ class TestWithLimitDebugInfo(TestBase):
         self.assertTrue(
             v2.IsValid(),
             "'expr this' results in a valid SBValue object")
-        self.assertTrue(
-            v2.GetError().Success(),
+        self.assertSuccess(
+            v2.GetError(),
             "'expr this' succeeds without an error.")

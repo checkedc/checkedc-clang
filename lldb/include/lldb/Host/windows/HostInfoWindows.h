@@ -12,6 +12,7 @@
 #include "lldb/Host/HostInfoBase.h"
 #include "lldb/Utility/FileSpec.h"
 #include "llvm/Support/VersionTuple.h"
+#include <optional>
 
 namespace lldb_private {
 class UserIDResolver;
@@ -19,21 +20,16 @@ class UserIDResolver;
 class HostInfoWindows : public HostInfoBase {
   friend class HostInfoBase;
 
-private:
-  // Static class, unconstructable.
-  HostInfoWindows();
-  ~HostInfoWindows();
-
 public:
-  static void Initialize();
+  static void Initialize(SharedLibraryDirectoryHelper *helper = nullptr);
   static void Terminate();
 
   static size_t GetPageSize();
   static UserIDResolver &GetUserIDResolver();
 
   static llvm::VersionTuple GetOSVersion();
-  static bool GetOSBuildString(std::string &s);
-  static bool GetOSKernelDescription(std::string &s);
+  static std::optional<std::string> GetOSBuildString();
+  static std::optional<std::string> GetOSKernelDescription();
   static bool GetHostname(std::string &s);
   static FileSpec GetProgramFileSpec();
   static FileSpec GetDefaultShell();

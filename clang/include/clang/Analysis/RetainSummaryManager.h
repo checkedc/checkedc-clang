@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_ANALYSIS_RETAINSUMMARY_MANAGER_H
-#define LLVM_CLANG_ANALYSIS_RETAINSUMMARY_MANAGER_H
+#ifndef LLVM_CLANG_ANALYSIS_RETAINSUMMARYMANAGER_H
+#define LLVM_CLANG_ANALYSIS_RETAINSUMMARYMANAGER_H
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FoldingSet.h"
@@ -25,6 +25,7 @@
 #include "clang/Analysis/AnyCall.h"
 #include "clang/Analysis/SelectorExtras.h"
 #include "llvm/ADT/STLExtras.h"
+#include <optional>
 
 using namespace clang;
 
@@ -613,8 +614,8 @@ class RetainSummaryManager {
     const FunctionType *FT,
     bool &AllowAnnotations);
 
-  /// Apply the annotation of {@code pd} in function {@code FD}
-  /// to the resulting summary stored in out-parameter {@code Template}.
+  /// Apply the annotation of @c pd in function @c FD
+  /// to the resulting summary stored in out-parameter @c Template.
   /// \return whether an annotation was applied.
   bool applyParamAnnotationEffect(const ParmVarDecl *pd, unsigned parm_idx,
                                   const NamedDecl *FD,
@@ -648,8 +649,9 @@ public:
     IdentityOrZero
   };
 
-  Optional<BehaviorSummary> canEval(const CallExpr *CE, const FunctionDecl *FD,
-                                    bool &hasTrustedImplementationAnnotation);
+  std::optional<BehaviorSummary>
+  canEval(const CallExpr *CE, const FunctionDecl *FD,
+          bool &hasTrustedImplementationAnnotation);
 
   /// \return Whether the type corresponds to a known smart pointer
   /// implementation (that is, everything about it is inlineable).
@@ -686,8 +688,8 @@ private:
                                                 Selector S, QualType RetTy);
 
   /// Determine if there is a special return effect for this function or method.
-  Optional<RetEffect> getRetEffectFromAnnotations(QualType RetTy,
-                                                  const Decl *D);
+  std::optional<RetEffect> getRetEffectFromAnnotations(QualType RetTy,
+                                                       const Decl *D);
 
   void updateSummaryFromAnnotations(const RetainSummary *&Summ,
                                     const ObjCMethodDecl *MD);
@@ -715,18 +717,18 @@ private:
   /// Set argument types for arguments which are not doing anything.
   void updateSummaryForArgumentTypes(const AnyCall &C, const RetainSummary *&RS);
 
-  /// Determine whether a declaration {@code D} of correspondent type (return
-  /// type for functions/methods) {@code QT} has any of the given attributes,
+  /// Determine whether a declaration @c D of correspondent type (return
+  /// type for functions/methods) @c QT has any of the given attributes,
   /// provided they pass necessary validation checks AND tracking the given
   /// attribute is enabled.
-  /// Returns the object kind corresponding to the present attribute, or None,
-  /// if none of the specified attributes are present.
+  /// Returns the object kind corresponding to the present attribute, or
+  /// std::nullopt, if none of the specified attributes are present.
   /// Crashes if passed an attribute which is not explicitly handled.
   template <class T>
-  Optional<ObjKind> hasAnyEnabledAttrOf(const Decl *D, QualType QT);
+  std::optional<ObjKind> hasAnyEnabledAttrOf(const Decl *D, QualType QT);
 
   template <class T1, class T2, class... Others>
-  Optional<ObjKind> hasAnyEnabledAttrOf(const Decl *D, QualType QT);
+  std::optional<ObjKind> hasAnyEnabledAttrOf(const Decl *D, QualType QT);
 
   friend class RetainSummaryTemplate;
 };

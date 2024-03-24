@@ -65,7 +65,7 @@ public:
     DIEInfo(dw_offset_t o, dw_tag_t t, uint32_t f, uint32_t h);
 
     explicit operator DIERef() const {
-      return DIERef(llvm::None, DIERef::Section::DebugInfo, die_offset);
+      return DIERef(std::nullopt, DIERef::Section::DebugInfo, die_offset);
     }
   };
 
@@ -101,9 +101,9 @@ public:
     /// DIE offset base so die offsets in hash_data can be CU relative.
     dw_offset_t die_base_offset;
     AtomArray atoms;
-    uint32_t atom_mask;
-    size_t min_hash_data_byte_size;
-    bool hash_data_has_fixed_byte_size;
+    uint32_t atom_mask = 0;
+    size_t min_hash_data_byte_size = 0;
+    bool hash_data_has_fixed_byte_size = true;
   };
 
   class Header : public MappedHash::Header<Prologue> {

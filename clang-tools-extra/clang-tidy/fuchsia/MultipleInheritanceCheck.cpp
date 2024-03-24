@@ -13,9 +13,7 @@
 using namespace clang;
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace fuchsia {
+namespace clang::tidy::fuchsia {
 
 namespace {
 AST_MATCHER(CXXRecordDecl, hasBases) {
@@ -28,23 +26,23 @@ AST_MATCHER(CXXRecordDecl, hasBases) {
 // Adds a node (by name) to the interface map, if it was not present in the map
 // previously.
 void MultipleInheritanceCheck::addNodeToInterfaceMap(const CXXRecordDecl *Node,
-                                                     bool isInterface) {
+                                                     bool IsInterface) {
   assert(Node->getIdentifier());
   StringRef Name = Node->getIdentifier()->getName();
-  InterfaceMap.insert(std::make_pair(Name, isInterface));
+  InterfaceMap.insert(std::make_pair(Name, IsInterface));
 }
 
 // Returns "true" if the boolean "isInterface" has been set to the
 // interface status of the current Node. Return "false" if the
 // interface status for the current node is not yet known.
 bool MultipleInheritanceCheck::getInterfaceStatus(const CXXRecordDecl *Node,
-                                                  bool &isInterface) const {
+                                                  bool &IsInterface) const {
   assert(Node->getIdentifier());
   StringRef Name = Node->getIdentifier()->getName();
   llvm::StringMapConstIterator<bool> Pair = InterfaceMap.find(Name);
   if (Pair == InterfaceMap.end())
     return false;
-  isInterface = Pair->second;
+  IsInterface = Pair->second;
   return true;
 }
 
@@ -122,6 +120,4 @@ void MultipleInheritanceCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-}  // namespace fuchsia
-}  // namespace tidy
-}  // namespace clang
+} // namespace clang::tidy::fuchsia

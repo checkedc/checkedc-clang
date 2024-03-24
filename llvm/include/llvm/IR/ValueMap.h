@@ -27,8 +27,6 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/TrackingMDRef.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Casting.h"
@@ -38,6 +36,7 @@
 #include <cstddef>
 #include <iterator>
 #include <mutex>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -91,7 +90,7 @@ class ValueMap {
   using ExtraData = typename Config::ExtraData;
 
   MapT Map;
-  Optional<MDMapT> MDMap;
+  std::optional<MDMapT> MDMap;
   ExtraData Data;
 
 public:
@@ -104,8 +103,8 @@ public:
       : Map(NumInitBuckets), Data() {}
   explicit ValueMap(const ExtraData &Data, unsigned NumInitBuckets = 64)
       : Map(NumInitBuckets), Data(Data) {}
-  // ValueMap can't be copied nor moved, beucase the callbacks store pointer
-  // to it.
+  // ValueMap can't be copied nor moved, because the callbacks store pointer to
+  // it.
   ValueMap(const ValueMap &) = delete;
   ValueMap(ValueMap &&) = delete;
   ValueMap &operator=(const ValueMap &) = delete;
@@ -117,15 +116,15 @@ public:
       MDMap.emplace();
     return *MDMap;
   }
-  Optional<MDMapT> &getMDMap() { return MDMap; }
+  std::optional<MDMapT> &getMDMap() { return MDMap; }
 
   /// Get the mapped metadata, if it's in the map.
-  Optional<Metadata *> getMappedMD(const Metadata *MD) const {
+  std::optional<Metadata *> getMappedMD(const Metadata *MD) const {
     if (!MDMap)
-      return None;
+      return std::nullopt;
     auto Where = MDMap->find(MD);
     if (Where == MDMap->end())
-      return None;
+      return std::nullopt;
     return Where->second.get();
   }
 
@@ -141,7 +140,7 @@ public:
   size_type size() const { return Map.size(); }
 
   /// Grow the map so that it has at least Size buckets. Does not shrink
-  void resize(size_t Size) { Map.resize(Size); }
+  void reserve(size_t Size) { Map.reserve(Size); }
 
   void clear() {
     Map.clear();
@@ -323,17 +322,19 @@ struct DenseMapInfo<ValueMapCallbackVH<KeyT, ValueT, Config>> {
   }
 };
 
-template<typename DenseMapT, typename KeyT>
-class ValueMapIterator :
-    public std::iterator<std::forward_iterator_tag,
-                         std::pair<KeyT, typename DenseMapT::mapped_type>,
-                         ptrdiff_t> {
+template <typename DenseMapT, typename KeyT> class ValueMapIterator {
   using BaseT = typename DenseMapT::iterator;
   using ValueT = typename DenseMapT::mapped_type;
 
   BaseT I;
 
 public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = std::pair<KeyT, typename DenseMapT::mapped_type>;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
   ValueMapIterator() : I() {}
   ValueMapIterator(BaseT I) : I(I) {}
 
@@ -375,17 +376,19 @@ public:
   }
 };
 
-template<typename DenseMapT, typename KeyT>
-class ValueMapConstIterator :
-    public std::iterator<std::forward_iterator_tag,
-                         std::pair<KeyT, typename DenseMapT::mapped_type>,
-                         ptrdiff_t> {
+template <typename DenseMapT, typename KeyT> class ValueMapConstIterator {
   using BaseT = typename DenseMapT::const_iterator;
   using ValueT = typename DenseMapT::mapped_type;
 
   BaseT I;
 
 public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = std::pair<KeyT, typename DenseMapT::mapped_type>;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
   ValueMapConstIterator() : I() {}
   ValueMapConstIterator(BaseT I) : I(I) {}
   ValueMapConstIterator(ValueMapIterator<DenseMapT, KeyT> Other)

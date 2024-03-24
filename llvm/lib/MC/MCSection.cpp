@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCSection.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/MC/MCContext.h"
@@ -15,7 +16,6 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <utility>
 
 using namespace llvm;
@@ -60,10 +60,8 @@ MCSection::getSubsectionInsertionPoint(unsigned Subsection) {
   if (Subsection == 0 && SubsectionFragmentMap.empty())
     return end();
 
-  SmallVectorImpl<std::pair<unsigned, MCFragment *>>::iterator MI =
-      std::lower_bound(SubsectionFragmentMap.begin(),
-                       SubsectionFragmentMap.end(),
-                       std::make_pair(Subsection, (MCFragment *)nullptr));
+  SmallVectorImpl<std::pair<unsigned, MCFragment *>>::iterator MI = lower_bound(
+      SubsectionFragmentMap, std::make_pair(Subsection, (MCFragment *)nullptr));
   bool ExactMatch = false;
   if (MI != SubsectionFragmentMap.end()) {
     ExactMatch = MI->first == Subsection;

@@ -11,13 +11,11 @@ from lldbsuite.test import lldbutil
 
 
 class TestTrivialABI(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     @skipUnlessSupportedTypeAttribute("trivial_abi")
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37995")
-    @expectedFailureAll(archs=["aarch64"], oslist=["linux"],
+    @expectedFailureAll(archs=["aarch64"], oslist=["freebsd", "linux"],
                         bugnumber="llvm.org/pr44161")
     def test_call_trivial(self):
         """Test that we can print a variable & call a function with a trivial ABI class."""
@@ -28,7 +26,7 @@ class TestTrivialABI(TestBase):
     @skipUnlessSupportedTypeAttribute("trivial_abi")
     # fixed for SysV-x86_64 ABI, but not Windows-x86_64
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr36870")
-    @expectedFailureAll(archs=["arm", "aarch64"], oslist=["linux"],
+    @expectedFailureAll(archs=["arm", "aarch64"], oslist=["freebsd", "linux"],
                         bugnumber="llvm.org/pr44161")
     @expectedFailureAll(archs=["arm64", "arm64e"], bugnumber="<rdar://problem/57844240>")
     def test_call_nontrivial(self):
@@ -38,9 +36,9 @@ class TestTrivialABI(TestBase):
         self.expr_test(False)
 
     def check_value(self, test_var, ivar_value):
-        self.assertTrue(test_var.GetError().Success(), "Invalid valobj: %s"%(test_var.GetError().GetCString()))
+        self.assertSuccess(test_var.GetError(), "Invalid valobj")
         ivar = test_var.GetChildMemberWithName("ivar")
-        self.assertTrue(test_var.GetError().Success(), "Failed to fetch ivar")
+        self.assertSuccess(test_var.GetError(), "Failed to fetch ivar")
         self.assertEqual(ivar_value, ivar.GetValueAsSigned(), "Got the right value for ivar")
 
     def check_frame(self, thread):

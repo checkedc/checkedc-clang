@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr size_type find_last_of(charT c, size_type pos = npos) const;
@@ -21,6 +23,7 @@ void
 test(const S& s, typename S::value_type c, typename S::size_type pos,
      typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_last_of(c, pos));
     assert(s.find_last_of(c, pos) == x);
     if (x != S::npos)
         assert(x <= pos && x < s.size());
@@ -30,6 +33,7 @@ template <class S>
 void
 test(const S& s, typename S::value_type c, typename S::size_type x)
 {
+    LIBCPP_ASSERT_NOEXCEPT(s.find_last_of(c));
     assert(s.find_last_of(c) == x);
     if (x != S::npos)
         assert(x < s.size());

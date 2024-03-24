@@ -15,9 +15,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 
@@ -35,19 +33,19 @@ public:
   void MacroExpands(const Token &MacroNameTok,
                     const MacroDefinition &MD, SourceRange Range,
                     const MacroArgs *Args) override {
-    bool has_file = false;
-    bool has_line = false;
+    bool HasFile = false;
+    bool HasLine = false;
     for (const auto& T : MD.getMacroInfo()->tokens()) {
       if (T.is(tok::identifier)) {
         StringRef IdentName = T.getIdentifierInfo()->getName();
         if (IdentName == "__FILE__") {
-          has_file = true;
+          HasFile = true;
         } else if (IdentName == "__LINE__") {
-          has_line = true;
+          HasLine = true;
         }
       }
     }
-    if (has_file && has_line) {
+    if (HasFile && HasLine) {
       SuppressMacroExpansions->insert(Range);
     }
   }
@@ -93,6 +91,4 @@ void LambdaFunctionNameCheck::check(const MatchFinder::MatchResult &Result) {
       << PredefinedExpr::getIdentKindName(E->getIdentKind());
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

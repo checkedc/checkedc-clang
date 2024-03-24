@@ -39,9 +39,9 @@
 #include "clang/ASTMatchers/Dynamic/Registry.h"
 #include "clang/ASTMatchers/Dynamic/VariantValue.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -95,10 +95,18 @@ public:
     ///
     /// \param MatcherName The matcher name found by the parser.
     ///
-    /// \return The matcher constructor, or Optional<MatcherCtor>() if not
+    /// \return The matcher constructor, or std::optional<MatcherCtor>() if not
     /// found.
-    virtual llvm::Optional<MatcherCtor>
+    virtual std::optional<MatcherCtor>
     lookupMatcherCtor(StringRef MatcherName) = 0;
+
+    virtual bool isBuilderMatcher(MatcherCtor) const = 0;
+
+    virtual ASTNodeKind nodeMatcherType(MatcherCtor) const = 0;
+
+    virtual internal::MatcherDescriptorPtr
+    buildMatcherCtor(MatcherCtor, SourceRange NameRange,
+                     ArrayRef<ParserValue> Args, Diagnostics *Error) const = 0;
 
     /// Compute the list of completion types for \p Context.
     ///
@@ -130,7 +138,7 @@ public:
   public:
     ~RegistrySema() override;
 
-    llvm::Optional<MatcherCtor>
+    std::optional<MatcherCtor>
     lookupMatcherCtor(StringRef MatcherName) override;
 
     VariantMatcher actOnMatcherExpression(MatcherCtor Ctor,
@@ -141,6 +149,15 @@ public:
 
     std::vector<ArgKind> getAcceptedCompletionTypes(
         llvm::ArrayRef<std::pair<MatcherCtor, unsigned>> Context) override;
+
+    bool isBuilderMatcher(MatcherCtor Ctor) const override;
+
+    ASTNodeKind nodeMatcherType(MatcherCtor) const override;
+
+    internal::MatcherDescriptorPtr
+    buildMatcherCtor(MatcherCtor, SourceRange NameRange,
+                     ArrayRef<ParserValue> Args,
+                     Diagnostics *Error) const override;
 
     std::vector<MatcherCompletion>
     getMatcherCompletions(llvm::ArrayRef<ArgKind> AcceptedTypes) override;
@@ -163,14 +180,14 @@ public:
   ///   Optional if an error occurred. In that case, \c Error will contain a
   ///   description of the error.
   ///   The caller takes ownership of the DynTypedMatcher object returned.
-  static llvm::Optional<DynTypedMatcher>
+  static std::optional<DynTypedMatcher>
   parseMatcherExpression(StringRef &MatcherCode, Sema *S,
                          const NamedValueMap *NamedValues, Diagnostics *Error);
-  static llvm::Optional<DynTypedMatcher>
+  static std::optional<DynTypedMatcher>
   parseMatcherExpression(StringRef &MatcherCode, Sema *S, Diagnostics *Error) {
     return parseMatcherExpression(MatcherCode, S, nullptr, Error);
   }
-  static llvm::Optional<DynTypedMatcher>
+  static std::optional<DynTypedMatcher>
   parseMatcherExpression(StringRef &MatcherCode, Diagnostics *Error) {
     return parseMatcherExpression(MatcherCode, nullptr, Error);
   }
@@ -233,7 +250,11 @@ private:
 
   bool parseBindID(std::string &BindID);
   bool parseExpressionImpl(VariantValue *Value);
+  bool parseMatcherBuilder(MatcherCtor Ctor, const TokenInfo &NameToken,
+                           const TokenInfo &OpenToken, VariantValue *Value);
   bool parseMatcherExpressionImpl(const TokenInfo &NameToken,
+                                  const TokenInfo &OpenToken,
+                                  std::optional<MatcherCtor> Ctor,
                                   VariantValue *Value);
   bool parseIdentifierPrefixImpl(VariantValue *Value);
 
@@ -259,4 +280,4 @@ private:
 } // namespace ast_matchers
 } // namespace clang
 
-#endif // LLVM_CLANG_AST_MATCHERS_DYNAMIC_PARSER_H
+#endif // LLVM_CLANG_ASTMATCHERS_DYNAMIC_PARSER_H

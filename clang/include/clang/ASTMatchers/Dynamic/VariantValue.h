@@ -20,8 +20,8 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/ASTMatchers/ASTMatchersInternal.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/Optional.h"
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace clang {
@@ -35,6 +35,7 @@ class ArgKind {
  public:
   enum Kind {
     AK_Matcher,
+    AK_Node,
     AK_Boolean,
     AK_Double,
     AK_Unsigned,
@@ -44,12 +45,22 @@ class ArgKind {
   ArgKind(Kind K) : K(K) { assert(K != AK_Matcher); }
 
   /// Constructor for matcher types.
-  ArgKind(ASTNodeKind MatcherKind) : K(AK_Matcher), MatcherKind(MatcherKind) {}
+  static ArgKind MakeMatcherArg(ASTNodeKind MatcherKind) {
+    return ArgKind{AK_Matcher, MatcherKind};
+  }
+
+  static ArgKind MakeNodeArg(ASTNodeKind MatcherKind) {
+    return ArgKind{AK_Node, MatcherKind};
+  }
 
   Kind getArgKind() const { return K; }
   ASTNodeKind getMatcherKind() const {
     assert(K == AK_Matcher);
-    return MatcherKind;
+    return NodeKind;
+  }
+  ASTNodeKind getNodeKind() const {
+    assert(K == AK_Node);
+    return NodeKind;
   }
 
   /// Determines if this type can be converted to \p To.
@@ -61,8 +72,9 @@ class ArgKind {
   bool isConvertibleTo(ArgKind To, unsigned *Specificity) const;
 
   bool operator<(const ArgKind &Other) const {
-    if (K == AK_Matcher && Other.K == AK_Matcher)
-      return MatcherKind < Other.MatcherKind;
+    if ((K == AK_Matcher && Other.K == AK_Matcher) ||
+        (K == AK_Node && Other.K == AK_Node))
+      return NodeKind < Other.NodeKind;
     return K < Other.K;
   }
 
@@ -70,8 +82,9 @@ class ArgKind {
   std::string asString() const;
 
 private:
+  ArgKind(Kind K, ASTNodeKind NK) : K(K), NodeKind(NK) {}
   Kind K;
-  ASTNodeKind MatcherKind;
+  ASTNodeKind NodeKind;
 };
 
 using ast_matchers::internal::DynTypedMatcher;
@@ -104,8 +117,8 @@ class VariantMatcher {
 
     /// Constructs a variadic typed matcher from \p InnerMatchers.
     /// Will try to convert each inner matcher to the destination type and
-    /// return llvm::None if it fails to do so.
-    llvm::Optional<DynTypedMatcher>
+    /// return std::nullopt if it fails to do so.
+    std::optional<DynTypedMatcher>
     constructVariadicOperator(DynTypedMatcher::VariadicOperator Op,
                               ArrayRef<VariantMatcher> InnerMatchers) const;
 
@@ -119,9 +132,9 @@ class VariantMatcher {
   class Payload {
   public:
     virtual ~Payload();
-    virtual llvm::Optional<DynTypedMatcher> getSingleMatcher() const = 0;
+    virtual std::optional<DynTypedMatcher> getSingleMatcher() const = 0;
     virtual std::string getTypeAsString() const = 0;
-    virtual llvm::Optional<DynTypedMatcher>
+    virtual std::optional<DynTypedMatcher>
     getTypedMatcher(const MatcherOps &Ops) const = 0;
     virtual bool isConvertibleTo(ASTNodeKind Kind,
                                  unsigned *Specificity) const = 0;
@@ -158,7 +171,7 @@ public:
   /// \returns the matcher, if there is only one matcher. An empty Optional, if
   /// the underlying matcher is a polymorphic matcher with more than one
   /// representation.
-  llvm::Optional<DynTypedMatcher> getSingleMatcher() const;
+  std::optional<DynTypedMatcher> getSingleMatcher() const;
 
   /// Determines if the contained matcher can be converted to
   ///   \c Matcher<T>.
@@ -175,7 +188,7 @@ public:
 
   bool hasTypedMatcher(ASTNodeKind NK) const {
     if (!Value) return false;
-    return Value->getTypedMatcher(MatcherOps(NK)).hasValue();
+    return Value->getTypedMatcher(MatcherOps(NK)).has_value();
   }
 
   /// Determines if the contained matcher can be converted to \p Kind.
@@ -343,4 +356,4 @@ private:
 } // end namespace ast_matchers
 } // end namespace clang
 
-#endif  // LLVM_CLANG_AST_MATCHERS_DYNAMIC_VARIANT_VALUE_H
+#endif // LLVM_CLANG_ASTMATCHERS_DYNAMIC_VARIANTVALUE_H

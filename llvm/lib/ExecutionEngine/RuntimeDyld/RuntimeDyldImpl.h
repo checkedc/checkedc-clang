@@ -312,7 +312,7 @@ protected:
   NotifyStubEmittedFunction NotifyStubEmitted;
 
   virtual unsigned getMaxStubSize() const = 0;
-  virtual unsigned getStubAlignment() = 0;
+  virtual Align getStubAlignment() = 0;
 
   bool HasError;
   std::string ErrorStr;
@@ -417,10 +417,10 @@ protected:
 
   // Compute an upper bound of the memory that is required to load all
   // sections
-  Error computeTotalAllocSize(const ObjectFile &Obj,
-                              uint64_t &CodeSize, uint32_t &CodeAlign,
-                              uint64_t &RODataSize, uint32_t &RODataAlign,
-                              uint64_t &RWDataSize, uint32_t &RWDataAlign);
+  Error computeTotalAllocSize(const ObjectFile &Obj, uint64_t &CodeSize,
+                              Align &CodeAlign, uint64_t &RODataSize,
+                              Align &RODataAlign, uint64_t &RWDataSize,
+                              Align &RWDataAlign);
 
   // Compute GOT size
   unsigned computeGOTSize(const ObjectFile &Obj);
@@ -434,6 +434,10 @@ protected:
 
   // Return size of Global Offset Table (GOT) entry
   virtual size_t getGOTEntrySize() { return 0; }
+
+  // Hook for the subclasses to do further processing when a symbol is added to
+  // the global symbol table. This function may modify the symbol table entry.
+  virtual void processNewSymbol(const SymbolRef &ObjSymbol, SymbolTableEntry& Entry) {}
 
   // Return true if the relocation R may require allocating a GOT entry.
   virtual bool relocationNeedsGot(const RelocationRef &R) const {
@@ -462,16 +466,26 @@ public:
   loadObject(const object::ObjectFile &Obj) = 0;
 
   uint64_t getSectionLoadAddress(unsigned SectionID) const {
-    return Sections[SectionID].getLoadAddress();
+    if (SectionID == AbsoluteSymbolSection)
+      return 0;
+    else
+      return Sections[SectionID].getLoadAddress();
   }
 
   uint8_t *getSectionAddress(unsigned SectionID) const {
-    return Sections[SectionID].getAddress();
+    if (SectionID == AbsoluteSymbolSection)
+      return nullptr;
+    else
+      return Sections[SectionID].getAddress();
   }
 
   StringRef getSectionContent(unsigned SectionID) const {
-    return StringRef(reinterpret_cast<char *>(Sections[SectionID].getAddress()),
-                     Sections[SectionID].getStubOffset() + getMaxStubSize());
+    if (SectionID == AbsoluteSymbolSection)
+      return {};
+    else
+      return StringRef(
+          reinterpret_cast<char *>(Sections[SectionID].getAddress()),
+          Sections[SectionID].getStubOffset() + getMaxStubSize());
   }
 
   uint8_t* getSymbolLocalAddress(StringRef Name) const {
@@ -517,11 +531,9 @@ public:
   std::map<StringRef, JITEvaluatedSymbol> getSymbolTable() const {
     std::map<StringRef, JITEvaluatedSymbol> Result;
 
-    for (auto &KV : GlobalSymbolTable) {
+    for (const auto &KV : GlobalSymbolTable) {
       auto SectionID = KV.second.getSectionID();
-      uint64_t SectionAddr = 0;
-      if (SectionID != AbsoluteSymbolSection)
-        SectionAddr = getSectionLoadAddress(SectionID);
+      uint64_t SectionAddr = getSectionLoadAddress(SectionID);
       Result[KV.first()] =
         JITEvaluatedSymbol(SectionAddr + KV.second.getOffset(), KV.second.getFlags());
     }

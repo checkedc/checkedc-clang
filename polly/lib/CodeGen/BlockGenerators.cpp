@@ -17,6 +17,7 @@
 #include "polly/CodeGen/RuntimeDebugBuilder.h"
 #include "polly/Options.h"
 #include "polly/ScopInfo.h"
+#include "polly/Support/ISLTools.h"
 #include "polly/Support/ScopHelper.h"
 #include "polly/Support/VirtualInstruction.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -32,26 +33,24 @@ using namespace polly;
 
 static cl::opt<bool> Aligned("enable-polly-aligned",
                              cl::desc("Assumed aligned memory accesses."),
-                             cl::Hidden, cl::init(false), cl::ZeroOrMore,
-                             cl::cat(PollyCategory));
+                             cl::Hidden, cl::cat(PollyCategory));
 
 bool PollyDebugPrinting;
 static cl::opt<bool, true> DebugPrintingX(
     "polly-codegen-add-debug-printing",
     cl::desc("Add printf calls that show the values loaded/stored."),
-    cl::location(PollyDebugPrinting), cl::Hidden, cl::init(false),
-    cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::location(PollyDebugPrinting), cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool> TraceStmts(
     "polly-codegen-trace-stmts",
     cl::desc("Add printf calls that print the statement being executed"),
-    cl::Hidden, cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool> TraceScalars(
     "polly-codegen-trace-scalars",
     cl::desc("Add printf calls that print the values of all scalar values "
              "used in a statement. Requires -polly-codegen-trace-stmts."),
-    cl::Hidden, cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 BlockGenerator::BlockGenerator(
     PollyIRBuilder &B, LoopInfo &LI, ScalarEvolution &SE, DominatorTree &DT,
@@ -278,8 +277,8 @@ Value *BlockGenerator::generateLocationAccessed(
     // the newly generated pointer.
     auto OldPtrTy = ExpectedType->getPointerTo();
     auto NewPtrTy = Address->getType();
-    OldPtrTy = PointerType::get(OldPtrTy->getElementType(),
-                                NewPtrTy->getPointerAddressSpace());
+    OldPtrTy = PointerType::getWithSamePointeeType(
+        OldPtrTy, NewPtrTy->getPointerAddressSpace());
 
     if (OldPtrTy != NewPtrTy)
       Address = Builder.CreateBitOrPointerCast(Address, OldPtrTy);
@@ -316,8 +315,9 @@ Value *BlockGenerator::generateArrayLoad(ScopStmt &Stmt, LoadInst *Load,
 
   Value *NewPointer =
       generateLocationAccessed(Stmt, Load, BBMap, LTS, NewAccesses);
-  Value *ScalarLoad = Builder.CreateAlignedLoad(NewPointer, Load->getAlign(),
-                                                Load->getName() + "_p_scalar_");
+  Value *ScalarLoad =
+      Builder.CreateAlignedLoad(Load->getType(), NewPointer, Load->getAlign(),
+                                Load->getName() + "_p_scalar_");
 
   if (PollyDebugPrinting)
     RuntimeDebugBuilder::createCPUPrinter(Builder, "Load from ", NewPointer,
@@ -414,7 +414,7 @@ void BlockGenerator::removeDeadInstructions(BasicBlock *BB, ValueMapT &BBMap) {
 }
 
 void BlockGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
-                              isl_id_to_ast_expr *NewAccesses) {
+                              __isl_keep isl_id_to_ast_expr *NewAccesses) {
   assert(Stmt.isBlockStmt() &&
          "Only block statements can be copied by the block generator");
 
@@ -575,8 +575,8 @@ void BlockGenerator::generateScalarLoads(
             DT.dominates(cast<Instruction>(Address)->getParent(),
                          Builder.GetInsertBlock())) &&
            "Domination violation");
-    BBMap[MA->getAccessValue()] =
-        Builder.CreateLoad(Address, Address->getName() + ".reload");
+    BBMap[MA->getAccessValue()] = Builder.CreateLoad(
+        MA->getElementType(), Address, Address->getName() + ".reload");
   }
 }
 
@@ -687,13 +687,11 @@ void BlockGenerator::generateBeginStmtTrace(ScopStmt &Stmt, LoopToScevMapT &LTS,
   Values.push_back(RuntimeDebugBuilder::getPrintableString(Builder, "("));
 
   // Add the coordinate of the statement instance.
-  int DomDims = ScheduleMultiPwAff.dim(isl::dim::out);
-  for (int i = 0; i < DomDims; i += 1) {
+  for (unsigned i : rangeIslSize(0, ScheduleMultiPwAff.dim(isl::dim::out))) {
     if (i > 0)
       Values.push_back(RuntimeDebugBuilder::getPrintableString(Builder, ","));
 
-    isl::ast_expr IsInSet =
-        RestrictedBuild.expr_from(ScheduleMultiPwAff.get_pw_aff(i));
+    isl::ast_expr IsInSet = RestrictedBuild.expr_from(ScheduleMultiPwAff.at(i));
     Values.push_back(ExprBuilder->create(IsInSet.copy()));
   }
 
@@ -800,9 +798,9 @@ void BlockGenerator::generateScalarStores(
 
           // The new Val might have a different type than the old Val due to
           // ScalarEvolution looking through bitcasts.
-          if (Val->getType() != Address->getType()->getPointerElementType())
-            Address = Builder.CreateBitOrPointerCast(
-                Address, Val->getType()->getPointerTo());
+          Address = Builder.CreateBitOrPointerCast(
+              Address, Val->getType()->getPointerTo(
+                           Address->getType()->getPointerAddressSpace()));
 
           Builder.CreateStore(Val, Address);
         });
@@ -875,11 +873,12 @@ void BlockGenerator::createScalarFinalization(Scop &S) {
     Instruction *EscapeInst = EscapeMapping.first;
     const auto &EscapeMappingValue = EscapeMapping.second;
     const EscapeUserVectorTy &EscapeUsers = EscapeMappingValue.second;
-    Value *ScalarAddr = EscapeMappingValue.first;
+    auto *ScalarAddr = cast<AllocaInst>(&*EscapeMappingValue.first);
 
     // Reload the demoted instruction in the optimized version of the SCoP.
     Value *EscapeInstReload =
-        Builder.CreateLoad(ScalarAddr, EscapeInst->getName() + ".final_reload");
+        Builder.CreateLoad(ScalarAddr->getAllocatedType(), ScalarAddr,
+                           EscapeInst->getName() + ".final_reload");
     EscapeInstReload =
         Builder.CreateBitOrPointerCast(EscapeInstReload, EscapeInst->getType());
 
@@ -959,7 +958,8 @@ void BlockGenerator::createExitPHINodeMerges(Scop &S) {
 
     std::string Name = PHI->getName().str();
     Value *ScalarAddr = getOrCreateAlloca(SAI);
-    Value *Reload = Builder.CreateLoad(ScalarAddr, Name + ".ph.final_reload");
+    Value *Reload = Builder.CreateLoad(SAI->getElementType(), ScalarAddr,
+                                       Name + ".ph.final_reload");
     Reload = Builder.CreateBitOrPointerCast(Reload, PHI->getType());
     Value *OriginalValue = PHI->getIncomingValueForBlock(MergeBB);
     assert((!isa<Instruction>(OriginalValue) ||
@@ -1037,30 +1037,21 @@ Value *VectorBlockGenerator::getVectorValue(ScopStmt &Stmt, Value *Old,
   return Vector;
 }
 
-Type *VectorBlockGenerator::getVectorPtrTy(const Value *Val, int Width) {
-  auto *PointerTy = cast<PointerType>(Val->getType());
-  unsigned AddrSpace = PointerTy->getAddressSpace();
-
-  Type *ScalarType = PointerTy->getElementType();
-  auto *FVTy = FixedVectorType::get(ScalarType, Width);
-
-  return PointerType::get(FVTy, AddrSpace);
-}
-
 Value *VectorBlockGenerator::generateStrideOneLoad(
     ScopStmt &Stmt, LoadInst *Load, VectorValueMapT &ScalarMaps,
     __isl_keep isl_id_to_ast_expr *NewAccesses, bool NegativeStride = false) {
   unsigned VectorWidth = getVectorWidth();
-  auto *Pointer = Load->getPointerOperand();
-  Type *VectorPtrType = getVectorPtrTy(Pointer, VectorWidth);
+  Type *VectorType = FixedVectorType::get(Load->getType(), VectorWidth);
+  Type *VectorPtrType =
+      PointerType::get(VectorType, Load->getPointerAddressSpace());
   unsigned Offset = NegativeStride ? VectorWidth - 1 : 0;
 
   Value *NewPointer = generateLocationAccessed(Stmt, Load, ScalarMaps[Offset],
                                                VLTS[Offset], NewAccesses);
   Value *VectorPtr =
       Builder.CreateBitCast(NewPointer, VectorPtrType, "vector_ptr");
-  LoadInst *VecLoad =
-      Builder.CreateLoad(VectorPtr, Load->getName() + "_p_vec_full");
+  LoadInst *VecLoad = Builder.CreateLoad(VectorType, VectorPtr,
+                                         Load->getName() + "_p_vec_full");
   if (!Aligned)
     VecLoad->setAlignment(Align(8));
 
@@ -1080,14 +1071,15 @@ Value *VectorBlockGenerator::generateStrideOneLoad(
 Value *VectorBlockGenerator::generateStrideZeroLoad(
     ScopStmt &Stmt, LoadInst *Load, ValueMapT &BBMap,
     __isl_keep isl_id_to_ast_expr *NewAccesses) {
-  auto *Pointer = Load->getPointerOperand();
-  Type *VectorPtrType = getVectorPtrTy(Pointer, 1);
+  Type *VectorType = FixedVectorType::get(Load->getType(), 1);
+  Type *VectorPtrType =
+      PointerType::get(VectorType, Load->getPointerAddressSpace());
   Value *NewPointer =
       generateLocationAccessed(Stmt, Load, BBMap, VLTS[0], NewAccesses);
   Value *VectorPtr = Builder.CreateBitCast(NewPointer, VectorPtrType,
                                            Load->getName() + "_p_vec_p");
-  LoadInst *ScalarLoad =
-      Builder.CreateLoad(VectorPtr, Load->getName() + "_p_splat_one");
+  LoadInst *ScalarLoad = Builder.CreateLoad(VectorType, VectorPtr,
+                                            Load->getName() + "_p_splat_one");
 
   if (!Aligned)
     ScalarLoad->setAlignment(Align(8));
@@ -1104,9 +1096,8 @@ Value *VectorBlockGenerator::generateUnknownStrideLoad(
     ScopStmt &Stmt, LoadInst *Load, VectorValueMapT &ScalarMaps,
     __isl_keep isl_id_to_ast_expr *NewAccesses) {
   int VectorWidth = getVectorWidth();
-  auto *Pointer = Load->getPointerOperand();
-  auto *FVTy = FixedVectorType::get(
-      dyn_cast<PointerType>(Pointer->getType())->getElementType(), VectorWidth);
+  Type *ElemTy = Load->getType();
+  auto *FVTy = FixedVectorType::get(ElemTy, VectorWidth);
 
   Value *Vector = UndefValue::get(FVTy);
 
@@ -1114,7 +1105,7 @@ Value *VectorBlockGenerator::generateUnknownStrideLoad(
     Value *NewPointer = generateLocationAccessed(Stmt, Load, ScalarMaps[i],
                                                  VLTS[i], NewAccesses);
     Value *ScalarLoad =
-        Builder.CreateLoad(NewPointer, Load->getName() + "_p_scalar_");
+        Builder.CreateLoad(ElemTy, NewPointer, Load->getName() + "_p_scalar_");
     Vector = Builder.CreateInsertElement(
         Vector, ScalarLoad, Builder.getInt32(i), Load->getName() + "_p_vec_");
   }
@@ -1192,7 +1183,6 @@ void VectorBlockGenerator::copyStore(
     VectorValueMapT &ScalarMaps, __isl_keep isl_id_to_ast_expr *NewAccesses) {
   const MemoryAccess &Access = Stmt.getArrayAccessFor(Store);
 
-  auto *Pointer = Store->getPointerOperand();
   Value *Vector = getVectorValue(Stmt, Store->getValueOperand(), VectorMap,
                                  ScalarMaps, getLoopForStmt(Stmt));
 
@@ -1201,7 +1191,10 @@ void VectorBlockGenerator::copyStore(
   extractScalarValues(Store, VectorMap, ScalarMaps);
 
   if (Access.isStrideOne(isl::manage_copy(Schedule))) {
-    Type *VectorPtrType = getVectorPtrTy(Pointer, getVectorWidth());
+    Type *VectorType = FixedVectorType::get(Store->getValueOperand()->getType(),
+                                            getVectorWidth());
+    Type *VectorPtrType =
+        PointerType::get(VectorType, Store->getPointerAddressSpace());
     Value *NewPointer = generateLocationAccessed(Stmt, Store, ScalarMaps[0],
                                                  VLTS[0], NewAccesses);
 
@@ -1339,10 +1332,13 @@ void VectorBlockGenerator::generateScalarVectorLoads(
       continue;
 
     auto *Address = getOrCreateAlloca(*MA);
-    Type *VectorPtrType = getVectorPtrTy(Address, 1);
+    Type *VectorType = FixedVectorType::get(MA->getElementType(), 1);
+    Type *VectorPtrType = PointerType::get(
+        VectorType, Address->getType()->getPointerAddressSpace());
     Value *VectorPtr = Builder.CreateBitCast(Address, VectorPtrType,
                                              Address->getName() + "_p_vec_p");
-    auto *Val = Builder.CreateLoad(VectorPtr, Address->getName() + ".reload");
+    auto *Val = Builder.CreateLoad(VectorType, VectorPtr,
+                                   Address->getName() + ".reload");
     Constant *SplatVector = Constant::getNullValue(
         FixedVectorType::get(Builder.getInt32Ty(), getVectorWidth()));
 
@@ -1455,7 +1451,7 @@ static BasicBlock *findExitDominator(DominatorTree &DT, Region *R) {
 }
 
 void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
-                               isl_id_to_ast_expr *IdToAstExp) {
+                               __isl_keep isl_id_to_ast_expr *IdToAstExp) {
   assert(Stmt.isRegionStmt() &&
          "Only region statements can be copied by the region generator");
 
@@ -1592,7 +1588,7 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
     LoopPHI->insertBefore(&BBCopy->front());
     LoopPHIInc->insertBefore(BBCopy->getTerminator());
 
-    for (auto *PredBB : make_range(pred_begin(BB), pred_end(BB))) {
+    for (auto *PredBB : predecessors(BB)) {
       if (!R->contains(PredBB))
         continue;
       if (L->contains(PredBB))
@@ -1601,7 +1597,7 @@ void RegionGenerator::copyStmt(ScopStmt &Stmt, LoopToScevMapT &LTS,
         LoopPHI->addIncoming(NullVal, EndBlockMap[PredBB]);
     }
 
-    for (auto *PredBBCopy : make_range(pred_begin(BBCopy), pred_end(BBCopy)))
+    for (auto *PredBBCopy : predecessors(BBCopy))
       if (LoopPHI->getBasicBlockIndex(PredBBCopy) < 0)
         LoopPHI->addIncoming(NullVal, PredBBCopy);
 

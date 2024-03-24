@@ -9,7 +9,7 @@
 #ifndef LLVM_DEBUGINFO_GSYM_LINEENTRY_H
 #define LLVM_DEBUGINFO_GSYM_LINEENTRY_H
 
-#include "llvm/DebugInfo/GSYM/Range.h"
+#include "llvm/DebugInfo/GSYM/ExtractRanges.h"
 
 namespace llvm {
 namespace gsym {
@@ -44,4 +44,4 @@ inline bool operator<(const LineEntry &LHS, const LineEntry &RHS) {
 }
 } // namespace gsym
 } // namespace llvm
-#endif // #ifndef LLVM_DEBUGINFO_GSYM_LINEENTRY_H
+#endif // LLVM_DEBUGINFO_GSYM_LINEENTRY_H

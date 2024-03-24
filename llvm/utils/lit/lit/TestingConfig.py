@@ -21,18 +21,58 @@ class TestingConfig(object):
             'LLVM_DISABLE_CRASH_REPORT' : '1',
             }
 
-        pass_vars = ['LIBRARY_PATH', 'LD_LIBRARY_PATH', 'SYSTEMROOT', 'TERM',
-                     'CLANG', 'LD_PRELOAD', 'ASAN_OPTIONS', 'UBSAN_OPTIONS',
-                     'LSAN_OPTIONS', 'ADB', 'ANDROID_SERIAL', 'SSH_AUTH_SOCK',
-                     'SANITIZER_IGNORE_CVE_2016_2143', 'TMPDIR', 'TMP', 'TEMP',
-                     'TEMPDIR', 'AVRLIT_BOARD', 'AVRLIT_PORT',
-                     'FILECHECK_OPTS', 'VCINSTALLDIR', 'VCToolsinstallDir',
-                     'VSINSTALLDIR', 'WindowsSdkDir', 'WindowsSDKLibVersion']
+        pass_vars = [
+            'LIBRARY_PATH',
+            'LD_LIBRARY_PATH',
+            'SYSTEMROOT',
+            'TERM',
+            'CLANG',
+            'LLDB',
+            'LD_PRELOAD',
+            'LLVM_SYMBOLIZER_PATH',
+            'ASAN_SYMBOLIZER_PATH',
+            'HWASAN_SYMBOLIZER_PATH',
+            'LSAN_SYMBOLIZER_PATH',
+            'MSAN_SYMBOLIZER_PATH',
+            'TSAN_SYMBOLIZER_PATH',
+            'UBSAN_SYMBOLIZER_PATH',
+            'ASAN_OPTIONS',
+            'LSAN_OPTIONS',
+            'HWASAN_OPTIONS',
+            'MSAN_OPTIONS',
+            'TSAN_OPTIONS',
+            'UBSAN_OPTIONS',
+            'ADB',
+            'ANDROID_SERIAL',
+            'SSH_AUTH_SOCK',
+            'SANITIZER_IGNORE_CVE_2016_2143',
+            'TMPDIR',
+            'TMP',
+            'TEMP',
+            'TEMPDIR',
+            'AVRLIT_BOARD',
+            'AVRLIT_PORT',
+            'FILECHECK_OPTS',
+            'VCINSTALLDIR',
+            'VCToolsinstallDir',
+            'VSINSTALLDIR',
+            'WindowsSdkDir',
+            'WindowsSDKLibVersion',
+            'SOURCE_DATE_EPOCH',
+            'GTEST_FILTER',
+            'DFLTCC',
+        ]
 
-        if sys.platform == 'win32':
-            pass_vars.append('INCLUDE')
-            pass_vars.append('LIB')
-            pass_vars.append('PATHEXT')
+        if sys.platform.startswith('aix'):
+            pass_vars += ['LIBPATH']
+        elif sys.platform == 'win32':
+            pass_vars += [
+                'COMSPEC',
+                'INCLUDE',
+                'LIB',
+                'PATHEXT',
+                'USERPROFILE',
+            ]
             environment['PYTHONBUFFERED'] = '1'
 
         for var in pass_vars:
@@ -60,7 +100,8 @@ class TestingConfig(object):
                              test_source_root = None,
                              excludes = [],
                              available_features = available_features,
-                             pipefail = True)
+                             pipefail = True,
+                             standalone_tests = False)
 
     def load_from_path(self, path, litConfig):
         """
@@ -105,7 +146,8 @@ class TestingConfig(object):
                  environment, substitutions, unsupported,
                  test_exec_root, test_source_root, excludes,
                  available_features, pipefail, limit_to_features = [],
-                 is_early = False, parallelism_group = None):
+                 is_early = False, parallelism_group = None,
+                 standalone_tests = False):
         self.parent = parent
         self.name = str(name)
         self.suffixes = set(suffixes)
@@ -118,12 +160,11 @@ class TestingConfig(object):
         self.excludes = set(excludes)
         self.available_features = set(available_features)
         self.pipefail = pipefail
+        self.standalone_tests = standalone_tests
         # This list is used by TestRunner.py to restrict running only tests that
         # require one of the features in this list if this list is non-empty.
         # Configurations can set this list to restrict the set of tests to run.
         self.limit_to_features = set(limit_to_features)
-        # Whether the suite should be tested early in a given run.
-        self.is_early = bool(is_early)
         self.parallelism_group = parallelism_group
         self._recursiveExpansionLimit = None
 

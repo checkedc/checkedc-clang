@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEBUGINFO_DWARFDATAEXTRACTOR_H
-#define LLVM_DEBUGINFO_DWARFDATAEXTRACTOR_H
+#ifndef LLVM_DEBUGINFO_DWARF_DWARFDATAEXTRACTOR_H
+#define LLVM_DEBUGINFO_DWARF_DWARFDATAEXTRACTOR_H
 
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFSection.h"
@@ -81,10 +81,10 @@ public:
   /// There is a DWARF encoding that uses a PC-relative adjustment.
   /// For these values, \p AbsPosOffset is used to fix them, which should
   /// reflect the absolute address of this pointer.
-  Optional<uint64_t> getEncodedPointer(uint64_t *Offset, uint8_t Encoding,
-                                       uint64_t AbsPosOffset = 0) const;
+  std::optional<uint64_t> getEncodedPointer(uint64_t *Offset, uint8_t Encoding,
+                                            uint64_t AbsPosOffset = 0) const;
 };
 
 } // end namespace llvm
 
-#endif // LLVM_DEBUGINFO_DWARFDATAEXTRACTOR_H
+#endif // LLVM_DEBUGINFO_DWARF_DWARFDATAEXTRACTOR_H

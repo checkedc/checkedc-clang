@@ -9,6 +9,10 @@
 
 // REQUIRES: stable-runtime
 
+// Stack short granules are currently not implemented on x86.
+// RISC-V target doesn't support oldrt
+// XFAIL: target={{(x86_64|riscv64).*}}
+
 #include <stdlib.h>
 #include <sanitizer/hwasan_interface.h>
 
@@ -22,9 +26,12 @@ int f() {
 int main() {
   f();
   // CHECK: READ of size 1 at
-  // CHECK: #0 {{.*}} in f{{.*}}stack-oob.c:19
+  // CHECK: #0 {{.*}} in f{{.*}}stack-oob.c:[[@LINE-6]]
 
+  // CHECK-NOT: Cause: global-overflow
+  // CHECK: Cause: stack tag-mismatch
   // CHECK: is located in stack of threa
+  // CHECK-NOT: Cause: global-overflow
 
   // CHECK: SUMMARY: HWAddressSanitizer: tag-mismatch {{.*}} in f
 }

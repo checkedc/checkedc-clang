@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TestTU.h"
+#include "TestFS.h"
 #include "TweakTesting.h"
-#include "gmock/gmock-matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -99,9 +98,6 @@ TEST_F(DefineOutlineTest, ApplyTest) {
   llvm::StringMap<std::string> EditedFiles;
   ExtraFiles["Test.cpp"] = "";
   FileName = "Test.hpp";
-  // Template body is not parsed until instantiation time on windows, which
-  // results in arbitrary failures as function body becomes NULL.
-  ExtraArgs.push_back("-fno-delayed-template-parsing");
 
   struct {
     llvm::StringRef Test;
@@ -119,6 +115,11 @@ TEST_F(DefineOutlineTest, ApplyTest) {
           "void fo^o(int x, int y = 5, int = 2, int (*foo)(int) = nullptr) {}",
           "void foo(int x, int y = 5, int = 2, int (*foo)(int) = nullptr) ;",
           "void foo(int x, int y , int , int (*foo)(int) ) {}",
+      },
+      {
+          "struct Bar{Bar();}; void fo^o(Bar x = {}) {}",
+          "struct Bar{Bar();}; void foo(Bar x = {}) ;",
+          "void foo(Bar x ) {}",
       },
       // Constructors
       {
@@ -269,6 +270,28 @@ TEST_F(DefineOutlineTest, ApplyTest) {
               static static void foo() ;
             };)cpp",
           "  void A::foo() {}\n",
+      },
+      {
+          R"cpp(
+            struct Foo {
+              explicit Fo^o(int) {}
+            };)cpp",
+          R"cpp(
+            struct Foo {
+              explicit Foo(int) ;
+            };)cpp",
+          " Foo::Foo(int) {}\n",
+      },
+      {
+          R"cpp(
+            struct Foo {
+              explicit explicit Fo^o(int) {}
+            };)cpp",
+          R"cpp(
+            struct Foo {
+              explicit explicit Foo(int) ;
+            };)cpp",
+          "  Foo::Foo(int) {}\n",
       },
   };
   for (const auto &Case : Cases) {

@@ -88,16 +88,20 @@
 // cancel the addrspacecast pair this pass emits.
 //===----------------------------------------------------------------------===//
 
+#include "MCTargetDesc/NVPTXBaseInfo.h"
 #include "NVPTX.h"
 #include "NVPTXTargetMachine.h"
 #include "NVPTXUtilities.h"
-#include "MCTargetDesc/NVPTXBaseInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Pass.h"
+#include <numeric>
+#include <queue>
+
+#define DEBUG_TYPE "nvptx-lower-args"
 
 using namespace llvm;
 
@@ -140,6 +144,7 @@ INITIALIZE_PASS(NVPTXLowerArgs, "nvptx-lower-args",
 
 // =============================================================================
 // If the function had a byval struct ptr arg, say foo(%struct.x* byval %d),
+// and we can't guarantee that the only accesses are loads,
 // then add the following instructions to the first basic block:
 //
 // %temp = alloca %struct.x, align 8
@@ -150,15 +155,218 @@ INITIALIZE_PASS(NVPTXLowerArgs, "nvptx-lower-args",
 // The above code allocates some space in the stack and copies the incoming
 // struct from param space to local space.
 // Then replace all occurrences of %d by %temp.
+//
+// In case we know that all users are GEPs or Loads, replace them with the same
+// ones in parameter AS, so we can access them using ld.param.
 // =============================================================================
+
+// Replaces the \p OldUser instruction with the same in parameter AS.
+// Only Load and GEP are supported.
+static void convertToParamAS(Value *OldUser, Value *Param) {
+  Instruction *I = dyn_cast<Instruction>(OldUser);
+  assert(I && "OldUser must be an instruction");
+  struct IP {
+    Instruction *OldInstruction;
+    Value *NewParam;
+  };
+  SmallVector<IP> ItemsToConvert = {{I, Param}};
+  SmallVector<Instruction *> InstructionsToDelete;
+
+  auto CloneInstInParamAS = [](const IP &I) -> Value * {
+    if (auto *LI = dyn_cast<LoadInst>(I.OldInstruction)) {
+      LI->setOperand(0, I.NewParam);
+      return LI;
+    }
+    if (auto *GEP = dyn_cast<GetElementPtrInst>(I.OldInstruction)) {
+      SmallVector<Value *, 4> Indices(GEP->indices());
+      auto *NewGEP = GetElementPtrInst::Create(GEP->getSourceElementType(),
+                                               I.NewParam, Indices,
+                                               GEP->getName(), GEP);
+      NewGEP->setIsInBounds(GEP->isInBounds());
+      return NewGEP;
+    }
+    if (auto *BC = dyn_cast<BitCastInst>(I.OldInstruction)) {
+      auto *NewBCType = PointerType::getWithSamePointeeType(
+          cast<PointerType>(BC->getType()), ADDRESS_SPACE_PARAM);
+      return BitCastInst::Create(BC->getOpcode(), I.NewParam, NewBCType,
+                                 BC->getName(), BC);
+    }
+    if (auto *ASC = dyn_cast<AddrSpaceCastInst>(I.OldInstruction)) {
+      assert(ASC->getDestAddressSpace() == ADDRESS_SPACE_PARAM);
+      (void)ASC;
+      // Just pass through the argument, the old ASC is no longer needed.
+      return I.NewParam;
+    }
+    llvm_unreachable("Unsupported instruction");
+  };
+
+  while (!ItemsToConvert.empty()) {
+    IP I = ItemsToConvert.pop_back_val();
+    Value *NewInst = CloneInstInParamAS(I);
+
+    if (NewInst && NewInst != I.OldInstruction) {
+      // We've created a new instruction. Queue users of the old instruction to
+      // be converted and the instruction itself to be deleted. We can't delete
+      // the old instruction yet, because it's still in use by a load somewhere.
+      for (Value *V : I.OldInstruction->users())
+        ItemsToConvert.push_back({cast<Instruction>(V), NewInst});
+
+      InstructionsToDelete.push_back(I.OldInstruction);
+    }
+  }
+
+  // Now we know that all argument loads are using addresses in parameter space
+  // and we can finally remove the old instructions in generic AS.  Instructions
+  // scheduled for removal should be processed in reverse order so the ones
+  // closest to the load are deleted first. Otherwise they may still be in use.
+  // E.g if we have Value = Load(BitCast(GEP(arg))), InstructionsToDelete will
+  // have {GEP,BitCast}. GEP can't be deleted first, because it's still used by
+  // the BitCast.
+  for (Instruction *I : llvm::reverse(InstructionsToDelete))
+    I->eraseFromParent();
+}
+
+// Adjust alignment of arguments passed byval in .param address space. We can
+// increase alignment of such arguments in a way that ensures that we can
+// effectively vectorize their loads. We should also traverse all loads from
+// byval pointer and adjust their alignment, if those were using known offset.
+// Such alignment changes must be conformed with parameter store and load in
+// NVPTXTargetLowering::LowerCall.
+static void adjustByValArgAlignment(Argument *Arg, Value *ArgInParamAS,
+                                    const NVPTXTargetLowering *TLI) {
+  Function *Func = Arg->getParent();
+  Type *StructType = Arg->getParamByValType();
+  const DataLayout DL(Func->getParent());
+
+  uint64_t NewArgAlign =
+      TLI->getFunctionParamOptimizedAlign(Func, StructType, DL).value();
+  uint64_t CurArgAlign =
+      Arg->getAttribute(Attribute::Alignment).getValueAsInt();
+
+  if (CurArgAlign >= NewArgAlign)
+    return;
+
+  LLVM_DEBUG(dbgs() << "Try to use alignment " << NewArgAlign << " instead of "
+                    << CurArgAlign << " for " << *Arg << '\n');
+
+  auto NewAlignAttr =
+      Attribute::get(Func->getContext(), Attribute::Alignment, NewArgAlign);
+  Arg->removeAttr(Attribute::Alignment);
+  Arg->addAttr(NewAlignAttr);
+
+  struct Load {
+    LoadInst *Inst;
+    uint64_t Offset;
+  };
+
+  struct LoadContext {
+    Value *InitialVal;
+    uint64_t Offset;
+  };
+
+  SmallVector<Load> Loads;
+  std::queue<LoadContext> Worklist;
+  Worklist.push({ArgInParamAS, 0});
+
+  while (!Worklist.empty()) {
+    LoadContext Ctx = Worklist.front();
+    Worklist.pop();
+
+    for (User *CurUser : Ctx.InitialVal->users()) {
+      if (auto *I = dyn_cast<LoadInst>(CurUser)) {
+        Loads.push_back({I, Ctx.Offset});
+        continue;
+      }
+
+      if (auto *I = dyn_cast<BitCastInst>(CurUser)) {
+        Worklist.push({I, Ctx.Offset});
+        continue;
+      }
+
+      if (auto *I = dyn_cast<GetElementPtrInst>(CurUser)) {
+        APInt OffsetAccumulated =
+            APInt::getZero(DL.getIndexSizeInBits(ADDRESS_SPACE_PARAM));
+
+        if (!I->accumulateConstantOffset(DL, OffsetAccumulated))
+          continue;
+
+        uint64_t OffsetLimit = -1;
+        uint64_t Offset = OffsetAccumulated.getLimitedValue(OffsetLimit);
+        assert(Offset != OffsetLimit && "Expect Offset less than UINT64_MAX");
+
+        Worklist.push({I, Ctx.Offset + Offset});
+        continue;
+      }
+
+      llvm_unreachable("All users must be one of: load, "
+                       "bitcast, getelementptr.");
+    }
+  }
+
+  for (Load &CurLoad : Loads) {
+    Align NewLoadAlign(std::gcd(NewArgAlign, CurLoad.Offset));
+    Align CurLoadAlign(CurLoad.Inst->getAlign());
+    CurLoad.Inst->setAlignment(std::max(NewLoadAlign, CurLoadAlign));
+  }
+}
+
 void NVPTXLowerArgs::handleByValParam(Argument *Arg) {
   Function *Func = Arg->getParent();
   Instruction *FirstInst = &(Func->getEntryBlock().front());
-  PointerType *PType = dyn_cast<PointerType>(Arg->getType());
+  Type *StructType = Arg->getParamByValType();
+  assert(StructType && "Missing byval type");
 
-  assert(PType && "Expecting pointer type in handleByValParam");
+  auto IsALoadChain = [&](Value *Start) {
+    SmallVector<Value *, 16> ValuesToCheck = {Start};
+    auto IsALoadChainInstr = [](Value *V) -> bool {
+      if (isa<GetElementPtrInst>(V) || isa<BitCastInst>(V) || isa<LoadInst>(V))
+        return true;
+      // ASC to param space are OK, too -- we'll just strip them.
+      if (auto *ASC = dyn_cast<AddrSpaceCastInst>(V)) {
+        if (ASC->getDestAddressSpace() == ADDRESS_SPACE_PARAM)
+          return true;
+      }
+      return false;
+    };
 
-  Type *StructType = PType->getElementType();
+    while (!ValuesToCheck.empty()) {
+      Value *V = ValuesToCheck.pop_back_val();
+      if (!IsALoadChainInstr(V)) {
+        LLVM_DEBUG(dbgs() << "Need a copy of " << *Arg << " because of " << *V
+                          << "\n");
+        (void)Arg;
+        return false;
+      }
+      if (!isa<LoadInst>(V))
+        llvm::append_range(ValuesToCheck, V->users());
+    }
+    return true;
+  };
+
+  if (llvm::all_of(Arg->users(), IsALoadChain)) {
+    // Convert all loads and intermediate operations to use parameter AS and
+    // skip creation of a local copy of the argument.
+    SmallVector<User *, 16> UsersToUpdate(Arg->users());
+    Value *ArgInParamAS = new AddrSpaceCastInst(
+        Arg, PointerType::get(StructType, ADDRESS_SPACE_PARAM), Arg->getName(),
+        FirstInst);
+    for (Value *V : UsersToUpdate)
+      convertToParamAS(V, ArgInParamAS);
+    LLVM_DEBUG(dbgs() << "No need to copy " << *Arg << "\n");
+
+    // Further optimizations require target lowering info.
+    if (!TM)
+      return;
+
+    const auto *TLI =
+        cast<NVPTXTargetLowering>(TM->getSubtargetImpl()->getTargetLowering());
+
+    adjustByValArgAlignment(Arg, ArgInParamAS, TLI);
+
+    return;
+  }
+
+  // Otherwise we have to create a temporary copy.
   const DataLayout &DL = Func->getParent()->getDataLayout();
   unsigned AS = DL.getAllocaAddrSpace();
   AllocaInst *AllocA = new AllocaInst(StructType, AS, Arg->getName(), FirstInst);
@@ -166,7 +374,7 @@ void NVPTXLowerArgs::handleByValParam(Argument *Arg) {
   // later load/stores assume that alignment, and we are going to replace
   // the use of the byval parameter with this alloca instruction.
   AllocA->setAlignment(Func->getParamAlign(Arg->getArgNo())
-                           .getValueOr(DL.getPrefTypeAlign(StructType)));
+                           .value_or(DL.getPrefTypeAlign(StructType)));
   Arg->replaceAllUsesWith(AllocA);
 
   Value *ArgInParam = new AddrSpaceCastInst(
@@ -198,8 +406,9 @@ void NVPTXLowerArgs::markPointerAsGlobal(Value *Ptr) {
   }
 
   Instruction *PtrInGlobal = new AddrSpaceCastInst(
-      Ptr, PointerType::get(Ptr->getType()->getPointerElementType(),
-                            ADDRESS_SPACE_GLOBAL),
+      Ptr,
+      PointerType::getWithSamePointeeType(cast<PointerType>(Ptr->getType()),
+                                          ADDRESS_SPACE_GLOBAL),
       Ptr->getName(), &*InsertPt);
   Value *PtrInGeneric = new AddrSpaceCastInst(PtrInGlobal, Ptr->getType(),
                                               Ptr->getName(), &*InsertPt);
@@ -231,6 +440,7 @@ bool NVPTXLowerArgs::runOnKernelFunction(Function &F) {
     }
   }
 
+  LLVM_DEBUG(dbgs() << "Lowering kernel args of " << F.getName() << "\n");
   for (Argument &Arg : F.args()) {
     if (Arg.getType()->isPointerTy()) {
       if (Arg.hasByValAttr())
@@ -244,6 +454,7 @@ bool NVPTXLowerArgs::runOnKernelFunction(Function &F) {
 
 // Device functions only need to copy byval args into local memory.
 bool NVPTXLowerArgs::runOnDeviceFunction(Function &F) {
+  LLVM_DEBUG(dbgs() << "Lowering function args of " << F.getName() << "\n");
   for (Argument &Arg : F.args())
     if (Arg.getType()->isPointerTy() && Arg.hasByValAttr())
       handleByValParam(&Arg);

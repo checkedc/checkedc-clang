@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class CreateDuringStepTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @expectedFailureAll(
         oslist=["linux"],
         bugnumber="llvm.org/pr15824 thread states not properly maintained")
@@ -29,7 +27,7 @@ class CreateDuringStepTestCase(TestBase):
     @expectedFailureNetBSD
     def test_step_inst(self):
         """Test thread creation during step-inst handling."""
-        self.build(dictionary=self.getBuildFlags())
+        self.build()
         self.create_during_step_base(
             "thread step-inst -m all-threads",
             'stop reason = instruction step')
@@ -49,7 +47,7 @@ class CreateDuringStepTestCase(TestBase):
     @expectedFailureNetBSD
     def test_step_over(self):
         """Test thread creation during step-over handling."""
-        self.build(dictionary=self.getBuildFlags())
+        self.build()
         self.create_during_step_base(
             "thread step-over -m all-threads",
             'stop reason = step over')
@@ -69,7 +67,7 @@ class CreateDuringStepTestCase(TestBase):
     @expectedFailureNetBSD
     def test_step_in(self):
         """Test thread creation during step-in handling."""
-        self.build(dictionary=self.getBuildFlags())
+        self.build()
         self.create_during_step_base(
             "thread step-in -m all-threads",
             'stop reason = step in')
@@ -105,8 +103,8 @@ class CreateDuringStepTestCase(TestBase):
         num_threads = process.GetNumThreads()
 
         # Make sure we see only two threads
-        self.assertTrue(
-            num_threads == 2,
+        self.assertEqual(
+            num_threads, 2,
             'Number of expected threads and actual threads do not match.')
 
         # Get the thread objects
@@ -138,17 +136,17 @@ class CreateDuringStepTestCase(TestBase):
         num_threads = process.GetNumThreads()
 
         # Check to see that we increased the number of threads as expected
-        self.assertTrue(
-            num_threads == 3,
+        self.assertEqual(
+            num_threads, 3,
             'Number of expected threads and actual threads do not match after thread exit.')
 
         stop_reason = stepping_thread.GetStopReason()
-        self.assertEqual(stop_reason, lldb.eStopReasonPlanComplete, "Stopped for plan completion")
+        self.assertStopReason(stop_reason, lldb.eStopReasonPlanComplete, "Stopped for plan completion")
 
         # Run to completion
         self.runCmd("process continue")
 
         # At this point, the inferior process should have exited.
-        self.assertTrue(
-            process.GetState() == lldb.eStateExited,
+        self.assertEqual(
+            process.GetState(), lldb.eStateExited,
             PROCESS_EXITED)

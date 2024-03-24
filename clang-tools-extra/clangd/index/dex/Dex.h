@@ -20,25 +20,18 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_DEX_DEX_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_DEX_DEX_H
 
-#include "Iterator.h"
-#include "PostingList.h"
-#include "Token.h"
-#include "Trigram.h"
+#include "index/dex/Iterator.h"
 #include "index/Index.h"
-#include "index/MemIndex.h"
 #include "index/Relation.h"
-#include "index/SymbolCollector.h"
+#include "index/dex/PostingList.h"
+#include "index/dex/Token.h"
+#include "llvm/ADT/StringSet.h"
 
 namespace clang {
 namespace clangd {
 namespace dex {
 
 /// In-memory Dex trigram-based index implementation.
-// FIXME(kbobyrev): Introduce serialization and deserialization of the symbol
-// index so that it can be loaded from the disk. Since static index is not
-// changed frequently, it's safe to assume that it has to be built only once
-// (when the clangd process starts). Therefore, it can be easier to store built
-// index on disk and then load it if available.
 class Dex : public SymbolIndex {
 public:
   // All data must outlive this index.
@@ -70,11 +63,13 @@ public:
   template <typename SymbolRange, typename RefsRange, typename RelationsRange,
             typename FileRange, typename Payload>
   Dex(SymbolRange &&Symbols, RefsRange &&Refs, RelationsRange &&Relations,
-      FileRange &&Files, Payload &&BackingData, size_t BackingDataSize)
+      FileRange &&Files, IndexContents IdxContents, Payload &&BackingData,
+      size_t BackingDataSize)
       : Dex(std::forward<SymbolRange>(Symbols), std::forward<RefsRange>(Refs),
             std::forward<RelationsRange>(Relations),
             std::forward<Payload>(BackingData), BackingDataSize) {
     this->Files = std::forward<FileRange>(Files);
+    this->IdxContents = IdxContents;
   }
 
   /// Builds an index from slabs. The index takes ownership of the slab.
@@ -94,7 +89,7 @@ public:
                  llvm::function_ref<void(const SymbolID &, const Symbol &)>
                      Callback) const override;
 
-  llvm::unique_function<bool(llvm::StringRef) const>
+  llvm::unique_function<IndexContents(llvm::StringRef) const>
   indexedFiles() const override;
 
   size_t estimateMemoryUsage() const override;
@@ -127,6 +122,8 @@ private:
   std::shared_ptr<void> KeepAlive; // poor man's move-only std::any
   // Set of files which were used during this index build.
   llvm::StringSet<> Files;
+  // Contents of the index (symbols, references, etc.)
+  IndexContents IdxContents;
   // Size of memory retained by KeepAlive.
   size_t BackingDataSize = 0;
 };
@@ -135,7 +132,7 @@ private:
 /// Should be used within the index build process.
 ///
 /// This function is exposed for testing only.
-std::vector<std::string> generateProximityURIs(llvm::StringRef URIPath);
+llvm::SmallVector<llvm::StringRef, 5> generateProximityURIs(llvm::StringRef);
 
 } // namespace dex
 } // namespace clangd

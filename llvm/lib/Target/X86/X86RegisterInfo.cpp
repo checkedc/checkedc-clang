@@ -26,6 +26,8 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TileShapeInfo.h"
+#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
@@ -62,7 +64,7 @@ X86RegisterInfo::X86RegisterInfo(const Triple &TT)
     // This matches the simplified 32-bit pointer code in the data layout
     // computation.
     // FIXME: Should use the data layout?
-    bool Use64BitReg = TT.getEnvironment() != Triple::GNUX32;
+    bool Use64BitReg = !TT.isX32();
     StackPtr = Use64BitReg ? X86::RSP : X86::ESP;
     FramePtr = Use64BitReg ? X86::RBP : X86::EBP;
     BasePtr = Use64BitReg ? X86::RBX : X86::EBX;
@@ -290,6 +292,11 @@ X86RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   if (MF->getFunction().hasFnAttribute("no_caller_saved_registers"))
     CC = CallingConv::X86_INTR;
 
+  // If atribute specified, override the CSRs normally specified by the
+  // calling convention and use the empty set instead.
+  if (MF->getFunction().hasFnAttribute("no_callee_saved_registers"))
+    return CSR_NoRegs_SaveList;
+
   switch (CC) {
   case CallingConv::GHC:
   case CallingConv::HiPE:
@@ -349,6 +356,10 @@ X86RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     if (!HasSSE)
       return CSR_Win64_NoSSE_SaveList;
     return CSR_Win64_SaveList;
+  case CallingConv::SwiftTail:
+    if (!Is64Bit)
+      return CSR_32_SaveList;
+    return IsWin64 ? CSR_Win64_SwiftTail_SaveList : CSR_64_SwiftTail_SaveList;
   case CallingConv::X86_64_SysV:
     if (CallsEHReturn)
       return CSR_64EHRet_SaveList;
@@ -465,6 +476,10 @@ X86RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
     break;
   case CallingConv::Win64:
     return CSR_Win64_RegMask;
+  case CallingConv::SwiftTail:
+    if (!Is64Bit)
+      return CSR_32_RegMask;
+    return IsWin64 ? CSR_Win64_SwiftTail_RegMask : CSR_64_SwiftTail_RegMask;
   case CallingConv::X86_64_SysV:
     return CSR_64_RegMask;
   case CallingConv::X86_INTR:
@@ -497,6 +512,7 @@ X86RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                      F.getAttributes().hasAttrSomewhere(Attribute::SwiftError);
     if (IsSwiftCC)
       return IsWin64 ? CSR_Win64_SwiftError_RegMask : CSR_64_SwiftError_RegMask;
+
     return IsWin64 ? CSR_Win64_RegMask : CSR_64_RegMask;
   }
 
@@ -604,6 +620,66 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
+bool X86RegisterInfo::isArgumentRegister(const MachineFunction &MF,
+                                         MCRegister Reg) const {
+  const X86Subtarget &ST = MF.getSubtarget<X86Subtarget>();
+  const TargetRegisterInfo &TRI = *ST.getRegisterInfo();
+  auto IsSubReg = [&](MCRegister RegA, MCRegister RegB) {
+    return TRI.isSuperOrSubRegisterEq(RegA, RegB);
+  };
+
+  if (!ST.is64Bit())
+    return llvm::any_of(
+               SmallVector<MCRegister>{X86::EAX, X86::ECX, X86::EDX},
+               [&](MCRegister &RegA) { return IsSubReg(RegA, Reg); }) ||
+           (ST.hasMMX() && X86::VR64RegClass.contains(Reg));
+
+  CallingConv::ID CC = MF.getFunction().getCallingConv();
+
+  if (CC == CallingConv::X86_64_SysV && IsSubReg(X86::RAX, Reg))
+    return true;
+
+  if (llvm::any_of(
+          SmallVector<MCRegister>{X86::RDX, X86::RCX, X86::R8, X86::R9},
+          [&](MCRegister &RegA) { return IsSubReg(RegA, Reg); }))
+    return true;
+
+  if (CC != CallingConv::Win64 &&
+      llvm::any_of(SmallVector<MCRegister>{X86::RDI, X86::RSI},
+                   [&](MCRegister &RegA) { return IsSubReg(RegA, Reg); }))
+    return true;
+
+  if (ST.hasSSE1() &&
+      llvm::any_of(SmallVector<MCRegister>{X86::XMM0, X86::XMM1, X86::XMM2,
+                                           X86::XMM3, X86::XMM4, X86::XMM5,
+                                           X86::XMM6, X86::XMM7},
+                   [&](MCRegister &RegA) { return IsSubReg(RegA, Reg); }))
+    return true;
+
+  return X86GenRegisterInfo::isArgumentRegister(MF, Reg);
+}
+
+bool X86RegisterInfo::isFixedRegister(const MachineFunction &MF,
+                                      MCRegister PhysReg) const {
+  const X86Subtarget &ST = MF.getSubtarget<X86Subtarget>();
+  const TargetRegisterInfo &TRI = *ST.getRegisterInfo();
+
+  // Stack pointer.
+  if (TRI.isSuperOrSubRegisterEq(X86::RSP, PhysReg))
+    return true;
+
+  // Don't use the frame pointer if it's being used.
+  const X86FrameLowering &TFI = *getFrameLowering(MF);
+  if (TFI.hasFP(MF) && TRI.isSuperOrSubRegisterEq(X86::RBP, PhysReg))
+    return true;
+
+  return X86GenRegisterInfo::isFixedRegister(MF, PhysReg);
+}
+
+bool X86RegisterInfo::isTileRegisterClass(const TargetRegisterClass *RC) const {
+  return RC->getID() == X86::TILERegClassID;
+}
+
 void X86RegisterInfo::adjustStackMapLiveOutMask(uint32_t *Mask) const {
   // Check if the EFLAGS register is marked as live-out. This shouldn't happen,
   // because the calling convention defines the EFLAGS register as NOT
@@ -643,7 +719,7 @@ bool X86RegisterInfo::hasBasePointer(const MachineFunction &MF) const {
   // can't address variables from the stack pointer.  MS inline asm can
   // reference locals while also adjusting the stack pointer.  When we can't
   // use both the SP and the FP, we need a separate base pointer register.
-  bool CantUseFP = needsStackRealignment(MF);
+  bool CantUseFP = hasStackRealignment(MF);
   return CantUseFP && CantUseSP(MFI);
 }
 
@@ -706,7 +782,7 @@ static bool isFuncletReturnInstr(MachineInstr &MI) {
   llvm_unreachable("impossible");
 }
 
-void
+bool
 X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                      int SPAdj, unsigned FIOperandNum,
                                      RegScavenger *RS) const {
@@ -723,8 +799,8 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   int FIOffset;
   Register BasePtr;
   if (MI.isReturn()) {
-    assert((!needsStackRealignment(MF) ||
-           MF.getFrameInfo().isFixedObjectIndex(FrameIndex)) &&
+    assert((!hasStackRealignment(MF) ||
+            MF.getFrameInfo().isFixedObjectIndex(FrameIndex)) &&
            "Return instruction can only reference SP relative frame objects");
     FIOffset =
         TFI->getFrameIndexReferenceSP(MF, FrameIndex, BasePtr, 0).getFixed();
@@ -743,7 +819,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (Opc == TargetOpcode::LOCAL_ESCAPE) {
     MachineOperand &FI = MI.getOperand(FIOperandNum);
     FI.ChangeToImmediate(FIOffset);
-    return;
+    return false;
   }
 
   // For LEA64_32r when BasePtr is 32-bits (X32) we can use full-size 64-bit
@@ -767,7 +843,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     assert(BasePtr == FramePtr && "Expected the FP as base register");
     int64_t Offset = MI.getOperand(FIOperandNum + 1).getImm() + FIOffset;
     MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
-    return;
+    return false;
   }
 
   if (MI.getOperand(FIOperandNum+3).isImm()) {
@@ -784,6 +860,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       (uint64_t)MI.getOperand(FIOperandNum+3).getOffset();
     MI.getOperand(FIOperandNum + 3).setOffset(Offset);
   }
+  return false;
 }
 
 unsigned X86RegisterInfo::findDeadCallerSavedReg(
@@ -802,10 +879,10 @@ unsigned X86RegisterInfo::findDeadCallerSavedReg(
     return 0;
   case TargetOpcode::PATCHABLE_RET:
   case X86::RET:
-  case X86::RETL:
-  case X86::RETQ:
-  case X86::RETIL:
-  case X86::RETIQ:
+  case X86::RET32:
+  case X86::RET64:
+  case X86::RETI32:
+  case X86::RETI64:
   case X86::TCRETURNdi:
   case X86::TCRETURNri:
   case X86::TCRETURNmi:
@@ -870,10 +947,22 @@ static ShapeT getTileShape(Register VirtReg, VirtRegMap *VRM,
   default:
     llvm_unreachable("Unexpected machine instruction on tile register!");
     break;
+  case X86::COPY: {
+    Register SrcReg = MI->getOperand(1).getReg();
+    ShapeT Shape = getTileShape(SrcReg, VRM, MRI);
+    VRM->assignVirt2Shape(VirtReg, Shape);
+    return Shape;
+  }
   // We only collect the tile shape that is defined.
   case X86::PTILELOADDV:
+  case X86::PTILELOADDT1V:
   case X86::PTDPBSSDV:
+  case X86::PTDPBSUDV:
+  case X86::PTDPBUSDV:
+  case X86::PTDPBUUDV:
   case X86::PTILEZEROV:
+  case X86::PTDPBF16PSV:
+  case X86::PTDPFP16PSV:
     MachineOperand &MO1 = MI->getOperand(1);
     MachineOperand &MO2 = MI->getOperand(2);
     ShapeT Shape(&MO1, &MO2, MRI);

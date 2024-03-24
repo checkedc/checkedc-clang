@@ -2,9 +2,6 @@
 Use lldb Python SBValue API to create a watchpoint for read_write of 'globl' var.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -12,8 +9,6 @@ from lldbsuite.test import lldbutil
 
 
 class SetWatchpointAPITestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
@@ -25,7 +20,6 @@ class SetWatchpointAPITestCase(TestBase):
         self.line = line_number(
             self.source, '// Set break point at this line.')
 
-    @add_test_categories(['pyapi'])
     # Read-write watchpoints not supported on SystemZ
     @expectedFailureAll(archs=['s390x'])
     def test_watch_val(self):
@@ -49,8 +43,8 @@ class SetWatchpointAPITestCase(TestBase):
 
         # We should be stopped due to the breakpoint.  Get frame #0.
         process = target.GetProcess()
-        self.assertTrue(process.GetState() == lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         frame0 = thread.GetFrameAtIndex(0)
@@ -98,14 +92,9 @@ class SetWatchpointAPITestCase(TestBase):
         process.Continue()
 
         # At this point, the inferior process should have exited.
-        self.assertTrue(
-            process.GetState() == lldb.eStateExited,
+        self.assertEqual(
+            process.GetState(), lldb.eStateExited,
             PROCESS_EXITED)
 
         self.dbg.DeleteTarget(target)
-
-        # The next check relies on the watchpoint being destructed, which does
-        # not happen during replay because objects are intentionally kept alive
-        # forever.
-        if not configuration.is_reproducer():
-            self.assertFalse(watchpoint.IsValid())
+        self.assertFalse(watchpoint.IsValid())

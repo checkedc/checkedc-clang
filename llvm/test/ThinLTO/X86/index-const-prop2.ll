@@ -57,13 +57,13 @@
 ; with corresponsing stores
 ; RUN: llvm-dis %t5.2.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN2-SRC
 
-; IMPORT:       @gFoo.llvm.0 = internal unnamed_addr global i32 1, align 4
-; IMPORT-NEXT:  @gBar = internal local_unnamed_addr global i32 2, align 4
+; IMPORT:       @gBar = internal local_unnamed_addr global i32 2, align 4
+; IMPORT-NEXT:  @gFoo.llvm.0 = internal unnamed_addr global i32 1, align 4
 ; IMPORT:       !DICompileUnit({{.*}})
 
 ; Write only variables are imported with a zero initializer.
-; IMPORT-WRITEONLY:  @gFoo.llvm.0 = internal unnamed_addr global i32 0
 ; IMPORT-WRITEONLY:  @gBar = internal local_unnamed_addr global i32 0
+; IMPORT-WRITEONLY:  @gFoo.llvm.0 = internal unnamed_addr global i32 0
 
 ; CODEGEN:        i32 @main()
 ; CODEGEN-NEXT:     ret i32 3
@@ -87,8 +87,8 @@ target triple = "x86_64-pc-linux-gnu"
 @gBar = external global i32
 
 define i32 @main() local_unnamed_addr {
-  %call = tail call i32 bitcast (i32 (...)* @foo to i32 ()*)()
-  %call1 = tail call i32 bitcast (i32 (...)* @bar to i32 ()*)()
+  %call = tail call i32 @foo()
+  %call1 = tail call i32 @bar()
   %add = add nsw i32 %call1, %call
   ret i32 %add
 }

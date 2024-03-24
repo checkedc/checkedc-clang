@@ -30,7 +30,7 @@ namespace testVarDeclNRVO {
     return TestVarDeclNRVO;
   }
 }
-// CHECK: VarDecl{{.*}} TestVarDeclNRVO 'testVarDeclNRVO::A' nrvo
+// CHECK: VarDecl{{.*}} TestVarDeclNRVO 'A':'testVarDeclNRVO::A' nrvo
 
 void testParmVarDeclInit(int TestParmVarDeclInit = 0);
 // CHECK:      ParmVarDecl{{.*}} TestParmVarDeclInit 'int'
@@ -52,6 +52,23 @@ namespace TestNamespaceDecl {
 inline namespace TestNamespaceDeclInline {
 }
 // CHECK:      NamespaceDecl{{.*}} TestNamespaceDeclInline inline
+
+namespace TestNestedNameSpace::Nested {
+}
+// CHECK:      NamespaceDecl{{.*}} TestNestedNameSpace
+// CHECK:      NamespaceDecl{{.*}} Nested nested{{\s*$}}
+
+namespace TestMultipleNested::SecondLevelNested::Nested {
+}
+// CHECK:      NamespaceDecl{{.*}} TestMultipleNested
+// CHECK:      NamespaceDecl{{.*}} SecondLevelNested nested
+// CHECK:      NamespaceDecl{{.*}} Nested nested{{\s*$}}
+
+namespace TestInlineNested::inline SecondLevel::inline Nested {
+}
+// CHECK:      NamespaceDecl{{.*}} TestInlineNested
+// CHECK:      NamespaceDecl{{.*}} SecondLevel inline nested
+// CHECK:      NamespaceDecl{{.*}} Nested inline nested{{\s*$}}
 
 namespace testUsingDirectiveDecl {
   namespace A {
@@ -107,8 +124,8 @@ namespace testCXXRecordDecl {
 // CHECK-NEXT:     CopyAssignment simple non_trivial has_const_param
 // CHECK-NEXT:     MoveAssignment exists simple non_trivial
 // CHECK-NEXT:     Destructor simple irrelevant trivial
-// CHECK-NEXT:   virtual private 'testCXXRecordDecl::A'
-// CHECK-NEXT:   public 'testCXXRecordDecl::B'
+// CHECK-NEXT:   virtual private 'A':'testCXXRecordDecl::A'
+// CHECK-NEXT:   public 'B':'testCXXRecordDecl::B'
 // CHECK-NEXT:   CXXRecordDecl{{.*}} class TestCXXRecordDecl
 // CHECK-NEXT:   FieldDecl
 
@@ -228,7 +245,7 @@ namespace testFunctionTemplateDecl {
   // CHECK-NEXT:  | |   `-CXXRecord 0x{{.+}} 'A'
   // CHECK-NEXT:  | |-ParmVarDecl 0x{{.+}} <col:50> col:51 'testFunctionTemplateDecl::A':'testFunctionTemplateDecl::A'
   // CHECK-NEXT:  | `-CompoundStmt 0x{{.+}} <col:53, col:55>
-  // CHECK-NEXT:  |-Function 0x{{.+}} 'TestFunctionTemplate' 'void (testFunctionTemplateDecl::B)'
+  // CHECK-NEXT:  |-Function 0x{{.+}} 'TestFunctionTemplate' 'void (B)'
   // CHECK-NEXT:  |-FunctionDecl 0x{{.+}} <col:24, col:55> col:29 TestFunctionTemplate 'void (testFunctionTemplateDecl::C)'
   // CHECK-NEXT:  | |-TemplateArgument type 'testFunctionTemplateDecl::C'
   // CHECK-NEXT:  | | `-RecordType 0{{.+}} 'testFunctionTemplateDecl::C'
@@ -241,11 +258,11 @@ namespace testFunctionTemplateDecl {
   // CHECK-NEXT:    |-ParmVarDecl 0x{{.+}} <col:50> col:51 'testFunctionTemplateDecl::D':'testFunctionTemplateDecl::D'
   // CHECK-NEXT:    `-CompoundStmt 0x{{.+}} <col:53, col:55>
 
-  // CHECK:       FunctionDecl 0x{{.+}} prev 0x{{.+}} <{{.+}}:[[@LINE-32]]:3, col:41> col:19 TestFunctionTemplate 'void (testFunctionTemplateDecl::B)'
+  // CHECK:       FunctionDecl 0x{{.+}} prev 0x{{.+}} <{{.+}}:[[@LINE-32]]:3, col:41> col:19 TestFunctionTemplate 'void (B)'
   // CHECK-NEXT:  |-TemplateArgument type 'testFunctionTemplateDecl::B'
   // CHECK-NEXT:  | `-RecordType 0{{.+}} 'testFunctionTemplateDecl::B'
   // CHECK-NEXT:  |   `-CXXRecord 0x{{.+}} 'B'
-  // CHECK-NEXT:  `-ParmVarDecl 0x{{.+}} <col:40> col:41 'testFunctionTemplateDecl::B'
+  // CHECK-NEXT:  `-ParmVarDecl 0x{{.+}} <col:40> col:41 'B':'testFunctionTemplateDecl::B'
 
 
 namespace testClassTemplateDecl {
@@ -303,7 +320,7 @@ namespace testClassTemplateDecl {
 // CHECK-NEXT:  | | |-MoveConstructor
 // CHECK-NEXT:  | | |-CopyAssignment simple trivial has_const_param needs_implicit implicit_has_const_param
 // CHECK-NEXT:  | | |-MoveAssignment
-// CHECK-NEXT:  | | `-Destructor non_trivial user_declared
+// CHECK-NEXT:  | | `-Destructor
 // CHECK-NEXT:  | |-CXXRecordDecl 0x{{.+}} <col:24, col:30> col:30 implicit referenced class TestClassTemplate
 // CHECK-NEXT:  | |-AccessSpecDecl 0x{{.+}} <line:[[@LINE-50]]:3, col:9> col:3 public
 // CHECK-NEXT:  | |-CXXConstructorDecl 0x{{.+}} <line:[[@LINE-50]]:5, col:23> col:5 TestClassTemplate<T> 'void ()'
@@ -321,14 +338,14 @@ namespace testClassTemplateDecl {
 // CHECK-NEXT:  | |-TemplateArgument type 'testClassTemplateDecl::A'
 // CHECK-NEXT:  | | `-RecordType 0{{.+}} 'testClassTemplateDecl::A'
 // CHECK-NEXT:  | |   `-CXXRecord 0x{{.+}} 'A'
-// CHECK-NEXT:  | |-CXXRecordDecl 0x{{.+}} prev 0x{{.+}} <col:24, col:30> col:30 implicit class TestClassTemplate
+// CHECK-NEXT:  | |-CXXRecordDecl 0x{{.+}} <col:24, col:30> col:30 implicit class TestClassTemplate
 // CHECK-NEXT:  | |-AccessSpecDecl 0x{{.+}} <line:[[@LINE-67]]:3, col:9> col:3 public
 // CHECK-NEXT:  | |-CXXConstructorDecl 0x{{.+}} <line:[[@LINE-67]]:5, col:23> col:5 used TestClassTemplate 'void ()'
 // CHECK-NEXT:  | |-CXXDestructorDecl 0x{{.+}} <line:[[@LINE-67]]:5, col:24> col:5 used ~TestClassTemplate 'void () noexcept'
 // CHECK-NEXT:  | |-CXXMethodDecl 0x{{.+}} <line:[[@LINE-67]]:5, col:11> col:9 j 'int ()'
 // CHECK-NEXT:  | |-FieldDecl 0x{{.+}} <line:[[@LINE-67]]:5, col:9> col:9 i 'int'
-// CHECK-NEXT:  | `-CXXConstructorDecl 0x{{.+}} <line:[[@LINE-73]]:30> col:30 implicit constexpr TestClassTemplate 'void (const testClassTemplateDecl::TestClassTemplate<testClassTemplateDecl::A> &)' inline default trivial noexcept-unevaluated 0x{{.+}}
-// CHECK-NEXT:  |   `-ParmVarDecl 0x{{.+}} <col:30> col:30 'const testClassTemplateDecl::TestClassTemplate<testClassTemplateDecl::A> &'
+// CHECK-NEXT:  | `-CXXConstructorDecl 0x{{.+}} <line:[[@LINE-73]]:30> col:30 implicit constexpr TestClassTemplate 'void (const TestClassTemplate<A> &)' inline default trivial noexcept-unevaluated 0x{{.+}}
+// CHECK-NEXT:  |   `-ParmVarDecl 0x{{.+}} <col:30> col:30 'const TestClassTemplate<A> &'
 // CHECK-NEXT:  |-ClassTemplateSpecialization 0x{{.+}} 'TestClassTemplate'
 // CHECK-NEXT:  |-ClassTemplateSpecialization 0x{{.+}} 'TestClassTemplate'
 // CHECK-NEXT:  `-ClassTemplateSpecialization 0x{{.+}} 'TestClassTemplate'
@@ -358,7 +375,7 @@ namespace testClassTemplateDecl {
 // CHECK-NEXT:  |-TemplateArgument type 'testClassTemplateDecl::C'
 // CHECK-NEXT:  | `-RecordType 0{{.+}} 'testClassTemplateDecl::C'
 // CHECK-NEXT:  |   `-CXXRecord 0x{{.+}} 'C'
-// CHECK-NEXT:  |-CXXRecordDecl 0x{{.+}} prev 0x{{.+}} <line:[[@LINE-104]]:24, col:30> col:30 implicit class TestClassTemplate
+// CHECK-NEXT:  |-CXXRecordDecl 0x{{.+}} <line:[[@LINE-104]]:24, col:30> col:30 implicit class TestClassTemplate
 // CHECK-NEXT:  |-AccessSpecDecl 0x{{.+}} <line:[[@LINE-104]]:3, col:9> col:3 public
 // CHECK-NEXT:  |-CXXConstructorDecl 0x{{.+}} <line:[[@LINE-104]]:5, col:23> col:5 TestClassTemplate 'void ()'
 // CHECK-NEXT:  |-CXXDestructorDecl 0x{{.+}} <line:[[@LINE-104]]:5, col:24> col:5 ~TestClassTemplate 'void ()' noexcept-unevaluated 0x{{.+}}
@@ -376,7 +393,7 @@ namespace testClassTemplateDecl {
 // CHECK-NEXT:  |-TemplateArgument type 'testClassTemplateDecl::D'
 // CHECK-NEXT:  | `-RecordType 0{{.+}} 'testClassTemplateDecl::D'
 // CHECK-NEXT:  |   `-CXXRecord 0x{{.+}} 'D'
-// CHECK-NEXT:  |-CXXRecordDecl 0x{{.+}} prev 0x{{.+}} <line:[[@LINE-122]]:24, col:30> col:30 implicit class TestClassTemplate
+// CHECK-NEXT:  |-CXXRecordDecl 0x{{.+}} <line:[[@LINE-122]]:24, col:30> col:30 implicit class TestClassTemplate
 // CHECK-NEXT:  |-AccessSpecDecl 0x{{.+}} <line:[[@LINE-122]]:3, col:9> col:3 public
 // CHECK-NEXT:  |-CXXConstructorDecl 0x{{.+}} <line:[[@LINE-122]]:5, col:23> col:5 TestClassTemplate 'void ()'
 // CHECK-NEXT:  |-CXXDestructorDecl 0x{{.+}} <line:[[@LINE-122]]:5, col:24> col:5 ~TestClassTemplate 'void ()' noexcept-unevaluated 0x{{.+}}
@@ -519,7 +536,7 @@ namespace testCanonicalTemplate {
   // CHECK-NEXT:   |-TemplateArgument type 'testCanonicalTemplate::A'
   // CHECK-NEXT:   | `-RecordType 0x{{.+}} 'testCanonicalTemplate::A'
   // CHECK-NEXT:   |   `-CXXRecord 0x{{.+}} 'A'
-  // CHECK-NEXT:   |-CXXRecordDecl 0x{{.+}} prev 0x{{.+}} <col:25, col:31> col:31 implicit class TestClassTemplate
+  // CHECK-NEXT:   |-CXXRecordDecl 0x{{.+}} <col:25, col:31> col:31 implicit class TestClassTemplate
   // CHECK-NEXT:   |-FriendDecl 0x{{.+}} <line:[[@LINE-30]]:5, col:40> col:40
   // CHECK-NEXT:   | `-ClassTemplateDecl 0x{{.+}} parent 0x{{.+}} prev 0x{{.+}} <col:5, col:40> col:40 TestClassTemplate
   // CHECK-NEXT:   |   |-TemplateTypeParmDecl 0x{{.+}} <col:14, col:23> col:23 typename depth 0 index 0 T2
@@ -527,10 +544,10 @@ namespace testCanonicalTemplate {
   // CHECK-NEXT:   |   `-ClassTemplateSpecialization 0x{{.+}} 'TestClassTemplate'
   // CHECK-NEXT:   |-CXXConstructorDecl 0x{{.+}} <line:[[@LINE-36]]:31> col:31 implicit used constexpr TestClassTemplate 'void () noexcept' inline default trivial
   // CHECK-NEXT:   | `-CompoundStmt 0x{{.+}} <col:31>
-  // CHECK-NEXT:   |-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit constexpr TestClassTemplate 'void (const testCanonicalTemplate::TestClassTemplate<testCanonicalTemplate::A> &)' inline default trivial noexcept-unevaluated 0x{{.+}}
-  // CHECK-NEXT:   | `-ParmVarDecl 0x{{.+}} <col:31> col:31 'const testCanonicalTemplate::TestClassTemplate<testCanonicalTemplate::A> &'
-  // CHECK-NEXT:   `-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit constexpr TestClassTemplate 'void (testCanonicalTemplate::TestClassTemplate<testCanonicalTemplate::A> &&)' inline default trivial noexcept-unevaluated 0x{{.+}}
-  // CHECK-NEXT:     `-ParmVarDecl 0x{{.+}} <col:31> col:31 'testCanonicalTemplate::TestClassTemplate<testCanonicalTemplate::A> &&'
+  // CHECK-NEXT:   |-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit constexpr TestClassTemplate 'void (const TestClassTemplate<A> &)' inline default trivial noexcept-unevaluated 0x{{.+}}
+  // CHECK-NEXT:   | `-ParmVarDecl 0x{{.+}} <col:31> col:31 'const TestClassTemplate<A> &'
+  // CHECK-NEXT:   `-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit constexpr TestClassTemplate 'void (TestClassTemplate<A> &&)' inline default trivial noexcept-unevaluated 0x{{.+}}
+  // CHECK-NEXT:     `-ParmVarDecl 0x{{.+}} <col:31> col:31 'TestClassTemplate<A> &&'
 
 
   template<typename T1> class TestClassTemplate2;
@@ -552,13 +569,13 @@ namespace testCanonicalTemplate {
   // CHECK-NEXT:   |-TemplateArgument type 'testCanonicalTemplate::A'
   // CHECK-NEXT:   | `-RecordType 0x{{.+}} 'testCanonicalTemplate::A'
   // CHECK-NEXT:   |   `-CXXRecord 0x{{.+}} 'A'
-  // CHECK-NEXT:   |-CXXRecordDecl 0x{{.+}} prev 0x{{.+}} <col:25, col:31> col:31 implicit class TestClassTemplate2
+  // CHECK-NEXT:   |-CXXRecordDecl 0x{{.+}} <col:25, col:31> col:31 implicit class TestClassTemplate2
   // CHECK-NEXT:   |-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit used constexpr TestClassTemplate2 'void () noexcept' inline default trivial
   // CHECK-NEXT:   | `-CompoundStmt 0x{{.+}} <col:31>
-  // CHECK-NEXT:   |-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit constexpr TestClassTemplate2 'void (const testCanonicalTemplate::TestClassTemplate2<testCanonicalTemplate::A> &)' inline default trivial noexcept-unevaluated 0x{{.+}}
-  // CHECK-NEXT:   | `-ParmVarDecl 0x{{.+}} <col:31> col:31 'const testCanonicalTemplate::TestClassTemplate2<testCanonicalTemplate::A> &'
-  // CHECK-NEXT:   `-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit constexpr TestClassTemplate2 'void (testCanonicalTemplate::TestClassTemplate2<testCanonicalTemplate::A> &&)' inline default trivial noexcept-unevaluated 0x{{.+}}
-  // CHECK-NEXT:     `-ParmVarDecl 0x{{.+}} <col:31> col:31 'testCanonicalTemplate::TestClassTemplate2<testCanonicalTemplate::A> &&'
+  // CHECK-NEXT:   |-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit constexpr TestClassTemplate2 'void (const TestClassTemplate2<A> &)' inline default trivial noexcept-unevaluated 0x{{.+}}
+  // CHECK-NEXT:   | `-ParmVarDecl 0x{{.+}} <col:31> col:31 'const TestClassTemplate2<A> &'
+  // CHECK-NEXT:   `-CXXConstructorDecl 0x{{.+}} <col:31> col:31 implicit constexpr TestClassTemplate2 'void (TestClassTemplate2<A> &&)' inline default trivial noexcept-unevaluated 0x{{.+}}
+  // CHECK-NEXT:     `-ParmVarDecl 0x{{.+}} <col:31> col:31 'TestClassTemplate2<A> &&'
 
   // CHECK:      ClassTemplateDecl 0x{{.+}} prev 0x{{.+}} <{{.+}}:[[@LINE-26]]:3, col:31> col:31 TestClassTemplate2
   // CHECK-NEXT: |-TemplateTypeParmDecl 0x{{.+}} <col:12, col:21> col:21 typename depth 0 index 0 T1
@@ -767,6 +784,7 @@ template<typename T> class TestFriendDecl {
 // CHECK-NEXT:   FriendDecl
 // CHECK-NEXT:     FunctionDecl{{.*}} foo
 // CHECK-NEXT:   FriendDecl{{.*}} 'class A':'A'
+// CHECK-NEXT:     CXXRecordDecl{{.*}} class A
 // CHECK-NEXT:   FriendDecl{{.*}} 'T'
 
 namespace TestFileScopeAsmDecl {

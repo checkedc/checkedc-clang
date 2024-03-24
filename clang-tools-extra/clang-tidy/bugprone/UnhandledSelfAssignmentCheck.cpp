@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 UnhandledSelfAssignmentCheck::UnhandledSelfAssignmentCheck(
     StringRef Name, ClangTidyContext *Context)
@@ -40,12 +38,9 @@ void UnhandledSelfAssignmentCheck::registerMatchers(MatchFinder *Finder) {
 
   // Self-check: Code compares something with 'this' pointer. We don't check
   // whether it is actually the parameter what we compare.
-  const auto HasNoSelfCheck = cxxMethodDecl(unless(anyOf(
-      hasDescendant(binaryOperator(hasAnyOperatorName("==", "!="),
-                                   has(ignoringParenCasts(cxxThisExpr())))),
-      hasDescendant(cxxOperatorCallExpr(
-          hasAnyOverloadedOperatorName("==", "!="), argumentCountIs(2),
-          has(ignoringParenCasts(cxxThisExpr())))))));
+  const auto HasNoSelfCheck = cxxMethodDecl(unless(hasDescendant(
+      binaryOperation(hasAnyOperatorName("==", "!="),
+                      hasEitherOperand(ignoringParenCasts(cxxThisExpr()))))));
 
   // Both copy-and-swap and copy-and-move method creates a copy first and
   // assign it to 'this' with swap or move.
@@ -110,6 +105,4 @@ void UnhandledSelfAssignmentCheck::check(
        "operator=() does not handle self-assignment properly");
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

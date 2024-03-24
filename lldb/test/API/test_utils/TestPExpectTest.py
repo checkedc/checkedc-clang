@@ -2,16 +2,9 @@
 Test the PExpectTest test functions.
 """
 
+from lldbsuite.test.lldbpexpect import *
 
-import lldb
-import lldbsuite.test.lldbutil as lldbutil
-from lldbsuite.test.lldbtest import *
-from textwrap import dedent
-
-
-class TestPExpectTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
+class TestPExpectTestCase(PExpectTest):
     NO_DEBUG_INFO_TESTCASE = True
 
     def assert_expect_fails_with(self, cmd, expect_args, expected_msg):

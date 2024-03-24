@@ -108,6 +108,12 @@ addDagOperandMapping(Record *Rec, DagInit *Dag, CodeGenInstruction &Insn,
       OperandMap[BaseIdx + i].Kind = OpData::Imm;
       OperandMap[BaseIdx + i].Data.Imm = II->getValue();
       ++OpsAdded;
+    } else if (auto *BI = dyn_cast<BitsInit>(Dag->getArg(i))) {
+      auto *II =
+          cast<IntInit>(BI->convertInitializerTo(IntRecTy::get(Records)));
+      OperandMap[BaseIdx + i].Kind = OpData::Imm;
+      OperandMap[BaseIdx + i].Data.Imm = II->getValue();
+      ++OpsAdded;
     } else if (DagInit *SubDag = dyn_cast<DagInit>(Dag->getArg(i))) {
       // Just add the operands recursively. This is almost certainly
       // a constant value for a complex operand (> 1 MI operand).
@@ -294,8 +300,7 @@ void PseudoLoweringEmitter::emitLoweringEmitter(raw_ostream &o) {
 
 void PseudoLoweringEmitter::run(raw_ostream &o) {
   StringRef Classes[] = {"PseudoInstExpansion", "Instruction"};
-  std::vector<Record *> Insts =
-      Records.getAllDerivedDefinitions(makeArrayRef(Classes));
+  std::vector<Record *> Insts = Records.getAllDerivedDefinitions(Classes);
 
   // Process the pseudo expansion definitions, validating them as we do so.
   Records.startTimer("Process definitions");

@@ -4,7 +4,6 @@ Test SBTarget APIs.
 
 
 
-import unittest2
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,9 +12,6 @@ from lldbsuite.test import lldbutil
 
 class TestNameLookup(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
-    @add_test_categories(['pyapi'])
     @expectedFailureAll(oslist=["windows"], bugnumber='llvm.org/pr21765')
     def test_target(self):
         """Exercise SBTarget.FindFunctions() with various name masks.

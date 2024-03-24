@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class ChangeValueAPITestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -26,7 +24,6 @@ class ChangeValueAPITestCase(TestBase):
         self.end_line = line_number(
             'main.c', '// Set a breakpoint here at the end')
 
-    @add_test_categories(['pyapi'])
     @expectedFlakeyLinux("llvm.org/pr25652")
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24772")
     def test_change_value(self):
@@ -60,7 +57,7 @@ class ChangeValueAPITestCase(TestBase):
         self.assertTrue(process, PROCESS_IS_VALID)
 
         # Get Frame #0.
-        self.assertEquals(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(
@@ -75,15 +72,15 @@ class ChangeValueAPITestCase(TestBase):
         val_value = frame0.FindVariable("val")
         self.assertTrue(val_value.IsValid(), "Got the SBValue for val")
         actual_value = val_value.GetValueAsSigned(error, 0)
-        self.assertTrue(error.Success(), "Got a value from val")
+        self.assertSuccess(error, "Got a value from val")
         self.assertEquals(actual_value, 100, "Got the right value from val")
 
         result = val_value.SetValueFromCString("12345")
         self.assertTrue(result, "Setting val returned True.")
         actual_value = val_value.GetValueAsSigned(error, 0)
-        self.assertTrue(error.Success(), "Got a changed value from val")
-        self.assertTrue(
-            actual_value == 12345,
+        self.assertSuccess(error, "Got a changed value from val")
+        self.assertEqual(
+            actual_value, 12345,
             "Got the right changed value from val")
 
         # Now check that we can set a structure element:
@@ -137,21 +134,18 @@ class ChangeValueAPITestCase(TestBase):
         # Now continue.
         process.Continue()
 
-        self.assertEquals(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(
             thread.IsValid(),
             "There should be a thread stopped due to breakpoint condition")
 
-        # Grab the stdout and make sure we changed the real values as well.
-        # This doesn't work for reproducers as the inferior doesn't run.
-        if not configuration.is_reproducer():
-            expected_value = "Val - 12345 Mine - 55, 98765, 55555555. Ptr - 66, 98765, 66666666"
-            stdout = process.GetSTDOUT(1000)
-            self.assertTrue(
-                expected_value in stdout,
-                "STDOUT showed changed values.")
+        expected_value = "Val - 12345 Mine - 55, 98765, 55555555. Ptr - 66, 98765, 66666666"
+        stdout = process.GetSTDOUT(1000)
+        self.assertTrue(
+            expected_value in stdout,
+            "STDOUT showed changed values.")
 
         # Finally, change the stack pointer to 0, and we should not make it to
         # our end breakpoint.
@@ -162,9 +156,9 @@ class ChangeValueAPITestCase(TestBase):
         result = sp_value.SetValueFromCString("1")
         self.assertTrue(result, "Setting sp returned true.")
         actual_value = sp_value.GetValueAsUnsigned(error, 0)
-        self.assertTrue(error.Success(), "Got a changed value for sp")
-        self.assertTrue(
-            actual_value == 1,
+        self.assertSuccess(error, "Got a changed value for sp")
+        self.assertEqual(
+            actual_value, 1,
             "Got the right changed value for sp.")
 
         # Boundary condition test the SBValue.CreateValueFromExpression() API.
@@ -173,7 +167,7 @@ class ChangeValueAPITestCase(TestBase):
 
         process.Continue()
 
-        self.assertEquals(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(

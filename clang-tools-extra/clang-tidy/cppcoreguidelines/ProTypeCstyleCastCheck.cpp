@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace cppcoreguidelines {
+namespace clang::tidy::cppcoreguidelines {
 
 static bool needsConstCast(QualType SourceType, QualType DestType) {
   SourceType = SourceType.getNonReferenceType();
@@ -66,7 +64,7 @@ void ProTypeCstyleCastCheck::check(const MatchFinder::MatchResult &Result) {
               MatchedCast->getRParenLoc().getLocWithOffset(-1)),
           *Result.SourceManager, getLangOpts());
 
-      auto diag_builder = diag(
+      auto DiagBuilder = diag(
           MatchedCast->getBeginLoc(),
           "do not use C-style cast to downcast from a base to a derived class; "
           "use dynamic_cast instead");
@@ -76,14 +74,14 @@ void ProTypeCstyleCastCheck::check(const MatchFinder::MatchResult &Result) {
       std::string CastText = ("dynamic_cast<" + DestTypeString + ">").str();
       if (!isa<ParenExpr>(SubExpr)) {
         CastText.push_back('(');
-        diag_builder << FixItHint::CreateInsertion(
+        DiagBuilder << FixItHint::CreateInsertion(
             Lexer::getLocForEndOfToken(SubExpr->getEndLoc(), 0,
                                        *Result.SourceManager, getLangOpts()),
             ")");
       }
       auto ParenRange = CharSourceRange::getTokenRange(
           MatchedCast->getLParenLoc(), MatchedCast->getRParenLoc());
-      diag_builder << FixItHint::CreateReplacement(ParenRange, CastText);
+      DiagBuilder << FixItHint::CreateReplacement(ParenRange, CastText);
     } else {
       diag(
           MatchedCast->getBeginLoc(),
@@ -99,6 +97,4 @@ void ProTypeCstyleCastCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace cppcoreguidelines
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::cppcoreguidelines

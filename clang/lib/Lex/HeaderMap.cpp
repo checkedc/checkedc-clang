@@ -23,6 +23,7 @@
 #include "llvm/Support/Debug.h"
 #include <cstring>
 #include <memory>
+#include <optional>
 using namespace clang;
 
 /// HashHMapKey - This is the 'well known' hash function required by the file
@@ -145,13 +146,13 @@ HMapBucket HeaderMapImpl::getBucket(unsigned BucketNo) const {
   return Result;
 }
 
-Optional<StringRef> HeaderMapImpl::getString(unsigned StrTabIdx) const {
+std::optional<StringRef> HeaderMapImpl::getString(unsigned StrTabIdx) const {
   // Add the start of the string table to the idx.
   StrTabIdx += getEndianAdjustedWord(getHeader().StringsOffset);
 
   // Check for invalid index.
   if (StrTabIdx >= FileBuffer->getBufferSize())
-    return None;
+    return std::nullopt;
 
   const char *Data = FileBuffer->getBufferStart() + StrTabIdx;
   unsigned MaxLen = FileBuffer->getBufferSize() - StrTabIdx;
@@ -159,7 +160,7 @@ Optional<StringRef> HeaderMapImpl::getString(unsigned StrTabIdx) const {
 
   // Check whether the buffer is null-terminated.
   if (Len == MaxLen && Data[Len - 1])
-    return None;
+    return std::nullopt;
 
   return StringRef(Data, Len);
 }
@@ -177,7 +178,7 @@ LLVM_DUMP_METHOD void HeaderMapImpl::dump() const {
                << ", " << getEndianAdjustedWord(Hdr.NumEntries) << "\n";
 
   auto getStringOrInvalid = [this](unsigned Id) -> StringRef {
-    if (Optional<StringRef> S = getString(Id))
+    if (std::optional<StringRef> S = getString(Id))
       return *S;
     return "<invalid>";
   };
@@ -194,19 +195,6 @@ LLVM_DUMP_METHOD void HeaderMapImpl::dump() const {
   }
 }
 
-/// LookupFile - Check to see if the specified relative filename is located in
-/// this HeaderMap.  If so, open it and return its FileEntry.
-Optional<FileEntryRef> HeaderMap::LookupFile(StringRef Filename,
-                                             FileManager &FM) const {
-
-  SmallString<1024> Path;
-  StringRef Dest = HeaderMapImpl::lookupFilename(Filename, Path);
-  if (Dest.empty())
-    return None;
-
-  return FM.getOptionalFileRef(Dest);
-}
-
 StringRef HeaderMapImpl::lookupFilename(StringRef Filename,
                                         SmallVectorImpl<char> &DestPath) const {
   const HMapHeader &Hdr = getHeader();
@@ -221,16 +209,16 @@ StringRef HeaderMapImpl::lookupFilename(StringRef Filename,
     if (B.Key == HMAP_EmptyBucketKey) return StringRef(); // Hash miss.
 
     // See if the key matches.  If not, probe on.
-    Optional<StringRef> Key = getString(B.Key);
+    std::optional<StringRef> Key = getString(B.Key);
     if (LLVM_UNLIKELY(!Key))
       continue;
-    if (!Filename.equals_lower(*Key))
+    if (!Filename.equals_insensitive(*Key))
       continue;
 
     // If so, we have a match in the hash table.  Construct the destination
     // path.
-    Optional<StringRef> Prefix = getString(B.Prefix);
-    Optional<StringRef> Suffix = getString(B.Suffix);
+    std::optional<StringRef> Prefix = getString(B.Prefix);
+    std::optional<StringRef> Suffix = getString(B.Suffix);
 
     DestPath.clear();
     if (LLVM_LIKELY(Prefix && Suffix)) {
@@ -239,4 +227,33 @@ StringRef HeaderMapImpl::lookupFilename(StringRef Filename,
     }
     return StringRef(DestPath.begin(), DestPath.size());
   }
+}
+
+StringRef HeaderMapImpl::reverseLookupFilename(StringRef DestPath) const {
+  if (!ReverseMap.empty())
+    return ReverseMap.lookup(DestPath);
+
+  const HMapHeader &Hdr = getHeader();
+  unsigned NumBuckets = getEndianAdjustedWord(Hdr.NumBuckets);
+  StringRef RetKey;
+  for (unsigned i = 0; i != NumBuckets; ++i) {
+    HMapBucket B = getBucket(i);
+    if (B.Key == HMAP_EmptyBucketKey)
+      continue;
+
+    std::optional<StringRef> Key = getString(B.Key);
+    std::optional<StringRef> Prefix = getString(B.Prefix);
+    std::optional<StringRef> Suffix = getString(B.Suffix);
+    if (LLVM_LIKELY(Key && Prefix && Suffix)) {
+      SmallVector<char, 1024> Buf;
+      Buf.append(Prefix->begin(), Prefix->end());
+      Buf.append(Suffix->begin(), Suffix->end());
+      StringRef Value(Buf.begin(), Buf.size());
+      ReverseMap[Value] = *Key;
+
+      if (DestPath == Value)
+        RetKey = *Key;
+    }
+  }
+  return RetKey;
 }

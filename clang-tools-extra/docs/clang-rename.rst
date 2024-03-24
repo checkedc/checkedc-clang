@@ -131,7 +131,7 @@ That way you can avoid spelling out all the names as command line arguments:
     -input=<string>            - YAML file to load oldname-newname pairs from.
     -new-name=<string>         - The new name to change the symbol to.
     -offset=<uint>             - Locates the symbol by offset as opposed to <line>:<column>.
-    -p=<string>                - Build path
+    -p <string>                - Build path
     -pl                        - Print the locations affected by renaming to stderr.
     -pn                        - Print the found symbol's name prior to renaming to stderr.
     -qualified-name=<string>   - The fully qualified name of the symbol.
@@ -142,7 +142,7 @@ Vim Integration
 You can call :program:`clang-rename` directly from Vim! To set up
 :program:`clang-rename` integration for Vim see
 `clang/tools/clang-rename/clang-rename.py
-<https://github.com/llvm/llvm-project/blob/master/clang/tools/clang-rename/clang-rename.py>`_.
+<https://github.com/llvm/llvm-project/blob/main/clang/tools/clang-rename/clang-rename.py>`_.
 
 Please note that **you have to save all buffers, in which the replacement will
 happen before running the tool**.
@@ -159,7 +159,7 @@ Emacs Integration
 You can also use :program:`clang-rename` while using Emacs! To set up
 :program:`clang-rename` integration for Emacs see
 `clang-rename/tool/clang-rename.el
-<https://github.com/llvm/llvm-project/blob/master/clang/tools/clang-rename/clang-rename.el>`_.
+<https://github.com/llvm/llvm-project/blob/main/clang/tools/clang-rename/clang-rename.el>`_.
 
 Once installed, you can point your cursor to symbols you want to rename, press
 `M-X`, type `clang-rename` and new desired name.

@@ -106,7 +106,8 @@ function(clang_compile object_file source)
             -o "${object_file}"
             ${source_rpath}
     MAIN_DEPENDENCY ${source}
-    DEPENDS ${SOURCE_DEPS})
+    DEPENDS ${SOURCE_DEPS}
+    COMMAND_EXPAND_LISTS)
 endfunction()
 
 # On Darwin, there are no system-wide C++ headers and the just-built clang is
@@ -143,7 +144,7 @@ macro(clang_compiler_add_cxx_check)
       COMMAND bash -c "${CMD}"
       COMMENT "Checking that just-built clang can find C++ headers..."
       VERBATIM)
-    if (NOT COMPILER_RT_STANDALONE_BUILD AND NOT RUNTIMES_BUILD)
+    if (NOT COMPILER_RT_STANDALONE_BUILD AND NOT LLVM_RUNTIMES_BUILD)
       ADD_DEPENDENCIES(CompilerRTUnitTestCheckCxx clang)
     endif()
   endif()
