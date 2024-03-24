@@ -12,14 +12,10 @@ add_clang_subdirectory(clang-linker-wrapper)
 add_clang_subdirectory(clang-offload-packager)
 add_clang_subdirectory(clang-offload-bundler)
 add_clang_subdirectory(clang-scan-deps)
-<<<<<<< HEAD
 if(HAVE_CLANG_REPL_SUPPORT)
   add_clang_subdirectory(clang-repl)
-endif()
 
-=======
 add_clang_subdirectory(3c)
->>>>>>> main
 add_clang_subdirectory(c-index-test)
 
 add_clang_subdirectory(clang-rename)
