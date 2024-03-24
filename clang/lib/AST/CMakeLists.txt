@@ -20,6 +20,7 @@ clang_tablegen(AttrDocTable.inc -gen-clang-attr-doc-table
   TARGET ClangAttrDocTable)
 
 add_clang_library(clangAST
+  AbstractSet.cpp
   APValue.cpp
   ASTConcept.cpp
   ASTConsumer.cpp
@@ -32,6 +33,8 @@ add_clang_library(clangAST
   ASTTypeTraits.cpp
   AttrDocTable.cpp
   AttrImpl.cpp
+  CanonBounds.cpp
+  CXXInheritance.cpp
   Comment.cpp
   CommentBriefParser.cpp
   CommentCommandTraits.cpp
@@ -59,6 +62,7 @@ add_clang_library(clangAST
   ExprConstant.cpp
   ExprCXX.cpp
   ExprObjC.cpp
+  ExprUtils.cpp
   ExternalASTMerger.cpp
   ExternalASTSource.cpp
   FormatString.cpp
@@ -91,12 +95,14 @@ add_clang_library(clangAST
   MicrosoftCXXABI.cpp
   MicrosoftMangle.cpp
   NestedNameSpecifier.cpp
+  NormalizeUtils.cpp
   NSAPI.cpp
   ODRDiagsEmitter.cpp
   ODRHash.cpp
   OpenMPClause.cpp
   OSLog.cpp
   ParentMap.cpp
+  PreorderAST.cpp
   PrintfFormatString.cpp
   QualTypeNames.cpp
   Randstruct.cpp

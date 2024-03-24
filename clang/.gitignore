@@ -34,3 +34,7 @@ docs/analyzer/_build
 .vscode
 .vs
 
+# Pycharm IDE files.
+.idea/
+.cmake-build-debug/
+

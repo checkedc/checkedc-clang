@@ -1874,6 +1874,7 @@
 // WEBASSEMBLY-NEXT:#define __WINT_TYPE__ int
 // WEBASSEMBLY-NOT:#define __WINT_UNSIGNED__
 // WEBASSEMBLY-NEXT:#define __WINT_WIDTH__ 32
+// WEBASSEMBLY-NEXT:#define __checkedc {{.*}}
 // WEBASSEMBLY-NEXT:#define __clang__ 1
 // WEBASSEMBLY-NEXT:#define __clang_literal_encoding__ {{.*}}
 // WEBASSEMBLY-NEXT:#define __clang_major__ {{.*}}

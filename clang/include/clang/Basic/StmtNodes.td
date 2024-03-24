@@ -192,6 +192,20 @@ def ObjCAvailabilityCheckExpr : StmtNode<Expr>;
 // Obj-C ARC Expressions.
 def ObjCBridgedCastExpr : StmtNode<ExplicitCastExpr>;
 
+// Checked C Bounds Expressions.
+def BoundsExpr : StmtNode<Expr, 1>;
+def NullaryBoundsExpr : StmtNode<BoundsExpr>;
+def CountBoundsExpr : StmtNode<BoundsExpr>;
+def RangeBoundsExpr : StmtNode<BoundsExpr>;
+
+// Other Checked C Expressions.
+def InteropTypeExpr : StmtNode<Expr>;
+def PositionalParameterExpr : StmtNode<Expr>;
+def BoundsCastExpr : StmtNode<ExplicitCastExpr>;
+def CHKCBindTemporaryExpr : StmtNode<Expr>;
+def BoundsValueExpr : StmtNode<Expr>;
+def PackExpr : StmtNode<Expr>;
+
 // CUDA Expressions.
 def CUDAKernelCallExpr : StmtNode<CallExpr>;
 

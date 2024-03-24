@@ -32,7 +32,11 @@ add_clang_library(clangAnalysis
   ThreadSafetyLogical.cpp
   ThreadSafetyTIL.cpp
   UninitializedValues.cpp
+<<<<<<< HEAD
   UnsafeBufferUsage.cpp
+=======
+  VarEquiv.cpp
+>>>>>>> main
 
   LINK_LIBS
   clangAST

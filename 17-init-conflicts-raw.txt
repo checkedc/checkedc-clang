@@ -1,0 +1,266 @@
+C:\checkedc\checkedc-llvm-project>git merge main
+Performing inexact rename detection: 100% (94791/94791), done.
+CONFLICT (modify/delete): .github/workflows/main-branch-sync.yml deleted in HEAD and modified in main.  Version main of .github/workflows/main-branch-sync.yml left in tree.
+Auto-merging .gitignore
+Auto-merging README.md
+CONFLICT (content): Merge conflict in README.md
+Auto-merging clang-tools-extra/test/clang-tidy/check_clang_tidy.py
+CONFLICT (content): Merge conflict in clang-tools-extra/test/clang-tidy/check_clang_tidy.py
+Auto-merging clang-tools-extra/test/lit.cfg.py
+CONFLICT (content): Merge conflict in clang-tools-extra/test/lit.cfg.py
+Auto-merging clang-tools-extra/test/lit.site.cfg.py.in
+CONFLICT (content): Merge conflict in clang-tools-extra/test/lit.site.cfg.py.in
+Auto-merging clang/.gitignore
+Auto-merging clang/cmake/modules/AddClang.cmake
+CONFLICT (content): Merge conflict in clang/cmake/modules/AddClang.cmake
+Auto-merging clang/docs/LibASTMatchersReference.html
+Auto-merging clang/include/clang/AST/ASTContext.h
+CONFLICT (content): Merge conflict in clang/include/clang/AST/ASTContext.h
+Auto-merging clang/include/clang/AST/ASTDumper.h
+Auto-merging clang/include/clang/AST/ASTNodeTraverser.h
+Auto-merging clang/include/clang/AST/Decl.h
+CONFLICT (content): Merge conflict in clang/include/clang/AST/Decl.h
+Auto-merging clang/include/clang/AST/DeclBase.h
+CONFLICT (content): Merge conflict in clang/include/clang/AST/DeclBase.h
+Auto-merging clang/include/clang/AST/Expr.h
+Auto-merging clang/include/clang/AST/ExprCXX.h
+Auto-merging clang/include/clang/AST/IgnoreExpr.h
+Auto-merging clang/include/clang/AST/OperationKinds.def
+Auto-merging clang/include/clang/AST/PropertiesBase.td
+Auto-merging clang/include/clang/AST/RecursiveASTVisitor.h
+CONFLICT (content): Merge conflict in clang/include/clang/AST/RecursiveASTVisitor.h
+Auto-merging clang/include/clang/AST/Stmt.h
+CONFLICT (content): Merge conflict in clang/include/clang/AST/Stmt.h
+Auto-merging clang/include/clang/AST/TextNodeDumper.h
+Auto-merging clang/include/clang/AST/Type.h
+CONFLICT (content): Merge conflict in clang/include/clang/AST/Type.h
+Auto-merging clang/include/clang/AST/TypeLoc.h
+CONFLICT (content): Merge conflict in clang/include/clang/AST/TypeLoc.h
+Auto-merging clang/include/clang/AST/TypeProperties.td
+Auto-merging clang/include/clang/ASTMatchers/ASTMatchers.h
+Auto-merging clang/include/clang/Analysis/CFG.h
+Auto-merging clang/include/clang/Basic/Builtins.def
+CONFLICT (content): Merge conflict in clang/include/clang/Basic/Builtins.def
+Auto-merging clang/include/clang/Basic/CodeGenOptions.def
+CONFLICT (content): Merge conflict in clang/include/clang/Basic/CodeGenOptions.def
+Auto-merging clang/include/clang/Basic/DiagnosticDriverKinds.td
+Auto-merging clang/include/clang/Basic/DiagnosticGroups.td
+CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticGroups.td
+Auto-merging clang/include/clang/Basic/DiagnosticIDs.h
+Auto-merging clang/include/clang/Basic/DiagnosticParseKinds.td
+CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticParseKinds.td
+Auto-merging clang/include/clang/Basic/DiagnosticSemaKinds.td
+CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticSemaKinds.td
+Auto-merging clang/include/clang/Basic/LangOptions.def
+Auto-merging clang/include/clang/Basic/Specifiers.h
+CONFLICT (content): Merge conflict in clang/include/clang/Basic/Specifiers.h
+Auto-merging clang/include/clang/Basic/StmtNodes.td
+Auto-merging clang/include/clang/Basic/TokenKinds.def
+CONFLICT (content): Merge conflict in clang/include/clang/Basic/TokenKinds.def
+Auto-merging clang/include/clang/Basic/TypeNodes.td
+CONFLICT (content): Merge conflict in clang/include/clang/Basic/TypeNodes.td
+Auto-merging clang/include/clang/Driver/Options.td
+CONFLICT (content): Merge conflict in clang/include/clang/Driver/Options.td
+Auto-merging clang/include/clang/Parse/Parser.h
+CONFLICT (content): Merge conflict in clang/include/clang/Parse/Parser.h
+Auto-merging clang/include/clang/Sema/DeclSpec.h
+CONFLICT (content): Merge conflict in clang/include/clang/Sema/DeclSpec.h
+Auto-merging clang/include/clang/Sema/Initialization.h
+CONFLICT (content): Merge conflict in clang/include/clang/Sema/Initialization.h
+Auto-merging clang/include/clang/Sema/Scope.h
+CONFLICT (content): Merge conflict in clang/include/clang/Sema/Scope.h
+Auto-merging clang/include/clang/Sema/Sema.h
+CONFLICT (content): Merge conflict in clang/include/clang/Sema/Sema.h
+Auto-merging clang/include/clang/Serialization/ASTBitCodes.h
+CONFLICT (content): Merge conflict in clang/include/clang/Serialization/ASTBitCodes.h
+Auto-merging clang/include/clang/Serialization/ASTReader.h
+Auto-merging clang/include/clang/Serialization/ASTRecordReader.h
+Auto-merging clang/include/clang/Serialization/ASTRecordWriter.h
+CONFLICT (content): Merge conflict in clang/include/clang/Serialization/ASTRecordWriter.h
+Auto-merging clang/include/clang/Serialization/TypeBitCodes.def
+CONFLICT (content): Merge conflict in clang/include/clang/Serialization/TypeBitCodes.def
+Auto-merging clang/include/clang/StaticAnalyzer/Checkers/Checkers.td
+Auto-merging clang/include/clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h
+Auto-merging clang/lib/AST/ASTContext.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/ASTContext.cpp
+Auto-merging clang/lib/AST/ASTDiagnostic.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/ASTDiagnostic.cpp
+Auto-merging clang/lib/AST/ASTDumper.cpp
+Auto-merging clang/lib/AST/ASTImporter.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/ASTImporter.cpp
+Auto-merging clang/lib/AST/ASTStructuralEquivalence.cpp
+Auto-merging clang/lib/AST/CMakeLists.txt
+Auto-merging clang/lib/AST/Decl.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/Decl.cpp
+Auto-merging clang/lib/AST/DeclPrinter.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/DeclPrinter.cpp
+Auto-merging clang/lib/AST/Expr.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/Expr.cpp
+Auto-merging clang/lib/AST/ExprClassification.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/ExprClassification.cpp
+Auto-merging clang/lib/AST/ExprConstant.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/ExprConstant.cpp
+Auto-merging clang/lib/AST/ItaniumMangle.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/ItaniumMangle.cpp
+Auto-merging clang/lib/AST/MicrosoftMangle.cpp
+Auto-merging clang/lib/AST/Stmt.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/Stmt.cpp
+Auto-merging clang/lib/AST/StmtPrinter.cpp
+Auto-merging clang/lib/AST/StmtProfile.cpp
+Auto-merging clang/lib/AST/TextNodeDumper.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/TextNodeDumper.cpp
+Auto-merging clang/lib/AST/Type.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/Type.cpp
+Auto-merging clang/lib/AST/TypePrinter.cpp
+CONFLICT (content): Merge conflict in clang/lib/AST/TypePrinter.cpp
+Auto-merging clang/lib/ASTMatchers/Dynamic/Registry.cpp
+Auto-merging clang/lib/Analysis/CFG.cpp
+Auto-merging clang/lib/Analysis/CMakeLists.txt
+CONFLICT (content): Merge conflict in clang/lib/Analysis/CMakeLists.txt
+Auto-merging clang/lib/Basic/IdentifierTable.cpp
+CONFLICT (content): Merge conflict in clang/lib/Basic/IdentifierTable.cpp
+Auto-merging clang/lib/CMakeLists.txt
+CONFLICT (content): Merge conflict in clang/lib/CMakeLists.txt
+Auto-merging clang/lib/CodeGen/CGBlocks.cpp
+Auto-merging clang/lib/CodeGen/CGBuiltin.cpp
+Auto-merging clang/lib/CodeGen/CGCall.cpp
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGCall.cpp
+Auto-merging clang/lib/CodeGen/CGDebugInfo.cpp
+Auto-merging clang/lib/CodeGen/CGDebugInfo.h
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGDebugInfo.h
+Auto-merging clang/lib/CodeGen/CGDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGDecl.cpp
+Auto-merging clang/lib/CodeGen/CGExpr.cpp
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGExpr.cpp
+Auto-merging clang/lib/CodeGen/CGExprAgg.cpp
+Auto-merging clang/lib/CodeGen/CGExprComplex.cpp
+Auto-merging clang/lib/CodeGen/CGExprConstant.cpp
+Auto-merging clang/lib/CodeGen/CGExprScalar.cpp
+Auto-merging clang/lib/CodeGen/CMakeLists.txt
+Auto-merging clang/lib/CodeGen/CodeGenFunction.cpp
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CodeGenFunction.cpp
+Auto-merging clang/lib/CodeGen/CodeGenFunction.h
+Auto-merging clang/lib/CodeGen/CodeGenTypes.cpp
+Auto-merging clang/lib/CodeGen/ItaniumCXXABI.cpp
+Auto-merging clang/lib/Driver/ToolChains/Clang.cpp
+CONFLICT (content): Merge conflict in clang/lib/Driver/ToolChains/Clang.cpp
+Auto-merging clang/lib/Edit/RewriteObjCFoundationAPI.cpp
+Auto-merging clang/lib/Frontend/CompilerInvocation.cpp
+CONFLICT (content): Merge conflict in clang/lib/Frontend/CompilerInvocation.cpp
+Auto-merging clang/lib/Frontend/InitPreprocessor.cpp
+Auto-merging clang/lib/Parse/ParseAST.cpp
+Auto-merging clang/lib/Parse/ParseDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseDecl.cpp
+Auto-merging clang/lib/Parse/ParseDeclCXX.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseDeclCXX.cpp
+Auto-merging clang/lib/Parse/ParseExpr.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseExpr.cpp
+Auto-merging clang/lib/Parse/ParseExprCXX.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseExprCXX.cpp
+Auto-merging clang/lib/Parse/ParseObjc.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseObjc.cpp
+Auto-merging clang/lib/Parse/ParsePragma.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParsePragma.cpp
+Auto-merging clang/lib/Parse/ParseStmt.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseStmt.cpp
+Auto-merging clang/lib/Parse/ParseTemplate.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseTemplate.cpp
+Auto-merging clang/lib/Parse/Parser.cpp
+Auto-merging clang/lib/Sema/AnalysisBasedWarnings.cpp
+Auto-merging clang/lib/Sema/CMakeLists.txt
+Auto-merging clang/lib/Sema/DeclSpec.cpp
+Auto-merging clang/lib/Sema/Scope.cpp
+Auto-merging clang/lib/Sema/Sema.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/Sema.cpp
+Auto-merging clang/lib/Sema/SemaAttr.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaAttr.cpp
+Auto-merging clang/lib/Sema/SemaCast.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaCast.cpp
+Auto-merging clang/lib/Sema/SemaChecking.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaChecking.cpp
+Auto-merging clang/lib/Sema/SemaCodeComplete.cpp
+Auto-merging clang/lib/Sema/SemaDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaDecl.cpp
+Auto-merging clang/lib/Sema/SemaDeclCXX.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaDeclCXX.cpp
+Auto-merging clang/lib/Sema/SemaDeclObjC.cpp
+Auto-merging clang/lib/Sema/SemaExceptionSpec.cpp
+Auto-merging clang/lib/Sema/SemaExpr.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaExpr.cpp
+Auto-merging clang/lib/Sema/SemaExprCXX.cpp
+Auto-merging clang/lib/Sema/SemaExprMember.cpp
+Auto-merging clang/lib/Sema/SemaFixItUtils.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaFixItUtils.cpp
+Auto-merging clang/lib/Sema/SemaInit.cpp
+Auto-merging clang/lib/Sema/SemaLookup.cpp
+Auto-merging clang/lib/Sema/SemaOverload.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaOverload.cpp
+Auto-merging clang/lib/Sema/SemaStmt.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaStmt.cpp
+Auto-merging clang/lib/Sema/SemaTemplate.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplate.cpp
+Auto-merging clang/lib/Sema/SemaTemplateDeduction.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplateDeduction.cpp
+Auto-merging clang/lib/Sema/SemaTemplateVariadic.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplateVariadic.cpp
+Auto-merging clang/lib/Sema/SemaType.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaType.cpp
+Auto-merging clang/lib/Sema/TreeTransform.h
+CONFLICT (content): Merge conflict in clang/lib/Sema/TreeTransform.h
+Auto-merging clang/lib/Serialization/ASTReader.cpp
+Auto-merging clang/lib/Serialization/ASTReaderDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTReaderDecl.cpp
+Auto-merging clang/lib/Serialization/ASTReaderStmt.cpp
+CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTReaderStmt.cpp
+Auto-merging clang/lib/Serialization/ASTWriter.cpp
+Auto-merging clang/lib/Serialization/ASTWriterDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTWriterDecl.cpp
+Auto-merging clang/lib/Serialization/ASTWriterStmt.cpp
+CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTWriterStmt.cpp
+Auto-merging clang/lib/StaticAnalyzer/Checkers/CMakeLists.txt
+Auto-merging clang/lib/StaticAnalyzer/Core/ExprEngine.cpp
+Auto-merging clang/lib/StaticAnalyzer/Core/ExprEngineC.cpp
+Auto-merging clang/lib/Tooling/Syntax/BuildTree.cpp
+Auto-merging clang/test/AST/ast-dump-attr.m
+CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-attr.m
+Auto-merging clang/test/AST/ast-dump-c-attr.c
+CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-c-attr.c
+Auto-merging clang/test/AST/ast-dump-expr-json.c
+CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-expr-json.c
+Auto-merging clang/test/AST/ast-dump-expr.c
+CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-expr.c
+Auto-merging clang/test/AST/sourceranges.cpp
+CONFLICT (content): Merge conflict in clang/test/AST/sourceranges.cpp
+Auto-merging clang/test/Analysis/designated-initializer.c
+Auto-merging clang/test/Analysis/lifetime-cfg-output.cpp
+Auto-merging clang/test/Analysis/lit.local.cfg
+Auto-merging clang/test/CMakeLists.txt
+Auto-merging clang/test/CodeGenCXX/debug-info-gline-tables-only-codeview.cpp
+Auto-merging clang/test/Driver/openmp-offload-gpu.c
+CONFLICT (content): Merge conflict in clang/test/Driver/openmp-offload-gpu.c
+Auto-merging clang/test/Driver/openmp-offload.c
+CONFLICT (content): Merge conflict in clang/test/Driver/openmp-offload.c
+Auto-merging clang/test/Frontend/ir-support.c
+Auto-merging clang/test/Preprocessor/init.c
+Auto-merging clang/test/lit.cfg.py
+CONFLICT (content): Merge conflict in clang/test/lit.cfg.py
+Auto-merging clang/test/lit.site.cfg.py.in
+CONFLICT (content): Merge conflict in clang/test/lit.site.cfg.py.in
+Auto-merging clang/tools/CMakeLists.txt
+CONFLICT (content): Merge conflict in clang/tools/CMakeLists.txt
+Auto-merging clang/tools/clang-import-test/clang-import-test.cpp
+Auto-merging clang/tools/libclang/CIndex.cpp
+Auto-merging clang/tools/libclang/CXCursor.cpp
+Auto-merging clang/unittests/ASTMatchers/ASTMatchersNodeTest.cpp
+Auto-merging clang/unittests/CMakeLists.txt
+CONFLICT (content): Merge conflict in clang/unittests/CMakeLists.txt
+Auto-merging clang/unittests/Tooling/Syntax/BuildTreeTest.cpp
+Auto-merging llvm/CMakeLists.txt
+CONFLICT (content): Merge conflict in llvm/CMakeLists.txt
+CONFLICT (modify/delete): llvm/tools/msbuild/install.bat deleted in HEAD and modified in main.  Version main of llvm/tools/msbuild/install.bat left in tree.
+CONFLICT (modify/delete): llvm/tools/msbuild/uninstall.bat deleted in HEAD and modified in main.  Version main of llvm/tools/msbuild/uninstall.bat left in tree.
+Auto-merging llvm/utils/lit/lit/TestingConfig.py
+CONFLICT (content): Merge conflict in llvm/utils/lit/lit/TestingConfig.py
+Automatic merge failed; fix conflicts and then commit the result.
+
+C:\checkedc\checkedc-llvm-project>

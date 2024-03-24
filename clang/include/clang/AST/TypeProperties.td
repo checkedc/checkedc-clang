@@ -22,7 +22,11 @@ let Class = PointerType in {
     let Read = [{ node->getPointeeType() }];
   }
 
-  def : Creator<[{ return ctx.getPointerType(pointeeType); }]>;
+  def : Property<"kind", CheckedPointerKind> {
+    let Read = [{ node->getKind() }];
+  }
+
+  def : Creator<[{ return ctx.getPointerType(pointeeType, kind); }]>;
 }
 
 let Class = AdjustedType in {
@@ -109,18 +113,27 @@ let Class = ConstantArrayType in {
   def : Property<"size", ExprRef> {
     let Read = [{ node->getSizeExpr() }];
   }
+  def : Property<"kind", CheckedArrayKind> {
+    let Read = [{ node->getKind() }];
+  }
 
   def : Creator<[{
     return ctx.getConstantArrayType(elementType, sizeValue, size,
                                     sizeModifier,
-                                    indexQualifiers.getCVRQualifiers());
+                                    indexQualifiers.getCVRQualifiers(),
+                                    kind);
   }]>;
 }
 
 let Class = IncompleteArrayType in {
+  def : Property<"kind", CheckedArrayKind> {
+    let Read = [{ node->getKind() }];
+  }
+
   def : Creator<[{
     return ctx.getIncompleteArrayType(elementType, sizeModifier,
-                                      indexQualifiers.getCVRQualifiers());
+                                      indexQualifiers.getCVRQualifiers(),
+                                      kind);
   }]>;
 }
 
@@ -323,6 +336,23 @@ let Class = FunctionProtoType in {
                     ? node->getExtParameterInfos()
                     : llvm::ArrayRef<FunctionProtoType::ExtParameterInfo>() }];
   }
+  def : Property<"paramAnnots", Array<BoundsAnnotations>> {
+    let Read = [{ node->hasParamAnnots()
+                    ? node->getParamAnnots()
+                    : llvm::ArrayRef<BoundsAnnotations>() }];
+  }
+  def : Property<"returnAnnots", BoundsAnnotations> {
+    let Read = [{ node->getReturnAnnots() }];
+  }
+  def : Property<"numTypeVars", UInt32> {
+    let Read = [{ node->getNumTypeVars() }];
+  }
+  def : Property<"isGenericFunction", Bool> {
+    let Read = [{ node->isGenericFunction() }];
+  }
+  def : Property<"isItypeGenericFunction", Bool> {
+    let Read = [{ node->isItypeGenericFunction() }];
+  }
 
   def : Creator<[{
     auto extInfo = FunctionType::ExtInfo(noReturn, hasRegParm, regParm,
@@ -336,6 +366,11 @@ let Class = FunctionProtoType in {
     epi.TypeQuals = methodQualifiers;
     epi.RefQualifier = refQualifier;
     epi.ExceptionSpec = exceptionSpecifier;
+    epi.ParamAnnots = paramAnnots.empty() ? nullptr : paramAnnots.data();
+    epi.ReturnAnnots = returnAnnots;
+    epi.NumTypeVars = numTypeVars;
+    epi.GenericFunction = isGenericFunction;
+    epi.ItypeGenericFunction = isItypeGenericFunction;
     epi.ExtParameterInfos =
       extParameterInfo.empty() ? nullptr : extParameterInfo.data();
     return ctx.getFunctionType(returnType, parameters, epi);
@@ -944,5 +979,29 @@ let Class = DependentBitIntType in {
   }
   def : Creator<[{
     return ctx.getDependentBitIntType(isUnsigned, numBitsExpr);
+  }]>;
+}
+
+let Class = ExistentialType in {
+  // TODO: ASTContext does not have a getExistentialType method.
+  // ExistentialType does not have a Profile method - see checkedc-clang/#661.
+  def : Creator<[{
+    assert(false && "not implemented");
+    return QualType();
+  }]>;
+}
+
+let Class = TypeVariableType in {
+  def : Property<"depth", UInt32> {
+    let Read = [{ node->GetDepth() }];
+  }
+  def : Property <"index", UInt32> {
+    let Read = [{ node->GetIndex() }];
+  }
+  def : Property<"isBoundsInterfaceType", Bool> {
+    let Read = [{ node->IsBoundsInterfaceType() }];
+  }
+  def : Creator<[{
+    return ctx.getTypeVariableType(depth, index, isBoundsInterfaceType);
   }]>;
 }

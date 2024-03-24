@@ -945,6 +945,24 @@ AST_MATCHER_P(Expr, ignoringParenCasts, internal::Matcher<Expr>, InnerMatcher) {
   return InnerMatcher.matches(*Node.IgnoreParenCasts(), Finder, Builder);
 }
 
+/// Matches expressions that match InnerMatcher after parentheses and
+/// Checked C temporary binding expressions are stripped off.
+///
+/// Given
+/// \code
+///   char *a = "";
+/// \endcode
+/// The matcher
+///    varDecl(hasInitializer(ignoringParenTmp(stringLiteral())))
+/// would match the declaration for a.
+/// while
+///    varDecl(hasInitializer(stringLiteral()))
+/// would match the declaration for a only if the Checked C extension
+/// is disabled.
+AST_MATCHER_P(Expr, ignoringParenTmp, internal::Matcher<Expr>, InnerMatcher) {
+  return InnerMatcher.matches(*Node.IgnoreParenTmp(), Finder, Builder);
+}
+
 /// Matches expressions that match InnerMatcher after implicit casts and
 /// parentheses are stripped off.
 ///

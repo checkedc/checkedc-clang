@@ -25,8 +25,13 @@ add_subdirectory(Index)
 add_subdirectory(IndexSerialization)
 add_subdirectory(StaticAnalyzer)
 add_subdirectory(Format)
+<<<<<<< HEAD
 if(CLANG_INCLUDE_TESTS)
   add_subdirectory(Testing)
 endif()
 add_subdirectory(Interpreter)
 add_subdirectory(Support)
+=======
+add_subdirectory(Testing)
+add_subdirectory(3C)
+>>>>>>> main

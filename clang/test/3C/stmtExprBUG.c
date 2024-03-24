@@ -1,0 +1,29 @@
+// RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// XFAIL: *
+
+#include <stdlib.h>
+
+/*right now, even though our solving correctly identifies q ought to be checked
+  the rewriter fails to rewrite q to be checked so it appears WILD*/
+void foo() {
+  int *p = ({
+    int *q = malloc(3 * sizeof(int));
+    q[2] = 1;
+    q;
+  });
+  //CHECK_ALL: _Array_ptr<int> p : count(3) =  ({_Array_ptr<int> q : count(3) = malloc<int>(3*sizeof(int)); q[2] = 1; q;});
+  //CHECK_NOALL: int *p = ({int *q = malloc(3*sizeof(int)); q[2] = 1; q;});
+  p[1] = 3;
+}
+
+void bar() {
+  int *p = ({
+    int *q = malloc(sizeof(int));
+    *q = 7;
+    q;
+  });
+  //CHECK: _Ptr<int> p =  ({_Ptr<int> q = malloc(sizeof(int)); *q = 7; q;});
+  *p = 4;
+}

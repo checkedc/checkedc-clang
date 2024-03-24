@@ -8126,6 +8126,21 @@ while
 only match the declaration for a.
 </pre></td></tr>
 
+<tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Expr.html">Expr</a>&gt;</td><td class="name" onclick="toggle('ignoringParenTmp0')"><a name="ignoringParenTmp0Anchor">ignoringParenTmp</a></td><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Expr.html">Expr</a>&gt; InnerMatcher</td></tr>
+<tr><td colspan="4" class="doc" id="ignoringParenTmp0"><pre>Matches expressions that match InnerMatcher after parentheses and
+Checked C temporary binding expressions are stripped off.
+
+Given
+  char *a = "";
+The matcher
+   varDecl(hasInitializer(ignoringParenTmp(stringLiteral())))
+would match the declaration for a.
+while
+   varDecl(hasInitializer(stringLiteral()))
+would match the declaration for a only if the Checked C extension
+is disabled.
+</pre></td></tr>
+
 
 <tr><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Expr.html">Expr</a>&gt;</td><td class="name" onclick="toggle('ignoringParenImpCasts0')"><a name="ignoringParenImpCasts0Anchor">ignoringParenImpCasts</a></td><td>Matcher&lt;<a href="https://clang.llvm.org/doxygen/classclang_1_1Expr.html">Expr</a>&gt; InnerMatcher</td></tr>
 <tr><td colspan="4" class="doc" id="ignoringParenImpCasts0"><pre>Matches expressions that match InnerMatcher after implicit casts and

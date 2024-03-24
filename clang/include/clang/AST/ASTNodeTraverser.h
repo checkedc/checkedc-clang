@@ -85,6 +85,15 @@ public:
   void SetTraversalKind(TraversalKind TK) { Traversal = TK; }
   TraversalKind GetTraversalKind() const { return Traversal; }
 
+  // Checked C specific.
+  void dumpBoundsAnnotations(BoundsAnnotations BA) {
+    if (const BoundsExpr *Bounds = BA.getBoundsExpr())
+      Visit(Bounds);
+
+    if (const InteropTypeExpr *IT = BA.getInteropTypeExpr())
+      Visit(IT);
+  }
+
   void Visit(const Decl *D) {
     if (Traversal == TK_IgnoreUnlessSpelledInSource && D->isImplicit())
       return;
@@ -429,6 +438,8 @@ public:
     if (const Expr *TRC = D->getTrailingRequiresClause())
       Visit(TRC);
 
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (Traversal == TK_IgnoreUnlessSpelledInSource && D->isDefaulted())
       return;
 
@@ -443,11 +454,16 @@ public:
   void VisitFieldDecl(const FieldDecl *D) {
     if (D->isBitField())
       Visit(D->getBitWidth());
+
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (Expr *Init = D->getInClassInitializer())
       Visit(Init);
   }
 
   void VisitVarDecl(const VarDecl *D) {
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (Traversal == TK_IgnoreUnlessSpelledInSource && D->isCXXForRangeDecl())
       return;
 

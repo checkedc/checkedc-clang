@@ -45,7 +45,114 @@ def write_file(file_name, text):
     f.truncate()
 
 
+<<<<<<< HEAD
 def try_run(args, raise_error=True):
+=======
+def run_test_once(args, extra_args):
+  resource_dir = args.resource_dir
+  assume_file_name = args.assume_filename
+  input_file_name = args.input_file_name
+  check_name = args.check_name
+  temp_file_name = args.temp_file_name
+  expect_clang_tidy_error = args.expect_clang_tidy_error
+  std = args.std
+
+  file_name_with_extension = assume_file_name or input_file_name
+  _, extension = os.path.splitext(file_name_with_extension)
+  if extension not in ['.c', '.hpp', '.m', '.mm']:
+    extension = '.cpp'
+  temp_file_name = temp_file_name + extension
+
+  clang_tidy_extra_args = extra_args
+  clang_extra_args = []
+  if '--' in extra_args:
+    i = clang_tidy_extra_args.index('--')
+    clang_extra_args = clang_tidy_extra_args[i + 1:]
+    clang_tidy_extra_args = clang_tidy_extra_args[:i]
+
+  # If the test does not specify a config style, force an empty one; otherwise
+  # autodetection logic can discover a ".clang-tidy" file that is not related to
+  # the test.
+  if not any(
+      [arg.startswith('-config=') for arg in clang_tidy_extra_args]):
+    clang_tidy_extra_args.append('-config={}')
+
+  if extension in ['.m', '.mm']:
+    clang_extra_args = ['-fobjc-abi-version=2', '-fobjc-arc', '-fblocks'] + \
+        clang_extra_args
+
+  if extension in ['.cpp', '.hpp', '.mm']:
+    clang_extra_args.append('-std=' + std)
+
+  # Tests should not rely on STL being available, and instead provide mock
+  # implementations of relevant APIs.
+  clang_extra_args.append('-nostdinc++')
+
+  # clang-tidy does not yet support code in Checked C.
+  clang_extra_args.append('-fno-checkedc-extension')
+
+  if resource_dir is not None:
+    clang_extra_args.append('-resource-dir=%s' % resource_dir)
+
+  with open(input_file_name, 'r') as input_file:
+    input_text = input_file.read()
+
+  check_fixes_prefixes = []
+  check_messages_prefixes = []
+  check_notes_prefixes = []
+
+  has_check_fixes = False
+  has_check_messages = False
+  has_check_notes = False
+
+  for check in args.check_suffix:
+    if check and not re.match('^[A-Z0-9\-]+$', check):
+      sys.exit('Only A..Z, 0..9 and "-" are ' +
+        'allowed in check suffixes list, but "%s" was given' % (check))
+
+    file_check_suffix = ('-' + check) if check else ''
+    check_fixes_prefix = 'CHECK-FIXES' + file_check_suffix
+    check_messages_prefix = 'CHECK-MESSAGES' + file_check_suffix
+    check_notes_prefix = 'CHECK-NOTES' + file_check_suffix
+
+    has_check_fix = check_fixes_prefix in input_text
+    has_check_message = check_messages_prefix in input_text
+    has_check_note = check_notes_prefix in input_text
+
+    if has_check_note and has_check_message:
+      sys.exit('Please use either %s or %s but not both' %
+        (check_notes_prefix, check_messages_prefix))
+
+    if not has_check_fix and not has_check_message and not has_check_note:
+      sys.exit('%s, %s or %s not found in the input' %
+        (check_fixes_prefix, check_messages_prefix, check_notes_prefix))
+
+    has_check_fixes = has_check_fixes or has_check_fix
+    has_check_messages = has_check_messages or has_check_message
+    has_check_notes = has_check_notes or has_check_note
+
+    check_fixes_prefixes.append(check_fixes_prefix)
+    check_messages_prefixes.append(check_messages_prefix)
+    check_notes_prefixes.append(check_notes_prefix)
+
+  assert has_check_fixes or has_check_messages or has_check_notes
+  # Remove the contents of the CHECK lines to avoid CHECKs matching on
+  # themselves.  We need to keep the comments to preserve line numbers while
+  # avoiding empty lines which could potentially trigger formatting-related
+  # checks.
+  cleaned_test = re.sub('// *CHECK-[A-Z0-9\-]*:[^\r\n]*', '//', input_text)
+
+  write_file(temp_file_name, cleaned_test)
+
+  original_file_name = temp_file_name + ".orig"
+  write_file(original_file_name, cleaned_test)
+
+  args = ['clang-tidy', temp_file_name, '-fix', '--checks=-*,' + check_name] + \
+      clang_tidy_extra_args + ['--'] + clang_extra_args
+  if expect_clang_tidy_error:
+    args.insert(0, 'not')
+  print('Running ' + repr(args) + '...')
+>>>>>>> main
   try:
     process_output = \
       subprocess.check_output(args, stderr=subprocess.STDOUT).decode(errors='ignore')

@@ -210,8 +210,13 @@ break; \
   // If we have a pointer-like type, desugar the pointee as well.
   // FIXME: Handle other pointer-like types.
   if (const PointerType *Ty = QT->getAs<PointerType>()) {
+<<<<<<< HEAD
     QT = Context.getPointerType(
         desugarForDiagnostic(Context, Ty->getPointeeType(), ShouldAKA));
+=======
+    QT = Context.getPointerType(Desugar(Context, Ty->getPointeeType(),
+                                        ShouldAKA), Ty->getKind());
+>>>>>>> main
   } else if (const auto *Ty = QT->getAs<ObjCObjectPointerType>()) {
     QT = Context.getObjCObjectPointerType(
         desugarForDiagnostic(Context, Ty->getPointeeType(), ShouldAKA));

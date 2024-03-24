@@ -4,7 +4,11 @@ import os
 import shlex
 
 import lit.formats
+<<<<<<< HEAD
 
+=======
+import lit.util
+>>>>>>> main
 from lit.llvm import llvm_config
 
 # Configuration file for the 'lit' test runner.
@@ -28,6 +32,7 @@ config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.clang_tools_binary_dir, 'test')
+llvm_config.use_clang()
 
 # Tools need the same environment setup as clang (we don't need clang itself).
 llvm_config.use_clang(required = False)

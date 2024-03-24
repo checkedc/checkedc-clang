@@ -197,10 +197,18 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       VtorDispStack(LangOpts.getVtorDispMode()),
       AlignPackStack(AlignPackInfo(getLangOpts().XLPragmaPack)),
       DataSegStack(nullptr), BSSSegStack(nullptr), ConstSegStack(nullptr),
+<<<<<<< HEAD
       CodeSegStack(nullptr), StrictGuardStackCheckStack(false),
       FpPragmaStack(FPOptionsOverride()), CurInitSeg(nullptr),
       VisContext(nullptr), PragmaAttributeCurrentTargetDecl(nullptr),
       IsBuildingRecoveryCallExpr(false), LateTemplateParser(nullptr),
+=======
+      CodeSegStack(nullptr), FpPragmaStack(FPOptionsOverride()),
+      CurInitSeg(nullptr), VisContext(nullptr),
+      PragmaAttributeCurrentTargetDecl(nullptr),
+      IsBuildingRecoveryCallExpr(false), Cleanup{}, IsMemberBoundsExpr(false),
+      LateTemplateParser(nullptr),
+>>>>>>> main
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
       StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
@@ -210,7 +218,10 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       ValueWithBytesObjCTypeMethod(nullptr), NSArrayDecl(nullptr),
       ArrayWithObjectsMethod(nullptr), NSDictionaryDecl(nullptr),
       DictionaryWithObjectsMethod(nullptr), GlobalNewDeleteDeclared(false),
-      TUKind(TUKind), NumSFINAEErrors(0),
+      TUKind(TUKind), NumSFINAEErrors(0), CheckingKind(CSS_Unchecked),
+      BoundsExprReturnValue(QualType()),
+      DeferredBoundsParser(nullptr), DeferredBoundsParserData(nullptr),
+      DisableSubstitionDiagnostics(false),
       FullyCheckedComparisonCategories(
           static_cast<unsigned>(ComparisonCategoryType::Last) + 1),
       SatisfactionCache(Context), AccessCheckingSFINAE(false),
@@ -622,7 +633,8 @@ void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E) {
 ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
                                    CastKind Kind, ExprValueKind VK,
                                    const CXXCastPath *BasePath,
-                                   CheckedConversionKind CCK) {
+                                   CheckedConversionKind CCK,
+                                   bool isBoundsSafeInterfaceCast) {
 #ifndef NDEBUG
   if (VK == VK_PRValue && !E->isPRValue()) {
     switch (Kind) {
@@ -686,16 +698,29 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
     }
   }
 
+  // For Checked C, create a temporary for string literal, compound literals or
+  // predefined literals for use during bounds checking.
+  if (Kind == CK_ArrayToPointerDecay && getLangOpts().CheckedC) {
+    Expr *S = E->IgnoreParens();
+    if (isa<StringLiteral>(S) || isa<CompoundLiteralExpr>(S) ||
+        isa<PredefinedExpr>(S))
+      E = new (Context) CHKCBindTemporaryExpr(E);
+  }
+
   if (ImplicitCastExpr *ImpCast = dyn_cast<ImplicitCastExpr>(E)) {
     if (ImpCast->getCastKind() == Kind && (!BasePath || BasePath->empty())) {
       ImpCast->setType(Ty);
       ImpCast->setValueKind(VK);
+      ImpCast->setBoundsSafeInterface(isBoundsSafeInterfaceCast ||
+                                      ImpCast->isBoundsSafeInterface());
       return E;
     }
   }
 
-  return ImplicitCastExpr::Create(Context, Ty, Kind, E, BasePath, VK,
-                                  CurFPFeatureOverrides());
+  ImplicitCastExpr *ICE = ImplicitCastExpr::Create(Context, Ty, Kind, E, BasePath, VK,
+                                                   CurFPFeatureOverrides());
+  ICE->setBoundsSafeInterface(isBoundsSafeInterfaceCast);
+  return ICE;
 }
 
 /// ScalarTypeToBooleanCastKind - Returns the cast kind corresponding
@@ -1147,7 +1172,11 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   DiagnoseUnterminatedPragmaAlignPack();
   DiagnoseUnterminatedPragmaAttribute();
+<<<<<<< HEAD
   DiagnoseUnterminatedOpenMPDeclareTarget();
+=======
+  DiagnoseUnterminatedCheckedScope();
+>>>>>>> main
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.
@@ -1310,7 +1339,8 @@ void Sema::ActOnEndOfTranslationUnit() {
       Diag(VD->getLocation(), diag::warn_tentative_incomplete_array);
       llvm::APInt One(Context.getTypeSize(Context.getSizeType()), true);
       QualType T = Context.getConstantArrayType(ArrayT->getElementType(), One,
-                                                nullptr, ArrayType::Normal, 0);
+                                                nullptr, ArrayType::Normal, 0,
+                                                ArrayT->getKind());
       VD->setType(T);
     } else if (RequireCompleteType(VD->getLocation(), VD->getType(),
                                    diag::err_tentative_def_incomplete_type))
@@ -1570,6 +1600,12 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       Diags.Clear();
       return;
     }
+  }
+
+  if (DisableSubstitionDiagnostics) {
+     Diags.setLastDiagnosticIgnored(true);
+     Diags.Clear();
+     return;
   }
 
   // Copy the diagnostic printing policy over the ASTContext printing policy.

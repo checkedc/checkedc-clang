@@ -207,6 +207,7 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
     llvm::errs() << "\nSTATISTICS:\n";
     if (HaveLexer) P.getActions().PrintStats();
     S.getASTContext().PrintStats();
+    S.PrintCheckedCStats();
     Decl::PrintStats();
     Stmt::PrintStats();
     Consumer->PrintStats();

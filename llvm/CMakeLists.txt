@@ -322,32 +322,48 @@ include(VersionFromVCS)
 option(LLVM_APPEND_VC_REV
   "Embed the version control system revision in LLVM" ON)
 
+<<<<<<< HEAD
 option(LLVM_TOOL_LLVM_DRIVER_BUILD "Enables building the llvm multicall tool" OFF)
 
 set(PACKAGE_NAME LLVM)
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
 set(PACKAGE_BUGREPORT "https://github.com/llvm/llvm-project/issues/")
+=======
+set(PACKAGE_NAME CheckedC-Clang)
+set(CPACK_PACKAGE_NAME CheckedC-Clang)
+set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
+set(PACKAGE_BUGREPORT "https://github.com/Microsoft/checkedc-clang/issues")
+>>>>>>> main
 
 set(BUG_REPORT_URL "${PACKAGE_BUGREPORT}" CACHE STRING
   "Default URL where bug reports are to be submitted.")
 
 # Configure CPack.
+<<<<<<< HEAD
 if(NOT DEFINED CPACK_PACKAGE_INSTALL_DIRECTORY)
   set(CPACK_PACKAGE_INSTALL_DIRECTORY "LLVM")
 endif()
 if(NOT DEFINED CPACK_PACKAGE_VENDOR)
   set(CPACK_PACKAGE_VENDOR "LLVM")
 endif()
+=======
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "CheckedC-Clang")
+set(CPACK_PACKAGE_VENDOR "Microsoft")
+>>>>>>> main
 set(CPACK_PACKAGE_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${LLVM_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${LLVM_VERSION_PATCH})
 set(CPACK_PACKAGE_VERSION ${PACKAGE_VERSION})
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.TXT")
 if(WIN32 AND NOT UNIX)
+<<<<<<< HEAD
   set(CPACK_NSIS_COMPRESSOR "/SOLID lzma \r\n SetCompressorDictSize 32")
   if(NOT DEFINED CPACK_PACKAGE_INSTALL_REGISTRY_KEY)
     set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "LLVM")
   endif()
+=======
+  set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "CheckedC-Clang")
+>>>>>>> main
   set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_logo.bmp")
   set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_icon.ico")
   set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_icon.ico")
@@ -646,6 +662,35 @@ set(LLVM_LIB_FUZZING_ENGINE "" CACHE PATH
 option(LLVM_USE_SPLIT_DWARF
   "Use -gsplit-dwarf when compiling llvm and --gdb-index when linking." OFF)
 
+option(LLVM_POLLY_LINK_INTO_TOOLS "Statically link Polly into tools (if available)" ON)
+option(LLVM_POLLY_BUILD "Build LLVM with Polly" ON)
+
+if (EXISTS ${LLVM_MAIN_SRC_DIR}/tools/polly/CMakeLists.txt)
+  set(POLLY_IN_TREE TRUE)
+elseif(LLVM_EXTERNAL_POLLY_SOURCE_DIR)
+  set(POLLY_IN_TREE TRUE)
+else()
+  set(POLLY_IN_TREE FALSE)
+endif()
+
+if (LLVM_POLLY_BUILD AND POLLY_IN_TREE)
+  set(WITH_POLLY ON)
+else()
+  set(WITH_POLLY OFF)
+endif()
+
+if (LLVM_POLLY_LINK_INTO_TOOLS AND WITH_POLLY)
+  set(LINK_POLLY_INTO_TOOLS ON)
+else()
+  set(LINK_POLLY_INTO_TOOLS OFF)
+endif()
+
+if (EXISTS ${LLVM_MAIN_SRC_DIR}/projects/checkedc-wrapper/checkedc)
+  set(CHECKEDC_IN_TREE TRUE)
+else()
+  set(CHECKEDC_IN_TREE FALSE)
+endif()
+
 # Define an option controlling whether we should build for 32-bit on 64-bit
 # platforms, where supported.
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT (WIN32 OR ${CMAKE_SYSTEM_NAME} MATCHES "AIX"))
@@ -660,6 +705,9 @@ if (MSVC_IDE OR XCODE)
   set(LIT_ARGS_DEFAULT "${LIT_ARGS_DEFAULT} --no-progress-bar")
 endif()
 set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
+
+set(CHECKEDC_ARM_SYSROOT "" CACHE STRING "Sysroot for building ARM tests")
+set(CHECKEDC_ARM_RUNUNDER "" CACHE STRING "Device to run ARM tests")
 
 # On Win32 hosts, provide an option to specify the path to the GnuWin32 tools.
 if( WIN32 AND NOT CYGWIN )

@@ -112,8 +112,14 @@ namespace {
     KEYHLSL       = 0x2000000,
     KEYMAX        = KEYHLSL, // The maximum key
     KEYALLCXX = KEYCXX | KEYCXX11 | KEYCXX20,
+<<<<<<< HEAD
     KEYALL = (KEYMAX | (KEYMAX-1)) & ~KEYNOMS18 &
              ~KEYNOOPENCL // KEYNOMS18 and KEYNOOPENCL are used to exclude.
+=======
+    KEYCHECKEDC   = 0x1000000,
+    KEYALL = (0xffffff & ~KEYNOMS18 &
+              ~KEYNOOPENCL) // KEYNOMS18 and KEYNOOPENCL are used to exclude.
+>>>>>>> main
   };
 
   /// How a keyword is treated in the selected standard. This enum is ordered
@@ -223,6 +229,7 @@ static KeywordStatus getKeywordStatus(const LangOptions &LangOpts,
                                       unsigned Flags) {
   // KEYALL means always enabled, so special case this one.
   if (Flags == KEYALL) return KS_Enabled;
+<<<<<<< HEAD
   // These are tests that need to 'always win', as they are special in that they
   // disable based on certain conditions.
   if (LangOpts.OpenCL && (Flags & KEYNOOPENCL)) return KS_Disabled;
@@ -243,6 +250,38 @@ static KeywordStatus getKeywordStatus(const LangOptions &LangOpts,
   if (CurStatus == KS_Unknown)
     return KS_Disabled;
   return CurStatus;
+=======
+  if (LangOpts.CPlusPlus && (Flags & KEYCXX)) return KS_Enabled;
+  if (LangOpts.CPlusPlus11 && (Flags & KEYCXX11)) return KS_Enabled;
+  if (LangOpts.CPlusPlus20 && (Flags & KEYCXX20)) return KS_Enabled;
+  if (LangOpts.C99 && (Flags & KEYC99)) return KS_Enabled;
+  if (LangOpts.GNUKeywords && (Flags & KEYGNU)) return KS_Extension;
+  if (LangOpts.MicrosoftExt && (Flags & KEYMS)) return KS_Extension;
+  if (LangOpts.MSVCCompat && (Flags & KEYMSCOMPAT)) return KS_Enabled;
+  if (LangOpts.Borland && (Flags & KEYBORLAND)) return KS_Extension;
+  if (LangOpts.Bool && (Flags & BOOLSUPPORT)) return KS_Enabled;
+  if (LangOpts.Half && (Flags & HALFSUPPORT)) return KS_Enabled;
+  if (LangOpts.WChar && (Flags & WCHARSUPPORT)) return KS_Enabled;
+  if (LangOpts.Char8 && (Flags & CHAR8SUPPORT)) return KS_Enabled;
+  if (LangOpts.AltiVec && (Flags & KEYALTIVEC)) return KS_Enabled;
+  if (LangOpts.ZVector && (Flags & KEYZVECTOR)) return KS_Enabled;
+  if (LangOpts.OpenCL && !LangOpts.OpenCLCPlusPlus && (Flags & KEYOPENCLC))
+    return KS_Enabled;
+  if (LangOpts.OpenCLCPlusPlus && (Flags & KEYOPENCLCXX)) return KS_Enabled;
+  if (!LangOpts.CPlusPlus && (Flags & KEYNOCXX)) return KS_Enabled;
+  if (LangOpts.C11 && (Flags & KEYC11)) return KS_Enabled;
+  // We treat bridge casts as objective-C keywords so we can warn on them
+  // in non-arc mode.
+  if (LangOpts.ObjC && (Flags & KEYOBJC)) return KS_Enabled;
+  if (LangOpts.CPlusPlus20 && (Flags & KEYCONCEPTS)) return KS_Enabled;
+  if (LangOpts.Coroutines && (Flags & KEYCOROUTINES)) return KS_Enabled;
+  if (LangOpts.ModulesTS && (Flags & KEYMODULES)) return KS_Enabled;
+  if (LangOpts.CheckedC && (Flags & KEYCHECKEDC)) return KS_Enabled;
+  if (LangOpts.CPlusPlus && (Flags & KEYALLCXX)) return KS_Future;
+  if (LangOpts.CPlusPlus && !LangOpts.CPlusPlus20 && (Flags & CHAR8SUPPORT))
+    return KS_Future;
+  return KS_Disabled;
+>>>>>>> main
 }
 
 /// AddKeyword - This method is used to associate a token ID with specific

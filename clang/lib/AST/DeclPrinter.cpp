@@ -615,7 +615,12 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     case SC_Auto: case SC_Register:
       llvm_unreachable("invalid for functions");
     }
-
+    switch (D->getWrittenCheckedSpecifier()) {
+      case CSS_None: break;
+      case CSS_Unchecked: Out << "_Unchecked "; break;
+      case CSS_Bounds: Out << "_Checked _Bounds_only "; break;
+      case CSS_Memory: Out << "_Checked "; break;
+    }
     if (D->isInlineSpecified())  Out << "inline ";
     if (D->isVirtualAsWritten()) Out << "virtual ";
     if (D->isModulePrivate())    Out << "__module_private__ ";
@@ -887,10 +892,20 @@ void DeclPrinter::VisitVarDecl(VarDecl *D) {
     }
   }
 
+<<<<<<< HEAD
   printDeclType(T, (isa<ParmVarDecl>(D) && Policy.CleanUglifiedParameters &&
                     D->getIdentifier())
                        ? D->getIdentifier()->deuglifiedName()
                        : D->getName());
+=======
+  printDeclType(T, D->getName());
+  if (D->hasBoundsExpr()) {
+    Out << " : ";
+    Expr *BoundsExpr = D->getBoundsExpr();
+    BoundsExpr->printPretty(Out, nullptr, Policy, Indentation);
+  }
+
+>>>>>>> main
   Expr *Init = D->getInit();
   if (!Policy.SuppressInitializers && Init) {
     bool ImplicitInit = false;

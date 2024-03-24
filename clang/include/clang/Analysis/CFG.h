@@ -1252,6 +1252,7 @@ public:
     bool MarkElidedCXXConstructors = false;
     bool AddVirtualBaseBranches = false;
     bool OmitImplicitValueInitializers = false;
+    bool AddNullStmt = false;
 
     BuildOptions() = default;
 
@@ -1388,6 +1389,14 @@ public:
   /// \sa synthetic_stmt_begin
   synthetic_stmt_range synthetic_stmts() const {
     return synthetic_stmt_range(synthetic_stmt_begin(), synthetic_stmt_end());
+  }
+
+  const DeclStmt *getSourceDeclStmt(const DeclStmt *DS) {
+    auto Iter = SyntheticDeclStmts.find(DS);
+    if (Iter != SyntheticDeclStmts.end())
+      return Iter->second;
+    else
+      return DS;
   }
 
   //===--------------------------------------------------------------------===//

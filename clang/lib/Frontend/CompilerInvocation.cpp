@@ -2032,6 +2032,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   Opts.EmitVersionIdentMetadata = Args.hasFlag(OPT_Qy, OPT_Qn, true);
 
+<<<<<<< HEAD
   if (Args.hasArg(options::OPT_ffinite_loops))
     Opts.FiniteLoops = CodeGenOptions::FiniteLoopsKind::Always;
   else if (Args.hasArg(options::OPT_fno_finite_loops))
@@ -2043,6 +2044,11 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Diags.Report(diag::err_drv_amdgpu_ieee_without_no_honor_nans);
 
   return Diags.getNumErrors() == NumErrorsBefore;
+=======
+  Opts.CheckedCNullPtrArith = !Args.hasArg(OPT_fno_checkedc_null_ptr_arith);
+
+  return Success;
+>>>>>>> main
 }
 
 static void
@@ -3220,7 +3226,164 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
   for (const auto *A : Args.filtered(OPT_ivfsoverlay))
     Opts.AddVFSOverlayFile(A->getValue());
 
+<<<<<<< HEAD
   return Diags.getNumErrors() == NumErrorsBefore;
+=======
+void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
+                                         const llvm::Triple &T,
+                                         std::vector<std::string> &Includes,
+                                         LangStandard::Kind LangStd) {
+  // Set some properties which depend solely on the input kind; it would be nice
+  // to move these to the language standard, and have the driver resolve the
+  // input kind + language standard.
+  //
+  // FIXME: Perhaps a better model would be for a single source file to have
+  // multiple language standards (C / C++ std, ObjC std, OpenCL std, OpenMP std)
+  // simultaneously active?
+  if (IK.getLanguage() == Language::Asm) {
+    Opts.AsmPreprocessor = 1;
+  } else if (IK.isObjectiveC()) {
+    Opts.ObjC = 1;
+  }
+
+  if (LangStd == LangStandard::lang_unspecified) {
+    // Based on the base language, pick one.
+    switch (IK.getLanguage()) {
+    case Language::Unknown:
+    case Language::LLVM_IR:
+      llvm_unreachable("Invalid input kind!");
+    case Language::OpenCL:
+      LangStd = LangStandard::lang_opencl10;
+      break;
+    case Language::CUDA:
+      LangStd = LangStandard::lang_cuda;
+      break;
+    case Language::Asm:
+    case Language::C:
+#if defined(CLANG_DEFAULT_STD_C)
+      LangStd = CLANG_DEFAULT_STD_C;
+#else
+      // The PS4 uses C99 as the default C standard.
+      if (T.isPS4())
+        LangStd = LangStandard::lang_gnu99;
+      else
+        LangStd = LangStandard::lang_gnu17;
+#endif
+      break;
+    case Language::ObjC:
+#if defined(CLANG_DEFAULT_STD_C)
+      LangStd = CLANG_DEFAULT_STD_C;
+#else
+      LangStd = LangStandard::lang_gnu11;
+#endif
+      break;
+    case Language::CXX:
+    case Language::ObjCXX:
+#if defined(CLANG_DEFAULT_STD_CXX)
+      LangStd = CLANG_DEFAULT_STD_CXX;
+#else
+      LangStd = LangStandard::lang_gnucxx14;
+#endif
+      break;
+    case Language::RenderScript:
+      LangStd = LangStandard::lang_c99;
+      break;
+    case Language::HIP:
+      LangStd = LangStandard::lang_hip;
+      break;
+    }
+  }
+
+  const LangStandard &Std = LangStandard::getLangStandardForKind(LangStd);
+  Opts.LangStd = LangStd;
+  Opts.LineComment = Std.hasLineComments();
+  Opts.C99 = Std.isC99();
+  Opts.C11 = Std.isC11();
+  Opts.C17 = Std.isC17();
+  Opts.C2x = Std.isC2x();
+  Opts.CPlusPlus = Std.isCPlusPlus();
+  Opts.CPlusPlus11 = Std.isCPlusPlus11();
+  Opts.CPlusPlus14 = Std.isCPlusPlus14();
+  Opts.CPlusPlus17 = Std.isCPlusPlus17();
+  Opts.CPlusPlus20 = Std.isCPlusPlus20();
+  Opts.CPlusPlus2b = Std.isCPlusPlus2b();
+  Opts.GNUMode = Std.isGNUMode();
+  Opts.GNUCVersion = 0;
+  Opts.HexFloats = Std.hasHexFloats();
+  Opts.ImplicitInt = Std.hasImplicitInt();
+
+  // Set OpenCL Version.
+  Opts.OpenCL = Std.isOpenCL();
+  if (LangStd == LangStandard::lang_opencl10)
+    Opts.OpenCLVersion = 100;
+  else if (LangStd == LangStandard::lang_opencl11)
+    Opts.OpenCLVersion = 110;
+  else if (LangStd == LangStandard::lang_opencl12)
+    Opts.OpenCLVersion = 120;
+  else if (LangStd == LangStandard::lang_opencl20)
+    Opts.OpenCLVersion = 200;
+  else if (LangStd == LangStandard::lang_opencl30)
+    Opts.OpenCLVersion = 300;
+  else if (LangStd == LangStandard::lang_openclcpp)
+    Opts.OpenCLCPlusPlusVersion = 100;
+
+  // OpenCL has some additional defaults.
+  if (Opts.OpenCL) {
+    Opts.AltiVec = 0;
+    Opts.ZVector = 0;
+    Opts.setDefaultFPContractMode(LangOptions::FPM_On);
+    Opts.OpenCLCPlusPlus = Opts.CPlusPlus;
+
+    // Include default header file for OpenCL.
+    if (Opts.IncludeDefaultHeader) {
+      if (Opts.DeclareOpenCLBuiltins) {
+        // Only include base header file for builtin types and constants.
+        Includes.push_back("opencl-c-base.h");
+      } else {
+        Includes.push_back("opencl-c.h");
+      }
+    }
+  }
+
+  Opts.HIP = IK.getLanguage() == Language::HIP;
+  Opts.CUDA = IK.getLanguage() == Language::CUDA || Opts.HIP;
+  if (Opts.HIP) {
+    // HIP toolchain does not support 'Fast' FPOpFusion in backends since it
+    // fuses multiplication/addition instructions without contract flag from
+    // device library functions in LLVM bitcode, which causes accuracy loss in
+    // certain math functions, e.g. tan(-1e20) becomes -0.933 instead of 0.8446.
+    // For device library functions in bitcode to work, 'Strict' or 'Standard'
+    // FPOpFusion options in backends is needed. Therefore 'fast-honor-pragmas'
+    // FP contract option is used to allow fuse across statements in frontend
+    // whereas respecting contract flag in backend.
+    Opts.setDefaultFPContractMode(LangOptions::FPM_FastHonorPragmas);
+  } else if (Opts.CUDA) {
+    // Allow fuse across statements disregarding pragmas.
+    Opts.setDefaultFPContractMode(LangOptions::FPM_Fast);
+  }
+
+  Opts.RenderScript = IK.getLanguage() == Language::RenderScript;
+
+  // OpenCL and C++ both have bool, true, false keywords.
+  Opts.Bool = Opts.OpenCL || Opts.CPlusPlus;
+
+  // OpenCL has half keyword
+  Opts.Half = Opts.OpenCL;
+
+  // C++ has wchar_t keyword.
+  Opts.WChar = Opts.CPlusPlus;
+
+  Opts.CXXOperatorNames = Opts.CPlusPlus;
+
+  Opts.AlignedAllocation = Opts.CPlusPlus17;
+
+  Opts.DollarIdents = !Opts.AsmPreprocessor;
+
+  // Enable [[]] attributes in C++11 and C2x by default.
+  Opts.DoubleSquareBracketAttributes = Opts.CPlusPlus11 || Opts.C2x;
+
+  Opts.CheckedC = (IK.getLanguage() == Language::C);
+>>>>>>> main
 }
 
 /// Check if input file kind and language standard are compatible.
@@ -3793,6 +3956,86 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.Trigraphs =
       Args.hasFlag(OPT_ftrigraphs, OPT_fno_trigraphs, Opts.Trigraphs);
 
+<<<<<<< HEAD
+=======
+  Opts.DollarIdents = Args.hasFlag(OPT_fdollars_in_identifiers,
+                                   OPT_fno_dollars_in_identifiers,
+                                   Opts.DollarIdents);
+  if (Args.hasArg(OPT_fcheckedc_extension)) {
+    std::string disallowed;
+    if (Opts.CUDA)
+      disallowed = "CUDA";
+    else if (Opts.OpenCL)
+      disallowed = "OpenCL";
+    else if (Opts.ObjC) {
+      if (Opts.CPlusPlus)
+        disallowed = "Objective C/C++";
+      else
+        disallowed = "Objective C";
+    }
+    else if (Opts.CPlusPlus) {
+      disallowed = "C++";
+    }
+
+    if (disallowed.size() > 0) {
+      Diags.Report(diag::warn_drv_checkedc_extension_notsupported) <<
+        "-fcheckedc-extension" << disallowed;
+    } else
+      Opts.CheckedC = true;
+  }
+
+  if (Args.hasArg(OPT_f3c_tool))
+    Opts._3C = true;
+
+  if (Args.hasArg(OPT_fno_checkedc_extension))
+    Opts.CheckedC = false;
+
+  if (Args.hasArg(OPT_fdump_inferred_bounds))
+    Opts.DumpInferredBounds = true;
+
+  if (Args.hasArg(OPT_finject_verifier_calls))
+    Opts.InjectVerifierCalls = true;
+
+  if (Args.hasArg(OPT_funchecked_pointers_dynamic_check))
+    Opts.UncheckedPointersDynamicCheck = true;
+
+  if (Args.hasArg(OPT_fdump_extracted_comparison_facts))
+    Opts.DumpExtractedComparisonFacts = true;
+
+  if (Args.hasArg(OPT_fdump_widened_bounds))
+    Opts.DumpWidenedBounds = true;
+
+  if (Args.hasArg(OPT_fdump_widened_bounds_dataflow_sets))
+    Opts.DumpWidenedBoundsDataflowSets = true;
+
+  if (Args.hasArg(OPT_fdump_boundsvars))
+    Opts.DumpBoundsVars = true;
+
+  if (Args.hasArg(OPT_fdump_boundssiblingfields))
+    Opts.DumpBoundsSiblingFields = true;
+
+  if (Args.hasArg(OPT_fdump_preorder_ast))
+    Opts.DumpPreorderAST = true;
+
+  if (Args.hasArg(OPT_fdump_checking_state))
+    Opts.DumpCheckingState = true;
+
+  if (Args.hasArg(OPT_fdump_synthesized_members))
+    Opts.DumpSynthesizedMembers = true;
+
+  // -ffixed-point
+  Opts.FixedPoint =
+      Args.hasFlag(OPT_ffixed_point, OPT_fno_fixed_point, /*Default=*/false) &&
+      !Opts.CPlusPlus;
+  Opts.PaddingOnUnsignedFixedPoint =
+      Args.hasFlag(OPT_fpadding_on_unsigned_fixed_point,
+                   OPT_fno_padding_on_unsigned_fixed_point,
+                   /*Default=*/false) &&
+      Opts.FixedPoint;
+
+  Opts.RTTI = Opts.CPlusPlus && !Args.hasArg(OPT_fno_rtti);
+  Opts.RTTIData = Opts.RTTI && !Args.hasArg(OPT_fno_rtti_data);
+>>>>>>> main
   Opts.Blocks = Args.hasArg(OPT_fblocks) || (Opts.OpenCL
     && Opts.OpenCLVersion == 200);
 

@@ -1163,6 +1163,7 @@ void Sema::ActOnPragmaOptimize(bool On, SourceLocation PragmaLoc) {
     OptimizeOffPragmaLocation = PragmaLoc;
 }
 
+<<<<<<< HEAD
 void Sema::ActOnPragmaMSOptimize(SourceLocation Loc, bool IsOn) {
   if (!CurContext->getRedeclContext()->isFileContext()) {
     Diag(Loc, diag::err_pragma_expected_file_scope) << "optimize";
@@ -1180,6 +1181,29 @@ void Sema::ActOnPragmaMSFunction(
   }
 
   MSFunctionNoBuiltins.insert(NoBuiltins.begin(), NoBuiltins.end());
+=======
+// Checked C - #pragma CHECKED_SCOPE action.  Adjust or save the current checked
+// scope information.
+void Sema::ActOnPragmaCheckedScope(PragmaCheckedScopeKind Kind,
+                                   SourceLocation Loc) {
+  switch (Kind) {
+    case PCSK_On: SetCheckedScopeInfo(CSS_Memory); break;
+    case PCSK_BoundsOnly: SetCheckedScopeInfo(CSS_Bounds); break;
+    case PCSK_Off: SetCheckedScopeInfo(CSS_Unchecked); break;
+    case PCSK_Push: PushCheckedScopeInfo(Loc); break;
+    case PCSK_Pop: {
+      if (PopCheckedScopeInfo())
+        Diags.Report(Loc, diag::err_pragma_pop_checked_scope_mismatch);
+      break;
+    }
+  }
+}
+
+void Sema::DiagnoseUnterminatedCheckedScope() {
+  if (CheckingKindStack.empty())
+    return;
+  Diag(CheckingKindStack.back().Loc, diag::err_pragma_checked_scope_no_pop_eof);
+>>>>>>> main
 }
 
 void Sema::AddRangeBasedOptnone(FunctionDecl *FD) {

@@ -377,6 +377,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(ignoringImpCasts);
   REGISTER_MATCHER(ignoringImplicit);
   REGISTER_MATCHER(ignoringParenCasts);
+  REGISTER_MATCHER(ignoringParenTmp);
   REGISTER_MATCHER(ignoringParenImpCasts);
   REGISTER_MATCHER(imaginaryLiteral);
   REGISTER_MATCHER(implicitCastExpr);

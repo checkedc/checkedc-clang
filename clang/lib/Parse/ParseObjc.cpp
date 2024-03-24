@@ -763,6 +763,10 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
 
       bool addedToDeclSpec = false;
       auto ObjCPropertyCallback = [&](ParsingFieldDeclarator &FD) {
+        // BoundsExprTokens and InteropType re used only for Checked C.
+        // They should be null here.
+        assert(FD.BoundsExprTokens == nullptr);
+        assert(FD.InteropType == nullptr);
         if (FD.D.getIdentifier() == nullptr) {
           Diag(AtLoc, diag::err_objc_property_requires_field_name)
               << FD.D.getSourceRange();
@@ -1528,6 +1532,7 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
     Declarator ParmDecl(DS, ParsedAttributesView::none(),
                         DeclaratorContext::Prototype);
     ParseDeclarator(ParmDecl);
+    ExitQuantifiedTypeScope(DS);
     IdentifierInfo *ParmII = ParmDecl.getIdentifier();
     Decl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDecl);
     CParamInfo.push_back(DeclaratorChunk::ParamInfo(ParmII,
@@ -2012,8 +2017,16 @@ void Parser::ParseObjCClassInstanceVariables(ObjCContainerDecl *interfaceDecl,
     }
 
     auto ObjCIvarCallback = [&](ParsingFieldDeclarator &FD) {
+<<<<<<< HEAD
       assert(getObjCDeclContext() == interfaceDecl &&
              "Ivar should have interfaceDecl as its decl context");
+=======
+      // BoundsExprTokens and InteropType are used only for Checked C.
+      // They should be null here.
+      assert(FD.BoundsExprTokens == nullptr);
+      assert(FD.InteropType == nullptr);
+      Actions.ActOnObjCContainerStartDefinition(interfaceDecl);
+>>>>>>> main
       // Install the declarator into the interface decl.
       FD.D.setObjCIvar(true);
       Decl *Field = Actions.ActOnIvar(
@@ -2595,6 +2608,7 @@ StmtResult Parser::ParseObjCTryStmt(SourceLocation atLoc) {
           Declarator ParmDecl(DS, ParsedAttributesView::none(),
                               DeclaratorContext::ObjCCatch);
           ParseDeclarator(ParmDecl);
+          ExitQuantifiedTypeScope(DS);
 
           // Inform the actions module about the declarator, so it
           // gets added to the current scope.

@@ -2730,6 +2730,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_matrix_column_major_store:
     return SemaBuiltinMatrixColumnMajorStore(TheCall, TheCallResult);
 
+<<<<<<< HEAD
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Check = [](CallExpr *TheCall) {
       if (TheCall->getNumArgs() != 1)
@@ -2748,6 +2749,22 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
            diag::err_hip_invalid_args_builtin_mangled_name);
       return ExprError();
     }
+=======
+  case Builtin::BI_Dynamic_check: {
+    // This disables any semantic analysis (in particular, errors or warnings)
+    // if Checked C is not enabled
+    if (!getLangOpts().CheckedC)
+      break;
+
+    Expr *Conditional = TheCall->getArg(0);
+
+    if (!CheckIsNonModifying(Conditional, NMC_Dynamic_Check))
+      return ExprError();
+
+    WarnDynamicCheckAlwaysFails(Conditional);
+
+    break;
+>>>>>>> main
   }
   }
 
@@ -9135,7 +9152,10 @@ bool Sema::CheckFormatArguments(ArrayRef<const Expr *> Args,
                                 llvm::SmallBitVector &CheckedVarArgs) {
   // CHECK: printf/scanf-like function is called with no format string.
   if (format_idx >= Args.size()) {
-    Diag(Loc, diag::warn_missing_format_string) << Range;
+    (IsCheckedScope() ?
+     Diag(Loc, diag::err_missing_format_string) :
+     Diag(Loc, diag::warn_missing_format_string))
+        << Range;
     return false;
   }
 
@@ -9187,8 +9207,10 @@ bool Sema::CheckFormatArguments(ArrayRef<const Expr *> Args,
   // If there are no arguments specified, warn with -Wformat-security, otherwise
   // warn only with -Wformat-nonliteral.
   if (Args.size() == firstDataArg) {
-    Diag(FormatLoc, diag::warn_format_nonliteral_noargs)
-      << OrigFormatExpr->getSourceRange();
+    (IsCheckedScope() ?
+     Diag(FormatLoc, diag::err_format_nonliteral_noargs) :
+     Diag(FormatLoc, diag::warn_format_nonliteral_noargs))
+        << OrigFormatExpr->getSourceRange();
     switch (Type) {
     default:
       break;
@@ -9204,8 +9226,10 @@ bool Sema::CheckFormatArguments(ArrayRef<const Expr *> Args,
       break;
     }
   } else {
-    Diag(FormatLoc, diag::warn_format_nonliteral)
-      << OrigFormatExpr->getSourceRange();
+    (IsCheckedScope() ?
+     Diag(FormatLoc, diag::err_format_nonliteral) :
+     Diag(FormatLoc, diag::warn_format_nonliteral))
+        << OrigFormatExpr->getSourceRange();
   }
   return false;
 }
@@ -9280,6 +9304,14 @@ public:
 
   void HandleNullChar(const char *nullCharacter) override;
 
+  // Note: IsFuncScanfLike = true means that the variadic function being called
+  // is scanf-like. IsFuncScanfLike = false means that the function is
+  // printf-like.
+  void CheckVarargsInCheckedScope(
+    const analyze_format_string::ConversionSpecifier &CS,
+    const char *StartSpecifier, unsigned SpecifierLen, const Expr *E,
+    SmallString<128> FSString, bool IsFuncScanfLike = false);
+
   template <typename Range>
   static void
   EmitFormatDiagnostic(Sema &S, bool inFunctionCall, const Expr *ArgumentExpr,
@@ -9339,7 +9371,9 @@ SourceLocation CheckFormatHandler::getLocationOfByte(const char *x) {
 
 void CheckFormatHandler::HandleIncompleteSpecifier(const char *startSpecifier,
                                                    unsigned specifierLen){
-  EmitFormatDiagnostic(S.PDiag(diag::warn_printf_incomplete_specifier),
+  EmitFormatDiagnostic((S.IsCheckedScope() ?
+                        S.PDiag(diag::err_printf_incomplete_specifier) :
+                        S.PDiag(diag::warn_printf_incomplete_specifier)),
                        getLocationOfByte(startSpecifier),
                        /*IsStringLocation*/true,
                        getSpecifierRange(startSpecifier, specifierLen));
@@ -9368,7 +9402,8 @@ void CheckFormatHandler::HandleInvalidLengthModifier(
 
   } else {
     FixItHint Hint;
-    if (DiagID == diag::warn_format_nonsensical_length)
+    if (DiagID == diag::warn_format_nonsensical_length ||
+        DiagID == diag::err_format_nonsensical_length)
       Hint = FixItHint::CreateRemoval(LMRange);
 
     EmitFormatDiagnostic(S.PDiag(DiagID) << LM.toString() << CS.toString(),
@@ -9390,8 +9425,10 @@ void CheckFormatHandler::HandleNonStandardLengthModifier(
   // See if we know how to fix this length modifier.
   std::optional<LengthModifier> FixedLM = FS.getCorrectedLengthModifier();
   if (FixedLM) {
-    EmitFormatDiagnostic(S.PDiag(diag::warn_format_non_standard)
-                           << LM.toString() << 0,
+    EmitFormatDiagnostic((S.IsCheckedScope() ?
+                          S.PDiag(diag::err_format_non_standard) :
+                          S.PDiag(diag::warn_format_non_standard))
+                             << LM.toString() << 0,
                          getLocationOfByte(LM.getStart()),
                          /*IsStringLocation*/true,
                          getSpecifierRange(startSpecifier, specifierLen));
@@ -9401,8 +9438,10 @@ void CheckFormatHandler::HandleNonStandardLengthModifier(
       << FixItHint::CreateReplacement(LMRange, FixedLM->toString());
 
   } else {
-    EmitFormatDiagnostic(S.PDiag(diag::warn_format_non_standard)
-                           << LM.toString() << 0,
+    EmitFormatDiagnostic((S.IsCheckedScope() ?
+                          S.PDiag(diag::err_format_non_standard) :
+                          S.PDiag(diag::warn_format_non_standard))
+                             << LM.toString() << 0,
                          getLocationOfByte(LM.getStart()),
                          /*IsStringLocation*/true,
                          getSpecifierRange(startSpecifier, specifierLen));
@@ -9417,8 +9456,10 @@ void CheckFormatHandler::HandleNonStandardConversionSpecifier(
   // See if we know how to fix this conversion specifier.
   std::optional<ConversionSpecifier> FixedCS = CS.getStandardSpecifier();
   if (FixedCS) {
-    EmitFormatDiagnostic(S.PDiag(diag::warn_format_non_standard)
-                          << CS.toString() << /*conversion specifier*/1,
+    EmitFormatDiagnostic((S.IsCheckedScope() ?
+                          S.PDiag(diag::err_format_non_standard) :
+                          S.PDiag(diag::warn_format_non_standard))
+                            << CS.toString() << /*conversion specifier*/1,
                          getLocationOfByte(CS.getStart()),
                          /*IsStringLocation*/true,
                          getSpecifierRange(startSpecifier, specifierLen));
@@ -9428,8 +9469,10 @@ void CheckFormatHandler::HandleNonStandardConversionSpecifier(
       << FixedCS->toString()
       << FixItHint::CreateReplacement(CSRange, FixedCS->toString());
   } else {
-    EmitFormatDiagnostic(S.PDiag(diag::warn_format_non_standard)
-                          << CS.toString() << /*conversion specifier*/1,
+    EmitFormatDiagnostic((S.IsCheckedScope() ?
+                          S.PDiag(diag::err_format_non_standard) :
+                          S.PDiag(diag::warn_format_non_standard))
+                            << CS.toString() << /*conversion specifier*/1,
                          getLocationOfByte(CS.getStart()),
                          /*IsStringLocation*/true,
                          getSpecifierRange(startSpecifier, specifierLen));
@@ -9438,7 +9481,9 @@ void CheckFormatHandler::HandleNonStandardConversionSpecifier(
 
 void CheckFormatHandler::HandlePosition(const char *startPos,
                                         unsigned posLen) {
-  EmitFormatDiagnostic(S.PDiag(diag::warn_format_non_standard_positional_arg),
+  EmitFormatDiagnostic((S.IsCheckedScope() ?
+                        S.PDiag(diag::err_format_non_standard_positional_arg) :
+                        S.PDiag(diag::warn_format_non_standard_positional_arg)),
                                getLocationOfByte(startPos),
                                /*IsStringLocation*/true,
                                getSpecifierRange(startPos, posLen));
@@ -9447,8 +9492,10 @@ void CheckFormatHandler::HandlePosition(const char *startPos,
 void
 CheckFormatHandler::HandleInvalidPosition(const char *startPos, unsigned posLen,
                                      analyze_format_string::PositionContext p) {
-  EmitFormatDiagnostic(S.PDiag(diag::warn_format_invalid_positional_specifier)
-                         << (unsigned) p,
+  EmitFormatDiagnostic((S.IsCheckedScope() ?
+                        S.PDiag(diag::err_format_invalid_positional_specifier) :
+                        S.PDiag(diag::warn_format_invalid_positional_specifier))
+                           << (unsigned) p,
                        getLocationOfByte(startPos), /*IsStringLocation*/true,
                        getSpecifierRange(startPos, posLen));
 }
@@ -9465,7 +9512,9 @@ void CheckFormatHandler::HandleNullChar(const char *nullCharacter) {
   if (!isa<ObjCStringLiteral>(OrigFormatExpr)) {
     // The presence of a null character is likely an error.
     EmitFormatDiagnostic(
-      S.PDiag(diag::warn_printf_format_string_contains_null_char),
+      (S.IsCheckedScope() ?
+       S.PDiag(diag::err_printf_format_string_contains_null_char) :
+       S.PDiag(diag::warn_printf_format_string_contains_null_char)),
       getLocationOfByte(nullCharacter), /*IsStringLocation*/true,
       getFormatStringRange());
   }
@@ -9506,7 +9555,9 @@ void UncoveredArgHandler::Diagnose(Sema &S, bool IsFunctionCall,
   if (S.getSourceManager().isInSystemMacro(Loc))
     return;
 
-  PartialDiagnostic PDiag = S.PDiag(diag::warn_printf_data_arg_not_used);
+  PartialDiagnostic PDiag = S.IsCheckedScope() ?
+                              S.PDiag(diag::err_printf_data_arg_not_used) :
+                              S.PDiag(diag::warn_printf_data_arg_not_used);
   for (auto E : DiagnosticExprs)
     PDiag << E->getSourceRange();
 
@@ -9569,7 +9620,10 @@ CheckFormatHandler::HandleInvalidConversionSpecifier(unsigned argIndex,
   }
 
   EmitFormatDiagnostic(
-      S.PDiag(diag::warn_format_invalid_conversion) << Specifier, Loc,
+     (S.IsCheckedScope() ?
+        S.PDiag(diag::err_format_invalid_conversion) :
+        S.PDiag(diag::warn_format_invalid_conversion))
+          << Specifier, Loc,
       /*IsStringLocation*/ true, getSpecifierRange(startSpec, specifierLen));
 
   return keepGoing;
@@ -9580,7 +9634,9 @@ CheckFormatHandler::HandlePositionalNonpositionalArgs(SourceLocation Loc,
                                                       const char *startSpec,
                                                       unsigned specifierLen) {
   EmitFormatDiagnostic(
-    S.PDiag(diag::warn_format_mix_positional_nonpositional_args),
+    (S.IsCheckedScope() ?
+     S.PDiag(diag::err_format_mix_positional_nonpositional_args) :
+     S.PDiag(diag::warn_format_mix_positional_nonpositional_args)),
     Loc, /*isStringLoc*/true, getSpecifierRange(startSpec, specifierLen));
 }
 
@@ -9592,9 +9648,14 @@ CheckFormatHandler::CheckNumArgs(
 
   if (argIndex >= NumDataArgs) {
     PartialDiagnostic PDiag = FS.usesPositionalArg()
-      ? (S.PDiag(diag::warn_printf_positional_arg_exceeds_data_args)
-           << (argIndex+1) << NumDataArgs)
-      : S.PDiag(diag::warn_printf_insufficient_data_args);
+      ? (S.IsCheckedScope() ?
+           S.PDiag(diag::err_printf_positional_arg_exceeds_data_args)
+             << (argIndex+1) << NumDataArgs :
+           S.PDiag(diag::warn_printf_positional_arg_exceeds_data_args)
+             << (argIndex+1) << NumDataArgs)
+      : (S.IsCheckedScope() ?
+           S.PDiag(diag::err_printf_insufficient_data_args) :
+           S.PDiag(diag::warn_printf_insufficient_data_args));
     EmitFormatDiagnostic(
       PDiag, getLocationOfByte(CS.getStart()), /*IsStringLocation*/true,
       getSpecifierRange(startSpecifier, specifierLen));
@@ -9605,6 +9666,103 @@ CheckFormatHandler::CheckNumArgs(
     return false;
   }
   return true;
+}
+
+void CheckFormatHandler::CheckVarargsInCheckedScope(
+    const analyze_format_string::ConversionSpecifier &CS,
+    const char *StartSpecifier, unsigned SpecifierLen, const Expr *E,
+    SmallString<128> FSString, bool IsFuncScanfLike) {
+
+  // Check arguments to variadic functions like printf/scanf, etc in checked
+  // scope. This function is called per argument. E is current argument that
+  // needs checking.
+
+  using ConversionSpecifier = analyze_format_string::ConversionSpecifier;
+
+  // Do not proceed with the checking if we are not in a checked scope.
+  if (!S.IsCheckedScope())
+    return;
+
+  QualType ArgTy = E->getType();
+
+  switch (CS.getKind()) {
+  default:
+    // In scanf-like functions, only allow _Ptr type arguments.
+    if (IsFuncScanfLike) {
+      if (ArgTy->isCheckedPointerNtArrayType() ||
+          ArgTy->isNtCheckedArrayType() ||
+          ArgTy->isCheckedPointerArrayType() ||
+          ArgTy->isCheckedArrayType()) {
+        EmitFormatDiagnostic(
+          S.PDiag(diag::err_checked_scope_invalid_format_specifier_argument)
+            << FSString << "_Ptr",
+          E->getExprLoc(), /*IsStringLocation*/false,
+          getSpecifierRange(StartSpecifier, SpecifierLen));
+      }
+
+    // In printf-like functions, only allow scalar type arguments with format
+    // specifiers other than %s.
+
+    // TODO: Currently, we do not handle the case where an out-of-bounds
+    // null-terminated array is passed as an argument to %s. The following code
+    // is allowed even though it might be a safety hole.
+    // _Checked {
+    //   _Nt_array_ptr<char> p : count(5);
+    //   printf("%s", p + 1234);
+    // }
+    // Issue https://github.com/microsoft/checkedc-clang/issues/1178 tracks this.
+
+    } else {
+      if (ArgTy->isCheckedPointerType()) {
+        EmitFormatDiagnostic(
+          S.PDiag(diag::err_checked_scope_invalid_format_specifier_argument)
+            << FSString << "scalar",
+          E->getExprLoc(), /*IsStringLocation*/false,
+          getSpecifierRange(StartSpecifier, SpecifierLen));
+      }
+    }
+    break;
+
+  // Check if the argument corresponding to the %s format specifier is either
+  // _Nt_array_ptr or _Nt_checked.
+  case ConversionSpecifier::sArg:
+    if (IsFuncScanfLike) {
+      EmitFormatDiagnostic(
+        S.PDiag(diag::err_checked_scope_disallowed_format_specifier)
+          << FSString << "in scanf",
+        E->getExprLoc(), /*IsStringLocation*/false,
+        getSpecifierRange(StartSpecifier, SpecifierLen));
+
+    } else if (!ArgTy->isCheckedPointerNtArrayType() &&
+               !ArgTy->isNtCheckedArrayType()) {
+      EmitFormatDiagnostic(
+        S.PDiag(diag::err_checked_scope_invalid_format_specifier_argument)
+          << FSString << "null-terminated",
+        E->getExprLoc(), /*IsStringLocation*/false,
+        getSpecifierRange(StartSpecifier, SpecifierLen));
+    }
+    break;
+
+  // Disallow %p format specifier with scanf-like functions.
+  case ConversionSpecifier::pArg:
+    if (IsFuncScanfLike) {
+      EmitFormatDiagnostic(
+        S.PDiag(diag::err_checked_scope_disallowed_format_specifier)
+          << FSString << "with scanf",
+        E->getExprLoc(), /*IsStringLocation*/false,
+        getSpecifierRange(StartSpecifier, SpecifierLen));
+    }
+    break;
+
+  // Disallow %n specifier in checked scope.
+  case ConversionSpecifier::nArg:
+    EmitFormatDiagnostic(
+      S.PDiag(diag::err_checked_scope_disallowed_format_specifier)
+        << FSString << "",
+      E->getExprLoc(), /*IsStringLocation*/false,
+      getSpecifierRange(StartSpecifier, SpecifierLen));
+    break;
+  }
 }
 
 template<typename Range>
@@ -9763,7 +9921,13 @@ bool CheckPrintfHandler::HandleAmount(
     if (ArgPassingKind != Sema::FAPK_VAList) {
       unsigned argIndex = Amt.getArgIndex();
       if (argIndex >= NumDataArgs) {
+<<<<<<< HEAD
         EmitFormatDiagnostic(S.PDiag(diag::warn_printf_asterisk_missing_arg)
+=======
+        EmitFormatDiagnostic((S.IsCheckedScope() ?
+                              S.PDiag(diag::err_printf_asterisk_missing_arg) :
+                              S.PDiag(diag::warn_printf_asterisk_missing_arg))
+>>>>>>> main
                                  << k,
                              getLocationOfByte(Amt.getStart()),
                              /*IsStringLocation*/ true,
@@ -9788,9 +9952,11 @@ bool CheckPrintfHandler::HandleAmount(
       assert(AT.isValid());
 
       if (!AT.matchesType(S.Context, T)) {
-        EmitFormatDiagnostic(S.PDiag(diag::warn_printf_asterisk_wrong_type)
-                               << k << AT.getRepresentativeTypeName(S.Context)
-                               << T << Arg->getSourceRange(),
+        EmitFormatDiagnostic((S.IsCheckedScope() ?
+                              S.PDiag(diag::err_printf_asterisk_wrong_type) :
+                              S.PDiag(diag::warn_printf_asterisk_wrong_type))
+                                 << k << AT.getRepresentativeTypeName(S.Context)
+                                 << T << Arg->getSourceRange(),
                              getLocationOfByte(Amt.getStart()),
                              /*IsStringLocation*/true,
                              getSpecifierRange(startSpecifier, specifierLen));
@@ -9818,8 +9984,10 @@ void CheckPrintfHandler::HandleInvalidAmount(
                                  Amt.getConstantLength()))
       : FixItHint();
 
-  EmitFormatDiagnostic(S.PDiag(diag::warn_printf_nonsensical_optional_amount)
-                         << type << CS.toString(),
+  EmitFormatDiagnostic((S.IsCheckedScope() ?
+                        S.PDiag(diag::err_printf_nonsensical_optional_amount) :
+                        S.PDiag(diag::warn_printf_nonsensical_optional_amount))
+                           << type << CS.toString(),
                        getLocationOfByte(Amt.getStart()),
                        /*IsStringLocation*/true,
                        getSpecifierRange(startSpecifier, specifierLen),
@@ -9833,8 +10001,10 @@ void CheckPrintfHandler::HandleFlag(const analyze_printf::PrintfSpecifier &FS,
   // Warn about pointless flag with a fixit removal.
   const analyze_printf::PrintfConversionSpecifier &CS =
     FS.getConversionSpecifier();
-  EmitFormatDiagnostic(S.PDiag(diag::warn_printf_nonsensical_flag)
-                         << flag.toString() << CS.toString(),
+  EmitFormatDiagnostic((S.IsCheckedScope() ?
+                        S.PDiag(diag::err_printf_nonsensical_flag) :
+                        S.PDiag(diag::warn_printf_nonsensical_flag))
+                           << flag.toString() << CS.toString(),
                        getLocationOfByte(flag.getPosition()),
                        /*IsStringLocation*/true,
                        getSpecifierRange(startSpecifier, specifierLen),
@@ -9849,8 +10019,10 @@ void CheckPrintfHandler::HandleIgnoredFlag(
                                 const char *startSpecifier,
                                 unsigned specifierLen) {
   // Warn about ignored flag with a fixit removal.
-  EmitFormatDiagnostic(S.PDiag(diag::warn_printf_ignored_flag)
-                         << ignoredFlag.toString() << flag.toString(),
+  EmitFormatDiagnostic((S.IsCheckedScope() ?
+                        S.PDiag(diag::err_printf_ignored_flag) :
+                        S.PDiag(diag::warn_printf_ignored_flag))
+                           << ignoredFlag.toString() << flag.toString(),
                        getLocationOfByte(ignoredFlag.getPosition()),
                        /*IsStringLocation*/true,
                        getSpecifierRange(startSpecifier, specifierLen),
@@ -10025,7 +10197,9 @@ bool CheckPrintfHandler::HandlePrintfSpecifier(
         ArgType(S.Context.IntTy) : ArgType::CPointerTy;
     if (AT.isValid() && !AT.matchesType(S.Context, Ex->getType()))
       EmitFormatDiagnostic(
-          S.PDiag(diag::warn_format_conversion_argument_type_mismatch)
+          (S.IsCheckedScope() ?
+           S.PDiag(diag::err_format_conversion_argument_type_mismatch) :
+           S.PDiag(diag::warn_format_conversion_argument_type_mismatch))
               << AT.getRepresentativeTypeName(S.Context) << Ex->getType()
               << false << Ex->getSourceRange(),
           Ex->getBeginLoc(), /*IsStringLocation*/ false,
@@ -10036,7 +10210,9 @@ bool CheckPrintfHandler::HandlePrintfSpecifier(
     const analyze_printf::ArgType &AT2 = ArgType::CStrTy;
     if (AT2.isValid() && !AT2.matchesType(S.Context, Ex->getType()))
       EmitFormatDiagnostic(
-          S.PDiag(diag::warn_format_conversion_argument_type_mismatch)
+          (S.IsCheckedScope() ?
+           S.PDiag(diag::err_format_conversion_argument_type_mismatch) :
+           S.PDiag(diag::warn_format_conversion_argument_type_mismatch))
               << AT2.getRepresentativeTypeName(S.Context) << Ex->getType()
               << false << Ex->getSourceRange(),
           Ex->getBeginLoc(), /*IsStringLocation*/ false,
@@ -10080,14 +10256,18 @@ bool CheckPrintfHandler::HandlePrintfSpecifier(
   // Check for use of public/private annotation outside of os_log().
   if (FSType != Sema::FST_OSLog) {
     if (FS.isPublic().isSet()) {
-      EmitFormatDiagnostic(S.PDiag(diag::warn_format_invalid_annotation)
+      EmitFormatDiagnostic((S.IsCheckedScope() ?
+                            S.PDiag(diag::err_format_invalid_annotation) :
+                            S.PDiag(diag::warn_format_invalid_annotation))
                                << "public",
                            getLocationOfByte(FS.isPublic().getPosition()),
                            /*IsStringLocation*/ false,
                            getSpecifierRange(startSpecifier, specifierLen));
     }
     if (FS.isPrivate().isSet()) {
-      EmitFormatDiagnostic(S.PDiag(diag::warn_format_invalid_annotation)
+      EmitFormatDiagnostic((S.IsCheckedScope() ?
+                            S.PDiag(diag::err_format_invalid_annotation) :
+                            S.PDiag(diag::warn_format_invalid_annotation))
                                << "private",
                            getLocationOfByte(FS.isPrivate().getPosition()),
                            /*IsStringLocation*/ false,
@@ -10119,7 +10299,9 @@ bool CheckPrintfHandler::HandlePrintfSpecifier(
   // Precision is mandatory for %P specifier.
   if (CS.getKind() == ConversionSpecifier::PArg &&
       FS.getPrecision().getHowSpecified() == OptionalAmount::NotSpecified) {
-    EmitFormatDiagnostic(S.PDiag(diag::warn_format_P_no_precision),
+    EmitFormatDiagnostic((S.IsCheckedScope() ?
+                          S.PDiag(diag::err_format_P_no_precision) :
+                          S.PDiag(diag::warn_format_P_no_precision)),
                          getLocationOfByte(startSpecifier),
                          /*IsStringLocation*/ false,
                          getSpecifierRange(startSpecifier, specifierLen));
@@ -10151,12 +10333,16 @@ bool CheckPrintfHandler::HandlePrintfSpecifier(
   if (!FS.hasValidLengthModifier(S.getASTContext().getTargetInfo(),
                                  S.getLangOpts()))
     HandleInvalidLengthModifier(FS, CS, startSpecifier, specifierLen,
-                                diag::warn_format_nonsensical_length);
+                                (S.IsCheckedScope() ?
+                                 diag::err_format_nonsensical_length :
+                                 diag::warn_format_nonsensical_length));
   else if (!FS.hasStandardLengthModifier())
     HandleNonStandardLengthModifier(FS, startSpecifier, specifierLen);
   else if (!FS.hasStandardLengthConversionCombination())
     HandleInvalidLengthModifier(FS, CS, startSpecifier, specifierLen,
-                                diag::warn_format_non_standard_conversion_spec);
+                                (S.IsCheckedScope() ?
+                                 diag::err_format_non_standard_conversion_spec :
+                                 diag::warn_format_non_standard_conversion_spec));
 
   if (!FS.hasStandardConversionSpecifier(S.getLangOpts()))
     HandleNonStandardConversionSpecifier(CS, startSpecifier, specifierLen);
@@ -10172,7 +10358,15 @@ bool CheckPrintfHandler::HandlePrintfSpecifier(
   if (!Arg)
     return true;
 
-  return checkFormatExpr(FS, startSpecifier, specifierLen, Arg);
+  if (!checkFormatExpr(FS, startSpecifier, specifierLen, Arg))
+    return false;
+
+  SmallString<128> FSString;
+  llvm::raw_svector_ostream os(FSString);
+  FS.toString(os);
+
+  CheckVarargsInCheckedScope(CS, startSpecifier, specifierLen, Arg, FSString);
+  return true;
 }
 
 static bool requiresParensToAddCast(const Expr *E) {
@@ -10326,7 +10520,9 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
     SmallString<4> FSString;
     llvm::raw_svector_ostream os(FSString);
     FS.toString(os);
-    EmitFormatDiagnostic(S.PDiag(diag::warn_format_bool_as_character)
+    EmitFormatDiagnostic((S.IsCheckedScope() ?
+                          S.PDiag(diag::err_format_bool_as_character) :
+                          S.PDiag(diag::warn_format_bool_as_character))
                              << FSString,
                          E->getExprLoc(), false, CSR);
     return true;
@@ -10469,13 +10665,22 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
       case ArgType::NoMatchPromotionTypeConfusion:
         llvm_unreachable("expected non-matching");
       case ArgType::NoMatchPedantic:
-        Diag = diag::warn_format_conversion_argument_type_mismatch_pedantic;
+        if (S.IsCheckedScope())
+          Diag = diag::err_format_conversion_argument_type_mismatch_pedantic;
+        else
+          Diag = diag::warn_format_conversion_argument_type_mismatch_pedantic;
         break;
       case ArgType::NoMatchTypeConfusion:
-        Diag = diag::warn_format_conversion_argument_type_mismatch_confusion;
+        if (S.IsCheckedScope())
+          Diag = diag::err_format_conversion_argument_type_mismatch_confusion;
+        else
+          Diag = diag::warn_format_conversion_argument_type_mismatch_confusion;
         break;
       case ArgType::NoMatch:
-        Diag = diag::warn_format_conversion_argument_type_mismatch;
+        if (S.IsCheckedScope())
+          Diag = diag::err_format_conversion_argument_type_mismatch;
+        else
+          Diag = diag::warn_format_conversion_argument_type_mismatch;
         break;
       }
 
@@ -10534,9 +10739,16 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
           Name = TypedefTy->getDecl()->getName();
         else
           Name = CastTyName;
-        unsigned Diag = Match == ArgType::NoMatchPedantic
+        unsigned Diag;
+        if (S.IsCheckedScope()) {
+          Diag = Match == ArgType::NoMatchPedantic
+                            ? diag::err_format_argument_needs_cast_pedantic
+                            : diag::err_format_argument_needs_cast;
+        } else {
+          Diag = Match == ArgType::NoMatchPedantic
                             ? diag::warn_format_argument_needs_cast_pedantic
                             : diag::warn_format_argument_needs_cast;
+        }
         EmitFormatDiagnostic(S.PDiag(Diag) << Name << IntendedTy << IsEnum
                                            << E->getSourceRange(),
                              E->getBeginLoc(), /*IsStringLocation=*/false,
@@ -10546,9 +10758,11 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
         // specifier, but we've decided that the specifier is probably correct
         // and we should cast instead. Just use the normal warning message.
         EmitFormatDiagnostic(
-            S.PDiag(diag::warn_format_conversion_argument_type_mismatch)
-                << AT.getRepresentativeTypeName(S.Context) << ExprTy << IsEnum
-                << E->getSourceRange(),
+              (S.IsCheckedScope() ?
+               S.PDiag(diag::err_format_conversion_argument_type_mismatch) :
+               S.PDiag(diag::warn_format_conversion_argument_type_mismatch))
+                  << AT.getRepresentativeTypeName(S.Context) << ExprTy << IsEnum
+                  << E->getSourceRange(),
             E->getBeginLoc(), /*IsStringLocation*/ false, SpecRange, Hints);
       }
     }
@@ -10569,13 +10783,22 @@ CheckPrintfHandler::checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
       case ArgType::NoMatchPromotionTypeConfusion:
         llvm_unreachable("expected non-matching");
       case ArgType::NoMatchPedantic:
-        Diag = diag::warn_format_conversion_argument_type_mismatch_pedantic;
+        if (S.IsCheckedScope())
+          Diag = diag::err_format_conversion_argument_type_mismatch_pedantic;
+        else
+          Diag = diag::warn_format_conversion_argument_type_mismatch_pedantic;
         break;
       case ArgType::NoMatchTypeConfusion:
-        Diag = diag::warn_format_conversion_argument_type_mismatch_confusion;
+        if (S.IsCheckedScope())
+          Diag = diag::err_format_conversion_argument_type_mismatch_confusion;
+        else
+          Diag = diag::warn_format_conversion_argument_type_mismatch_confusion;
         break;
       case ArgType::NoMatch:
-        Diag = diag::warn_format_conversion_argument_type_mismatch;
+        if (S.IsCheckedScope())
+          Diag = diag::err_format_conversion_argument_type_mismatch;
+        else
+          Diag = diag::warn_format_conversion_argument_type_mismatch;
         break;
       }
 
@@ -10675,7 +10898,9 @@ public:
 
 void CheckScanfHandler::HandleIncompleteScanList(const char *start,
                                                  const char *end) {
-  EmitFormatDiagnostic(S.PDiag(diag::warn_scanf_scanlist_incomplete),
+  EmitFormatDiagnostic((S.IsCheckedScope() ?
+                        S.PDiag(diag::err_scanf_scanlist_incomplete) :
+                        S.PDiag(diag::warn_scanf_scanlist_incomplete)),
                        getLocationOfByte(end), /*IsStringLocation*/true,
                        getSpecifierRange(start, end - start));
 }
@@ -10716,13 +10941,24 @@ bool CheckScanfHandler::HandleScanfSpecifier(
     }
   }
 
-  // Check if the field with is non-zero.
+  // Check if the field width is non-zero.
   const OptionalAmount &Amt = FS.getFieldWidth();
+  if (S.IsCheckedScope() &&
+      Amt.getHowSpecified() != OptionalAmount::NotSpecified) {
+    const CharSourceRange &R = getSpecifierRange(startSpecifier, specifierLen);
+    EmitFormatDiagnostic(S.PDiag(diag::err_checked_scope_scanf_width),
+                         getLocationOfByte(Amt.getStart()),
+                         /*IsStringLocation*/true, R,
+                         FixItHint::CreateRemoval(R));
+  }
+
   if (Amt.getHowSpecified() == OptionalAmount::Constant) {
     if (Amt.getConstantAmount() == 0) {
       const CharSourceRange &R = getSpecifierRange(Amt.getStart(),
                                                    Amt.getConstantLength());
-      EmitFormatDiagnostic(S.PDiag(diag::warn_scanf_nonzero_width),
+      EmitFormatDiagnostic((S.IsCheckedScope() ?
+                            S.PDiag(diag::err_scanf_nonzero_width) :
+                            S.PDiag(diag::warn_scanf_nonzero_width)),
                            getLocationOfByte(Amt.getStart()),
                            /*IsStringLocation*/true, R,
                            FixItHint::CreateRemoval(R));
@@ -10748,12 +10984,16 @@ bool CheckScanfHandler::HandleScanfSpecifier(
   if (!FS.hasValidLengthModifier(S.getASTContext().getTargetInfo(),
                                  S.getLangOpts()))
     HandleInvalidLengthModifier(FS, CS, startSpecifier, specifierLen,
-                                diag::warn_format_nonsensical_length);
+                                (S.IsCheckedScope() ?
+                                 diag::err_format_nonsensical_length :
+                                 diag::warn_format_nonsensical_length));
   else if (!FS.hasStandardLengthModifier())
     HandleNonStandardLengthModifier(FS, startSpecifier, specifierLen);
   else if (!FS.hasStandardLengthConversionCombination())
     HandleInvalidLengthModifier(FS, CS, startSpecifier, specifierLen,
-                                diag::warn_format_non_standard_conversion_spec);
+                                (S.IsCheckedScope() ?
+                                 diag::err_format_non_standard_conversion_spec :
+                                 diag::warn_format_non_standard_conversion_spec));
 
   if (!FS.hasStandardConversionSpecifier(S.getLangOpts()))
     HandleNonStandardConversionSpecifier(CS, startSpecifier, specifierLen);
@@ -10776,6 +11016,12 @@ bool CheckScanfHandler::HandleScanfSpecifier(
     return true;
   }
 
+  SmallString<128> FSString;
+  llvm::raw_svector_ostream os(FSString);
+  FS.toString(os);
+  CheckVarargsInCheckedScope(CS, startSpecifier, specifierLen, Ex, FSString,
+                             /*IsFuncScanfLike*/ true);
+
   analyze_format_string::ArgType::MatchKind Match =
       AT.matchesType(S.Context, Ex->getType());
   bool Pedantic = Match == analyze_format_string::ArgType::NoMatchPedantic;
@@ -10786,9 +11032,16 @@ bool CheckScanfHandler::HandleScanfSpecifier(
   bool Success = fixedFS.fixType(Ex->getType(), Ex->IgnoreImpCasts()->getType(),
                                  S.getLangOpts(), S.Context);
 
-  unsigned Diag =
+  unsigned Diag;
+  if (S.IsCheckedScope()) {
+    Diag =
+      Pedantic ? diag::err_format_conversion_argument_type_mismatch_pedantic
+               : diag::err_format_conversion_argument_type_mismatch;
+  } else {
+    Diag =
       Pedantic ? diag::warn_format_conversion_argument_type_mismatch_pedantic
                : diag::warn_format_conversion_argument_type_mismatch;
+  }
 
   if (Success) {
     // Get the fix string from the fixed format specifier.
@@ -10812,7 +11065,6 @@ bool CheckScanfHandler::HandleScanfSpecifier(
                          /*IsStringLocation*/ false,
                          getSpecifierRange(startSpecifier, specifierLen));
   }
-
   return true;
 }
 
@@ -10827,7 +11079,10 @@ static void CheckFormatString(
   if (!FExpr->isAscii() && !FExpr->isUTF8()) {
     CheckFormatHandler::EmitFormatDiagnostic(
         S, inFunctionCall, Args[format_idx],
-        S.PDiag(diag::warn_format_string_is_wide_literal), FExpr->getBeginLoc(),
+        (S.IsCheckedScope() ?
+         S.PDiag(diag::err_format_string_is_wide_literal) :
+         S.PDiag(diag::warn_format_string_is_wide_literal)),
+        FExpr->getBeginLoc(),
         /*IsStringLocation*/ true, OrigFormatExpr->getSourceRange());
     return;
   }
@@ -10853,7 +11108,9 @@ static void CheckFormatString(
   if (TypeSize <= StrRef.size() && !StrRef.substr(0, TypeSize).contains('\0')) {
     CheckFormatHandler::EmitFormatDiagnostic(
         S, inFunctionCall, Args[format_idx],
-        S.PDiag(diag::warn_printf_format_string_not_null_terminated),
+        (S.IsCheckedScope() ?
+         S.PDiag(diag::err_printf_format_string_not_null_terminated) :
+         S.PDiag(diag::warn_printf_format_string_not_null_terminated)),
         FExpr->getBeginLoc(),
         /*IsStringLocation=*/true, OrigFormatExpr->getSourceRange());
     return;
@@ -10863,7 +11120,10 @@ static void CheckFormatString(
   if (StrLen == 0 && numDataArgs > 0) {
     CheckFormatHandler::EmitFormatDiagnostic(
         S, inFunctionCall, Args[format_idx],
-        S.PDiag(diag::warn_empty_format_string), FExpr->getBeginLoc(),
+        (S.IsCheckedScope() ?
+         S.PDiag(diag::err_empty_format_string) :
+         S.PDiag(diag::warn_empty_format_string)),
+        FExpr->getBeginLoc(),
         /*IsStringLocation*/ true, OrigFormatExpr->getSourceRange());
     return;
   }
@@ -17203,6 +17463,173 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
         << RHSExpr->getSourceRange();
 }
 
+bool Sema::AllowedInCheckedScope(QualType Ty,
+                                 const InteropTypeExpr *InteropType,
+                                 bool IsParam, CheckedScopeTypeLocation Loc,
+                                 CheckedScopeTypeLocation &ProblemLoc,
+                                 QualType &ProblemTy) {
+  if (Ty.isNull())
+    return true;
+
+  CheckedScopeTypeLocation CurrentLoc = Loc;
+  if (Loc == CSTL_TopLevel)
+    Loc = CSTL_Nested;
+
+  if (Ty->isPointerType() || Ty->isArrayType()) {
+    if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
+        !InteropType) {
+      ProblemLoc = CurrentLoc;
+      ProblemTy = Ty;
+      return false;
+    }
+
+    // Any interop type annotation must be "at least as checked" as the
+    // original type, so use that instead.
+    if (InteropType) {
+      Ty = Context.getInteropTypeAndAdjust(InteropType, IsParam);
+      Loc = CSTL_BoundsSafeInterface;
+      if (!(Ty->isPointerType() || Ty->isArrayType())) {
+        llvm_unreachable("unexpected interop type");
+        return false;
+      }
+    }
+    QualType ReferentType = QualType(Ty->getPointeeOrArrayElementType(), 0);
+    return AllowedInCheckedScope(ReferentType, nullptr, false, Loc,
+                                 ProblemLoc, ProblemTy);
+  } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
+    const BoundsAnnotations ReturnAnnots = fpt->getReturnAnnots();
+    InteropTypeExpr *ReturnInteropType = ReturnAnnots.getInteropTypeExpr();
+    if (!AllowedInCheckedScope(fpt->getReturnType(), ReturnInteropType,
+                               false, Loc, ProblemLoc, ProblemTy))
+      return false;
+    unsigned int paramCount = fpt->getNumParams();
+    for (unsigned int i = 0; i < paramCount; i++) {
+      const BoundsAnnotations ParamAnnots = fpt->getParamAnnots(i);
+      InteropTypeExpr *ParamInteropType = ParamAnnots.getInteropTypeExpr();
+      if (!AllowedInCheckedScope(fpt->getParamType(i), ParamInteropType,
+                                 true, Loc, ProblemLoc, ProblemTy))
+        return false;
+    }
+  }
+  else
+    assert(!InteropType && "unexpected bounds-safe interface type on type");
+
+  return true;
+}
+
+static bool DisplaysAsArrayOrPointer(QualType QT) {
+  QT = QT.IgnoreParens();
+  const Type *Ty = QT.getTypePtr();
+  return (isa<PointerType>(Ty) || isa<ArrayType>(Ty));
+}
+
+//===--- CHECK: Checked scope -------------------------===//
+// Checked C - type restrictions on declarations in checked scope.
+bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
+
+  // We're not a checked scope.
+  if (!IsCheckedScope())
+    return true;
+
+  if (Decl->isInvalidDecl())
+    return true;
+
+  // Checked pointer type or unchecked pointer type with bounds-safe interface
+  // is only allowed in checked scope or function.
+  const DeclaratorDecl *TargetDecl = nullptr;
+  CheckedDeclKind DeclKind;
+  QualType Ty;
+  if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(Decl)) {
+    TargetDecl = Parm;
+    DeclKind = CDK_Parameter;
+    Ty = Parm->getType();
+  }
+  else if (const FunctionDecl *Func = dyn_cast<FunctionDecl>(Decl)) {
+    TargetDecl = Func;
+    DeclKind = CDK_FunctionReturn;
+    Ty = Func->getReturnType();
+  }
+  else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
+    TargetDecl = Var;
+    DeclKind = Var->isLocalVarDecl() ? CDK_LocalVariable : CDK_GlobalVariable; // decl var
+    Ty = Var->getType();
+  }
+  else if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl)) {
+    TargetDecl = Field;
+    DeclKind = CDK_Member;
+    Ty = Field->getType();
+  }
+  else {
+    Ty = Decl->getType();
+  }
+
+  if (!TargetDecl)
+    return true;
+
+  unsigned IsUse = !UseLoc.isInvalid();
+  SourceLocation Loc = IsUse ? UseLoc : TargetDecl->getBeginLoc();
+  bool Result = true;
+  CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
+  QualType ProblemTy = Ty;
+  if (!AllowedInCheckedScope(Ty, TargetDecl->getInteropTypeExpr(),
+                             isa<ParmVarDecl>(TargetDecl), CSTL_TopLevel,
+                             ProblemLoc, ProblemTy)) {
+    Diag(Loc, diag::err_checked_scope_decl_type) << DeclKind << IsUse
+      << ProblemLoc;
+    if (IsUse) {
+      Diag(TargetDecl->getBeginLoc(), diag::note_checked_scope_declaration)
+        << DeclKind;
+    }
+
+    // Undo adjustments involving array types so that the error message
+    // displays the source-level type.  We leave adjustments from function 
+    // types alone, though. It is not obvious that the source-level function
+    // type is adjust to be an unchecked type.
+    if (const AdjustedType *AdjustedTy = dyn_cast<AdjustedType>(ProblemTy)) {
+      QualType Original = AdjustedTy->getOriginalType();
+      if (Original->isArrayType())
+        ProblemTy = Original;
+    }
+
+    // Print a note about the problem type if it might not be obvious.
+    if (ProblemLoc != CSTL_TopLevel || !DisplaysAsArrayOrPointer(ProblemTy))
+      Diag(Loc, diag::note_checked_scope_problem_type) << ProblemTy;
+    Result = false;
+  }
+
+  if (Ty->hasVariadicType()) {
+    Diag(Loc, diag::err_checked_scope_decl_variable_args) << DeclKind
+      << IsUse;
+    Result = false;
+  }
+
+  return Result;
+}
+
+bool Sema::DiagnoseTypeInCheckedScope(QualType Ty, SourceLocation StartLoc,
+                                      SourceLocation EndLoc) {
+  CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
+  QualType ProblemTy = Ty;
+  if (!AllowedInCheckedScope(Ty, nullptr, false, CSTL_TopLevel,
+                             ProblemLoc, ProblemTy)) {
+    Diag(StartLoc, diag::err_checked_scope_type) << ProblemLoc
+      << SourceRange(StartLoc, EndLoc);
+
+    // Print a note about the problem type if it might not be obvious.
+    if (ProblemLoc != CSTL_TopLevel || !DisplaysAsArrayOrPointer(ProblemTy))
+      Diag(StartLoc, diag::note_checked_scope_problem_type) << ProblemTy;
+    return false;
+  }
+
+  if (Ty->hasVariadicType()) {
+    Diag(StartLoc, diag::err_checked_scope_type_variable_args) <<
+      SourceRange(StartLoc, EndLoc);
+    return false;
+  }
+
+  return true;
+}
+
 //===--- Layout compatibility ----------------------------------------------//
 
 static bool isLayoutCompatible(ASTContext &C, QualType T1, QualType T2);
@@ -17621,7 +18048,8 @@ void Sema::CheckArgumentWithTypeTag(const ArgumentWithTypeTagAttr *Attr,
 
 void Sema::AddPotentialMisalignedMembers(Expr *E, RecordDecl *RD, ValueDecl *MD,
                                          CharUnits Alignment) {
-  MisalignedMembers.emplace_back(E, RD, MD, Alignment);
+  if (!DisableSubstitionDiagnostics)
+    MisalignedMembers.emplace_back(E, RD, MD, Alignment);
 }
 
 void Sema::DiagnoseMisalignedMembers() {

@@ -36,10 +36,29 @@ config.python_executable = "@Python3_EXECUTABLE@"
 config.use_z3_solver = lit_config.params.get('USE_Z3_SOLVER', "@USE_Z3_SOLVER@")
 config.has_plugins = @CLANG_PLUGIN_SUPPORT@
 config.clang_vendor_uti = "@CLANG_VENDOR_UTI@"
+<<<<<<< HEAD
 config.llvm_external_lit = path(r"@LLVM_EXTERNAL_LIT@")
 config.standalone_build = @CLANG_BUILT_STANDALONE@
 config.ppc_linux_default_ieeelongdouble = @PPC_LINUX_DEFAULT_IEEELONGDOUBLE@
 config.have_llvm_driver = @LLVM_TOOL_LLVM_DRIVER_BUILD@
+=======
+config.sea_pp = "sea pp"
+config.sea_ms = "sea ms"
+config.sea_opt = "sea opt"
+config.sea_horn = "sea horn"
+
+# Support substitution of the tools and libs dirs with user parameters. This is
+# used when we can't determine the tool dir at configuration time.
+try:
+    config.clang_tools_dir = config.clang_tools_dir % lit_config.params
+    config.llvm_tools_dir = config.llvm_tools_dir % lit_config.params
+    config.llvm_shlib_dir = config.llvm_shlib_dir % lit_config.params
+    config.llvm_libs_dir = config.llvm_libs_dir % lit_config.params
+except KeyError:
+    e = sys.exc_info()[1]
+    key, = e.args
+    lit_config.fatal("unable to find %r parameter, use '--param=%s=VALUE'" % (key,key))
+>>>>>>> main
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

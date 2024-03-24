@@ -190,8 +190,32 @@ Retry:
     Actions.CodeCompleteOrdinaryName(getCurScope(), Sema::PCC_Statement);
     return StmtError();
 
+<<<<<<< HEAD
   case tok::identifier:
   ParseIdentifier: {
+=======
+  case tok::kw__Checked:
+  case tok::kw__Unchecked: {
+    // See if this is the start of a checked scope.  Otherwise it may be the
+    // start of a function or struct declaration.
+    Token Next = NextToken();
+    if (Next.is(tok::l_brace))
+      return ParseCompoundStatement();
+    if (Next.is(tok::kw__Bounds_only) &&
+        GetLookAheadToken(2).is(tok::l_brace))
+      return ParseCompoundStatement();
+    goto FallThrough;
+  }
+
+  case tok::kw__Bundled: {
+    Token Next = NextToken();
+    if (Next.is(tok::l_brace))
+      return ParseCompoundStatement();
+    goto FallThrough;
+  }
+
+  case tok::identifier: {
+>>>>>>> main
     Token Next = NextToken();
     if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
       // Both C++11 and GNU attributes preceding the label appertain to the
@@ -229,10 +253,14 @@ Retry:
   }
 
   default: {
+<<<<<<< HEAD
     bool HaveAttrs = !CXX11Attrs.empty() || !GNUAttrs.empty();
     auto IsStmtAttr = [](ParsedAttr &Attr) { return Attr.isStmtAttr(); };
     bool AllAttrsAreStmtAttrs = llvm::all_of(CXX11Attrs, IsStmtAttr) &&
                                 llvm::all_of(GNUAttrs, IsStmtAttr);
+=======
+    FallThrough:
+>>>>>>> main
     if ((getLangOpts().CPlusPlus || getLangOpts().MicrosoftExt ||
          (StmtCtx & ParsedStmtContext::AllowDeclarationsInC) !=
              ParsedStmtContext()) &&
@@ -289,7 +317,6 @@ Retry:
     return ParseCaseStatement(StmtCtx);
   case tok::kw_default:             // C99 6.8.1: labeled-statement
     return ParseDefaultStatement(StmtCtx);
-
   case tok::l_brace:                // C99 6.8.2: compound-statement
     return ParseCompoundStatement();
   case tok::semi: {                 // C99 6.8.3p3: expression[opt] ';'
@@ -297,6 +324,26 @@ Retry:
     return Actions.ActOnNullStmt(ConsumeToken(), HasLeadingEmptyMacro);
   }
 
+  // Parse Checked C _Where token.
+  case tok::kw__Where: {
+    WhereClause *WClause = ParseWhereClause();
+
+    if (!WClause)
+      return StmtError();
+
+    StmtResult StmtRes = Actions.ActOnNullStmt(SourceLocation());
+    if (StmtRes.isInvalid() || !isa<NullStmt>(StmtRes.get()))
+      return StmtError();
+
+    auto *NS = dyn_cast<NullStmt>(StmtRes.get());
+    NS->setWhereClause(WClause);
+
+    // The where clause should end with a semicolon.
+    if (ExpectAndConsume(tok::semi))
+      return StmtError();
+
+    return StmtRes;
+  }
   case tok::kw_if:                  // C99 6.8.4.1: if-statement
     return ParseIfStatement(TrailingElseLoc);
   case tok::kw_switch:              // C99 6.8.4.2: switch-statement
@@ -498,6 +545,10 @@ Retry:
   case tok::annot_pragma_attribute:
     HandlePragmaAttribute();
     return StmtEmpty();
+
+  case tok::annot_pragma_checked_scope:
+    HandlePragmaCheckedScope();
+    return StmtEmpty();
   }
 
   // If we reached this code, the statement must end in a semicolon.
@@ -543,9 +594,29 @@ StmtResult Parser::ParseExprStatement(ParsedStmtContext StmtCtx) {
     return ParseCaseStatement(StmtCtx, /*MissingCase=*/true, Expr);
   }
 
+  // Parse where clause on an ExprStmt, if it exists.
+  WhereClause *WClause = nullptr;
+  bool WhereClauseExists = false;
+  if (StartsWhereClause(Tok)) {
+    WClause = ParseWhereClause();
+    if (!WClause)
+      return StmtError();
+    WhereClauseExists = true;
+  }
+
   // Otherwise, eat the semicolon.
   ExpectAndConsumeSemi(diag::err_expected_semi_after_expr);
-  return handleExprStmt(Expr, StmtCtx);
+
+  StmtResult StmtRes = handleExprStmt(Expr, StmtCtx);
+  if (StmtRes.isInvalid() || !WhereClauseExists)
+    return StmtRes;
+
+  ValueStmt *VS = dyn_cast<ValueStmt>(StmtRes.get());
+  if (!VS)
+    llvm_unreachable("where clause on invalid statement");
+
+  VS->setWhereClause(WClause);
+  return StmtRes;
 }
 
 /// ParseSEHTryBlockCommon
@@ -954,6 +1025,8 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 ///       compound-statement: [C99 6.8.2]
 ///         { block-item-list[opt] }
 /// [GNU]   { label-declarations block-item-list } [TODO]
+/// [CHECKED C] checked-spec[opt] { block-item-list[opt] }
+/// [CHECKED C] bundled-spec[opt] { block-item-list[opt] }
 ///
 ///       block-item-list:
 ///         block-item
@@ -971,16 +1044,48 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 /// [GNU] label-declaration:
 /// [GNU]   '__label__' identifier-list ';'
 ///
+<<<<<<< HEAD
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
                                           unsigned ScopeFlags) {
   assert(Tok.is(tok::l_brace) && "Not a compound stmt!");
+=======
+/// [CHECKED C] checked-spec:
+///            '_Checked'
+///            '_Checked' '_Bounds_only'
+///            '_Unchecked'
+///
+/// [CHECKED C] bundled-spec:
+///            '_Bundled'
+StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) {
+  // Checked C - process optional checked scope and bundled block information.
+  CheckedScopeSpecifier CSS = CSS_None;
+  SourceLocation CSSLoc;
+  SourceLocation CSMLoc;
+  SourceLocation BNDLoc;
+>>>>>>> main
 
+  if (Tok.is(tok::kw__Bundled)) {
+    BNDLoc = ConsumeToken();
+  } else if (Tok.is(tok::kw__Checked)) {
+    CSS = CSS_Memory;
+    CSSLoc = ConsumeToken();
+    if (Tok.is(tok::kw__Bounds_only)) {
+      CSS = CSS_Bounds;
+      CSMLoc = ConsumeToken();
+    }
+  } else if (Tok.is(tok::kw__Unchecked)) {
+    CSS = CSS_Unchecked;
+    CSSLoc = ConsumeToken();
+  }
+
+  assert(Tok.is(tok::l_brace) && "Not a compound stmt!");
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.
+
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
-  return ParseCompoundStatementBody(isStmtExpr);
+  return ParseCompoundStatementBody(isStmtExpr, CSS, CSSLoc, CSMLoc, BNDLoc);
 }
 
 /// Parse any pragmas at the start of the compound expression. We handle these
@@ -1041,6 +1146,9 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
       break;
     case tok::annot_pragma_dump:
       HandlePragmaDump();
+      break;
+    case tok::annot_pragma_checked_scope:
+      HandlePragmaCheckedScope();
       break;
     default:
       checkForPragmas = false;
@@ -1111,11 +1219,23 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
   return Actions.ActOnExprStmt(E, /*DiscardedValue=*/!IsStmtExprResult);
 }
 
+<<<<<<< HEAD
 /// ParseCompoundStatementBody - Parse a sequence of statements optionally
 /// followed by a label and invoke the ActOnCompoundStmt action.  This expects
 /// the '{' to be the current token, and consume the '}' at the end of the
 /// block.  It does not manipulate the scope stack.
 StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
+=======
+/// ParseCompoundStatementBody - Parse a sequence of statements and invoke the
+/// ActOnCompoundStmt action.  This expects the '{' to be the current token, and
+/// consume the '}' at the end of the block.  It does not manipulate the scope
+/// stack.
+StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
+                                              CheckedScopeSpecifier WrittenCSS,
+                                              SourceLocation CSSLoc,
+                                              SourceLocation CSMLoc,
+                                              SourceLocation BNDLoc) {
+>>>>>>> main
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
                                 Tok.getLocation(),
                                 "in compound statement ('{}')");
@@ -1129,7 +1249,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   if (T.consumeOpen())
     return StmtError();
 
-  Sema::CompoundScopeRAII CompoundScope(Actions, isStmtExpr);
+  Sema::CompoundScopeRAII CompoundScope(Actions, isStmtExpr, WrittenCSS);
 
   // Parse any pragmas at the beginning of the compound statement.
   ParseCompoundStatementLeadingPragmas();
@@ -1256,7 +1376,8 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
     CloseLoc = T.getCloseLocation();
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
-                                   Stmts, isStmtExpr);
+                                   Stmts, isStmtExpr, WrittenCSS,
+                                   CSSLoc, CSMLoc, BNDLoc);
 }
 
 /// ParseParenExprOrCondition:
@@ -2431,7 +2552,8 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
   return S;
 }
 
-Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
+Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope,
+                                         CheckedScopeSpecifier Kind) {
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();
 
@@ -2442,12 +2564,12 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   bool IsCXXMethod =
       getLangOpts().CPlusPlus && Decl && isa<CXXMethodDecl>(Decl);
   Sema::PragmaStackSentinelRAII
-    PragmaStackSentinel(Actions, "InternalPragmaState", IsCXXMethod);
+    PragmaStackSentinel(Actions, "InternalPragmaState", IsCXXMethod );
 
   // Do not enter a scope for the brace, as the arguments are in the same scope
   // (the function body) as the body itself.  Instead, just read the statement
   // list and put it into a CompoundStmt for safe keeping.
-  StmtResult FnBody(ParseCompoundStatementBody());
+  StmtResult FnBody(ParseCompoundStatementBody(/*IsExpr=*/false, Kind));  // TODO: fill in missing information
 
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
@@ -2658,11 +2780,14 @@ StmtResult Parser::ParseCXXCatchBlock(bool FnCatch) {
 
     DeclSpec DS(AttrFactory);
 
-    if (ParseCXXTypeSpecifierSeq(DS))
+    if (ParseCXXTypeSpecifierSeq(DS)) {
+      ExitQuantifiedTypeScope(DS);
       return StmtError();
+    }
 
     Declarator ExDecl(DS, Attributes, DeclaratorContext::CXXCatch);
     ParseDeclarator(ExDecl);
+    ExitQuantifiedTypeScope(DS);
     ExceptionDecl = Actions.ActOnExceptionDeclarator(getCurScope(), ExDecl);
   } else
     ConsumeToken();
@@ -2739,3 +2864,120 @@ void Parser::ParseMicrosoftIfExistsStatement(StmtVector &Stmts) {
   }
   Braces.consumeClose();
 }
+<<<<<<< HEAD
+=======
+
+bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
+  MaybeParseGNUAttributes(Attrs);
+
+  if (Attrs.empty())
+    return true;
+
+  if (Attrs.begin()->getKind() != ParsedAttr::AT_OpenCLUnrollHint)
+    return true;
+
+  if (!(Tok.is(tok::kw_for) || Tok.is(tok::kw_while) || Tok.is(tok::kw_do))) {
+    Diag(Tok, diag::err_opencl_unroll_hint_on_non_loop);
+    return false;
+  }
+  return true;
+}
+
+WhereClauseFact *Parser::ParseWhereClauseFact() {
+  // TODO: Handle bounds expression surrounded by parentheses, like:
+  // _Where ((((p : bounds(p, p + 1))))).
+  // Equality expressions surrounded by parentheses are already handled by
+  // invoking IgnoreValuePreservingCasts in ActOnEqualityOpFact.
+
+  if (Tok.is(tok::identifier) && NextToken().is(tok::colon)) {
+    IdentifierInfo *VarName = Tok.getIdentifierInfo();
+
+    // Consume the identifier.
+    SourceLocation IdLoc = ConsumeToken();
+    // Consume the ':' token.
+    ConsumeToken();
+
+    // Get the location of the start of bounds expr.
+    SourceLocation BoundsLoc = Tok.getLocation();
+
+    // Parse a bounds decl expression.
+    ExprResult BoundsRes(ParseBoundsExpression());
+    if (BoundsRes.isInvalid())
+      return nullptr;
+    return Actions.ActOnBoundsDeclFact(VarName, BoundsRes.get(),
+                                       getCurScope(), IdLoc, BoundsLoc);
+  }
+
+  // Parse an equality expression.
+  SourceLocation ExprLoc = Tok.getLocation();
+
+  // ParseExpression parses expressions including top-level commas. So
+  // declarations like the following are not parsed correctly.
+  // int a _Where a == 1, b;
+  // If fails because it parses "a == 1, b" as one expression.
+
+  // ParseAssignmentExpression parses an expression not including top-level
+  // commas. So the above declaration is parsed correctly. This is also useful
+  // for parsing multiple comma-separated declarations each having its own
+  // where clause as follows:
+  // int a _Where a < 1, b _Where b > 1, c, d, e _Where e == 1;
+
+  ExprResult ExprRes =
+    Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+  if (ExprRes.isInvalid())
+    return nullptr;
+  return Actions.ActOnEqualityOpFact(ExprRes.get(), ExprLoc);
+}
+
+WhereClause *Parser::ParseWhereClause() {
+  EnterScope(getCurScope()->getFlags() | Scope::WhereClauseScope);
+  WhereClause *WClause = ParseWhereClauseHelper();
+  ExitScope();
+  return WClause;
+}
+
+WhereClause *Parser::ParseWhereClauseHelper() {
+  SourceLocation WhereLoc = Tok.getLocation();
+
+  //keep consuming kw__Where until we reach the '(' token.
+  ExpectAndConsume(tok::kw__Where);
+
+  WhereClause *WClause = Actions.ActOnWhereClause(WhereLoc);
+  if (!WClause)
+    return nullptr;
+
+  // Consume the '(' token and track the count of left parentheses
+  int LeftParenCount = 0;
+  while (Tok.is(tok::l_paren)) {
+    ConsumeParen(); // Consume the '(' token
+    ++LeftParenCount;
+  }
+
+  // Parse each where clause fact. We want to issue diagnostics for as many
+  // parsing errors a possible. So we do not break on the first error.
+  bool IsError = false;
+  do {
+    WhereClauseFact *Fact = ParseWhereClauseFact();
+    if (!Fact)
+      IsError = true;
+    else
+      WClause->addFact(Fact);
+  } while (TryConsumeToken(tok::kw__And));
+
+  if (IsError)
+    return nullptr;
+
+  // Consume the ')' token and ensure proper balancing of parentheses
+  while (Tok.is(tok::r_paren) && LeftParenCount > 0) {
+    ConsumeParen(); // Consume the ')' token
+    --LeftParenCount;
+  }
+
+  if (LeftParenCount != 0) {
+    Diag(Tok.getLocation(), diag::err_unbalanced_parentheses_in_where_clause);
+    return nullptr;
+  }
+
+  return WClause;
+}
+>>>>>>> main

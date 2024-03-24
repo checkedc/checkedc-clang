@@ -54,6 +54,14 @@ def ParenExpression : Sequence<Expression> {
     Role<"CloseParen", Token<"r_paren">>,
   ];
 }
+def CHKCBindTemporaryExpression : Sequence<Expression> {
+  let documentation = [{
+    Binds a temporary to an rvalue expression. 
+  }];
+  let children = [
+    Role<"SubExpression", Expression>,
+  ];
+}
 def LiteralExpression : Alternatives<Expression> {
   let documentation = [{
     Expression for literals. C++ [lex.literal]

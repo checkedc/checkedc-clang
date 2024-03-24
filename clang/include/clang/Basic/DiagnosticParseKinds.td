@@ -244,6 +244,7 @@ def err_invalid_token_after_declarator_suggest_equal : Error<
   "invalid %0 at end of declaration; did you mean '='?">;
 def err_expected_statement : Error<"expected statement">;
 def err_expected_lparen_after : Error<"expected '(' after '%0'">;
+def err_expected_lbracket_after : Error<"expected '[' after '%0'">;
 def err_expected_rparen_after : Error<"expected ')' after '%0'">;
 def err_expected_punc : Error<"expected ')' or ',' after '%0'">;
 def err_expected_less_after : Error<"expected '<' after '%0'">;
@@ -1654,6 +1655,7 @@ def warn_max_tokens_total : Warning<
 
 def note_max_tokens_total_override : Note<"total token limit set here">;
 
+<<<<<<< HEAD
 // HLSL Parser Diagnostics
 
 def err_expected_semantic_identifier : Error<
@@ -1665,5 +1667,91 @@ def err_hlsl_separate_attr_arg_and_number : Error<"wrong argument format for hls
 def ext_hlsl_access_specifiers : ExtWarn<
   "access specifiers are a clang HLSL extension">,
   InGroup<HLSLExtension>;
+=======
+// Checked C parsing errors
+def err_expected_bounds_expr : Error<
+  "expected bounds expression">;
+
+def err_expected_range_bounds_expr : Error<
+  "expected range bounds expression">;
+
+def err_expected_relative_bounds_clause
+    : Error<"expected rel_align or rel_align_value">;
+
+def err_unexpected_bounds_expr_after_declarator: Error<
+  "unexpected bounds expression after declarator">;
+
+def note_place_for_return_bounds_declarator : Note<
+  "if this is a return bounds declaration for %0, place it after the ')'">;
+
+def err_expected_bounds_interop_type : Error<
+  "expected bounds-safe interface type">;
+
+def err_expected_bounds_expr_or_interop_type : Error<
+  "expected bounds expression or bounds-safe interface type">;
+
+def err_single_bounds_expr_allowed : Error<
+  "only one bounds expression allowed">;
+
+def err_single_itype_expr_allowed : Error<
+  "only one itype expression allowed">;
+
+// generic function declaration parsing error.
+def err_forany_type_variable_declaration_expected : Error<
+  "expected list of type variables">;
+
+def err_type_variable_identifier_expected : Error<
+  "expected type variable identifier">;
+
+def err_generic_specifier_unexpected_token : Error<
+  "unexpected token in %0 specifier">;
+
+def err_generic_specifier_comma_or_parenthesis_expected : Error<
+  "expected , or )">;
+
+def err_expected_r_parent_in_where_clause : Error<
+  "expected ')' in where clause">;
+
+def err_unbalanced_parentheses_in_where_clause : Error<
+  "unbalanced parentheses in where clause">;
+
+def err_expected_list_of_types_expr_for_generic_function : Error<
+  "expected a list of type arguments for a generic function">;
+
+def err_type_function_comma_or_greater_expected : Error<
+  "expected , or >">;
+
+def err_num_type_args_params_mistmatch : Error<
+  "generic struct takes %0 type arguments, but instantiation provided %1">;
+
+def err_expected_type_argument_list_for_generic_instance : Error<
+  "expected a type argument list for a generic struct type">;
+
+def err_expected_type_argument_list_for_itype_generic_instance : Error<
+  "expected a type argument list for a struct with a bounds-safe interface in a checked scope">;
+
+def err_pack_expr_returns_existential_type : Error <
+  "return type of a pack expression must be an existential type, but got %0 instead">;
+
+def err_unpack_expected_one_type_variable : Error<
+  "unpack specifier expects exactly one type variable, but got %0 instead">;
+
+def err_unpack_expected_existential_initializer : Error<
+  "unpack specifer expects an initializer that has an existential type">;
+
+ // Checked C pragmas
+def err_pragma_checked_scope_invalid_argument : Error<
+  "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
+  "expected 'on','off', '_Bounds_only', 'push', or 'pop'">;
+
+def err_expected_expr_in_where_clause : Error<
+  "expected bounds declaration or equality expression in where clause">;
+
+def err_invalid_decl_where_clause : Error<
+  "where clause on invalid decl">;
+
+def err_fn_body_cannot_be_bundled_blk : Error<
+  "function body cannot be a bundled block">;
+>>>>>>> main
 
 } // end of Parser diagnostics

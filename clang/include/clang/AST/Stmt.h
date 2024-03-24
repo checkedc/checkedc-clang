@@ -22,7 +22,10 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+<<<<<<< HEAD
 #include "llvm/ADT/APFloat.h"
+=======
+>>>>>>> main
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/PointerIntPair.h"
@@ -62,6 +65,7 @@ class SourceManager;
 class StringLiteral;
 class Token;
 class VarDecl;
+class WhereClause;
 
 //===----------------------------------------------------------------------===//
 // AST classes for statements.
@@ -104,8 +108,10 @@ protected:
 
     /// The statement class.
     unsigned sClass : 8;
+    /// The checked scope specifier for the statement.
+    unsigned CSS : 2;
   };
-  enum { NumStmtBits = 8 };
+  enum { NumStmtBits = 10 };
 
   class NullStmtBitfields {
     friend class ASTStmtReader;
@@ -130,10 +136,14 @@ protected:
     friend class CompoundStmt;
 
     unsigned : NumStmtBits;
+<<<<<<< HEAD
 
     /// True if the compound statement has one or more pragmas that set some
     /// floating-point features.
     unsigned HasFPFeatures : 1;
+=======
+    unsigned NumStmts : 32 - NumStmtBits;
+>>>>>>> main
 
     unsigned NumStmts;
   };
@@ -428,6 +438,8 @@ protected:
     unsigned Kind : 3;
   };
 
+  enum { NumBoundsCheckKindBits = 2 };
+
   class UnaryOperatorBitfields {
     friend class UnaryOperator;
 
@@ -440,6 +452,8 @@ protected:
     /// types when additional values need to be in trailing storage.
     /// It is 0 otherwise.
     unsigned HasFPFeatures : 1;
+
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
 
     SourceLocation Loc;
   };
@@ -459,6 +473,16 @@ protected:
 
     unsigned : NumExprBits;
 
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
+    SourceLocation RBracketLoc;
+  };
+
+  class ArraySubscriptExprBitfields {
+    friend class ArraySubscriptExpr;
+
+    unsigned : NumExprBits;
+
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
     SourceLocation RBracketLoc;
   };
 
@@ -527,7 +551,12 @@ protected:
     unsigned : NumExprBits;
 
     unsigned Kind : 7;
+<<<<<<< HEAD
+=======
+
+>>>>>>> main
     unsigned PartOfExplicitCast : 1; // Only set for ImplicitCastExpr.
+    unsigned BoundsSafeInterface : 1;
 
     /// True if the call expression has some floating-point features.
     unsigned HasFPFeatures : 1;
@@ -1013,6 +1042,27 @@ protected:
     SourceLocation Loc;
   };
 
+  enum { NumBoundsExprKindBits = 3 };
+
+  class BoundsExprBitfields {
+    friend class BoundsExpr;
+
+    unsigned : NumExprBits;
+    unsigned Kind : NumBoundsExprKindBits;
+    unsigned IsCompilerGenerated : 1;
+  };
+
+
+  enum { NumInteropTypeExprKindBits = 1 };
+
+  class InteropTypeExprBitfields {
+    friend class InteropTypeExpr;
+
+    unsigned : NumExprBits;
+    unsigned IsCompilerGenerated : 1;
+  };
+
+
   union {
     // Same order as in StmtNodes.td.
     // Statements
@@ -1043,6 +1093,7 @@ protected:
     UnaryOperatorBitfields UnaryOperatorBits;
     UnaryExprOrTypeTraitExprBitfields UnaryExprOrTypeTraitExprBits;
     ArrayOrMatrixSubscriptExprBitfields ArrayOrMatrixSubscriptExprBits;
+    ArraySubscriptExprBitfields ArraySubscriptExprBits;
     CallExprBitfields CallExprBits;
     MemberExprBitfields MemberExprBits;
     CastExprBitfields CastExprBits;
@@ -1084,6 +1135,9 @@ protected:
 
     // C++ Coroutines TS expressions
     CoawaitExprBitfields CoawaitBits;
+
+    BoundsExprBitfields BoundsExprBits;
+    InteropTypeExprBitfields InteropTypeExprBits;
 
     // Obj-C Expressions
     ObjCIndirectCopyRestoreExprBitfields ObjCIndirectCopyRestoreExprBits;
@@ -1179,6 +1233,14 @@ public:
   }
 
   const char *getStmtClassName() const;
+
+  CheckedScopeSpecifier getCheckedScopeSpecifier() const {
+    return static_cast<CheckedScopeSpecifier>(StmtBits.CSS);
+  }
+
+  void setCheckedScopeSpecifier(CheckedScopeSpecifier CSS) {
+    StmtBits.CSS = CSS;
+  }
 
   /// SourceLocation tokens are not useful in isolation - they are low level
   /// value objects created/interpreted by SourceManager. We assume AST
@@ -1304,6 +1366,17 @@ public:
   void ProcessODRHash(llvm::FoldingSetNodeID &ID, ODRHash& Hash) const;
 };
 
+/// Checked C
+/// A Bitfield to indicate the position of a statement within a bundle.
+class BundlePositionBitfield {
+  friend class DeclStmt;
+  friend class ValueStmt;
+
+  unsigned char FirstStmt : 1;
+  unsigned char LastStmt : 1;
+};
+
+
 /// DeclStmt - Adaptor class for mixing declarations with statements and
 /// expressions. For example, CompoundStmt mixes statements, expressions
 /// and declarations (variables, types). Another example is ForStmt, where
@@ -1311,13 +1384,20 @@ public:
 class DeclStmt : public Stmt {
   DeclGroupRef DG;
   SourceLocation StartLoc, EndLoc;
+  BundlePositionBitfield PosInBundle;
 
 public:
   DeclStmt(DeclGroupRef dg, SourceLocation startLoc, SourceLocation endLoc)
-      : Stmt(DeclStmtClass), DG(dg), StartLoc(startLoc), EndLoc(endLoc) {}
+      : Stmt(DeclStmtClass), DG(dg), StartLoc(startLoc), EndLoc(endLoc) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
 
   /// Build an empty declaration statement.
-  explicit DeclStmt(EmptyShell Empty) : Stmt(DeclStmtClass, Empty) {}
+  explicit DeclStmt(EmptyShell Empty) : Stmt(DeclStmtClass, Empty) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
 
   /// isSingleDecl - This method returns true if this DeclStmt refers
   /// to a single Decl.
@@ -1333,6 +1413,11 @@ public:
   void setStartLoc(SourceLocation L) { StartLoc = L; }
   SourceLocation getEndLoc() const { return EndLoc; }
   void setEndLoc(SourceLocation L) { EndLoc = L; }
+
+  void markFirstStmtOfBundledBlk() { PosInBundle.FirstStmt = 1; }
+  bool isFirstStmtOfBundledBlk() const { return PosInBundle.FirstStmt == 1; }
+  void markLastStmtOfBundledBlk() { PosInBundle.LastStmt = 1; }
+  bool isLastStmtOfBundledBlk() const { return PosInBundle.LastStmt == 1; }
 
   SourceLocation getBeginLoc() const LLVM_READONLY { return StartLoc; }
 
@@ -1381,15 +1466,18 @@ public:
 /// NullStmt - This is the null statement ";": C99 6.8.3p3.
 ///
 class NullStmt : public Stmt {
+private:
+  WhereClause *WClause;
 public:
   NullStmt(SourceLocation L, bool hasLeadingEmptyMacro = false)
-      : Stmt(NullStmtClass) {
+      : Stmt(NullStmtClass), WClause(nullptr) {
     NullStmtBits.HasLeadingEmptyMacro = hasLeadingEmptyMacro;
     setSemiLoc(L);
   }
 
   /// Build an empty null statement.
-  explicit NullStmt(EmptyShell Empty) : Stmt(NullStmtClass, Empty) {}
+  explicit NullStmt(EmptyShell Empty) : Stmt(NullStmtClass, Empty),
+                                        WClause(nullptr) {}
 
   SourceLocation getSemiLoc() const { return NullStmtBits.SemiLoc; }
   void setSemiLoc(SourceLocation L) { NullStmtBits.SemiLoc = L; }
@@ -1412,7 +1500,23 @@ public:
   const_child_range children() const {
     return const_child_range(const_child_iterator(), const_child_iterator());
   }
+
+  void setWhereClause(WhereClause *WC) { WClause = WC; }
+  WhereClause *getWhereClause() const { return WClause; }
 };
+
+  // The kind of Checked C checking to do in a scope.
+  enum class CheckedScopeKind {
+    // No checking.
+    Unchecked = 0x1,
+
+    /// Check properties for bounds safety.
+    Bounds = 0x2,
+
+    /// Check properties for bounds safety and preventing type confusion.
+    BoundsAndTypes = 0x4
+  };
+
 
 /// CompoundStmt - This represents a group of statements like { stmt stmt }.
 class CompoundStmt final
@@ -1427,9 +1531,35 @@ class CompoundStmt final
   /// The location of the closing "}".
   SourceLocation RBraceLoc;
 
+<<<<<<< HEAD
   CompoundStmt(ArrayRef<Stmt *> Stmts, FPOptionsOverride FPFeatures,
                SourceLocation LB, SourceLocation RB);
   explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty) {}
+=======
+    // Written checked scope specifier.
+  unsigned WrittenCSS : 2;
+  // Inferred checked scope specifier, using information from parent
+  // scope also.
+  unsigned CSS : 2;
+  // Checked scope keyword (_Checked / _Unchecked) location.
+  SourceLocation CSSLoc;
+
+  // Checked scope modifier (_Bounds_only) location.
+  SourceLocation CSMLoc;
+
+  // Bundled keyword (_Bundled) location.
+  SourceLocation BNDLoc;
+
+  CompoundStmt(ArrayRef<Stmt *> Stmts, SourceLocation LB, SourceLocation RB,
+               CheckedScopeSpecifier WrittenCSS = CSS_None,
+               CheckedScopeSpecifier CSS = CSS_Unchecked,
+               SourceLocation CSSLoc = SourceLocation(),
+               SourceLocation CSMLoc = SourceLocation(),
+               SourceLocation BNDLoc = SourceLocation());
+
+  explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty),
+       WrittenCSS(CSS_None), CSS(CSS_Unchecked), CSSLoc(), CSMLoc(), BNDLoc() {}
+>>>>>>> main
 
   void setStmts(ArrayRef<Stmt *> Stmts);
 
@@ -1444,6 +1574,7 @@ class CompoundStmt final
   }
 
 public:
+<<<<<<< HEAD
   static CompoundStmt *Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
                               FPOptionsOverride FPFeatures, SourceLocation LB,
                               SourceLocation RB);
@@ -1451,6 +1582,20 @@ public:
   // Build an empty compound statement with a location.
   explicit CompoundStmt(SourceLocation Loc)
       : Stmt(CompoundStmtClass), LBraceLoc(Loc), RBraceLoc(Loc) {
+=======
+  static CompoundStmt *Create(const ASTContext &C, ArrayRef<Stmt*> Stmts,
+               SourceLocation LB, SourceLocation RB,
+               CheckedScopeSpecifier WrittenCSS = CSS_None,
+               CheckedScopeSpecifier CSS = CSS_Unchecked,
+               SourceLocation CSSLoc = SourceLocation(),
+               SourceLocation CSMLoc = SourceLocation(),
+               SourceLocation BNDLoc = SourceLocation());
+
+  // Build an empty compound statement with a location.
+  explicit CompoundStmt(SourceLocation Loc)
+      : Stmt(CompoundStmtClass), RBraceLoc(Loc),  WrittenCSS(CSS_None),
+        CSS(CSS_Unchecked), CSSLoc(Loc), CSMLoc(Loc), BNDLoc(SourceLocation()) {
+>>>>>>> main
     CompoundStmtBits.NumStmts = 0;
     CompoundStmtBits.HasFPFeatures = 0;
   }
@@ -1462,6 +1607,7 @@ public:
   bool body_empty() const { return CompoundStmtBits.NumStmts == 0; }
   unsigned size() const { return CompoundStmtBits.NumStmts; }
 
+<<<<<<< HEAD
   bool hasStoredFPFeatures() const { return CompoundStmtBits.HasFPFeatures; }
 
   /// Get FPOptionsOverride from trailing storage.
@@ -1470,6 +1616,21 @@ public:
     return *getTrailingObjects<FPOptionsOverride>();
   }
 
+=======
+  CheckedScopeSpecifier getWrittenCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) WrittenCSS;
+  }
+
+  CheckedScopeSpecifier getCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) CSS;
+  }
+
+  void setWrittenCheckedSpecifiers(CheckedScopeSpecifier NS) { WrittenCSS = NS; }
+  void setCheckedSpecifiers(CheckedScopeSpecifier NS) { CSS = NS; }
+  bool isCheckedScope() const { return CSS != CSS_Unchecked; }
+  bool isBundledStmt() const { return BNDLoc.isValid(); }
+
+>>>>>>> main
   using body_iterator = Stmt **;
   using body_range = llvm::iterator_range<body_iterator>;
 
@@ -1549,6 +1710,9 @@ public:
 
   SourceLocation getLBracLoc() const { return LBraceLoc; }
   SourceLocation getRBracLoc() const { return RBraceLoc; }
+  SourceLocation getCheckedSpecifierLoc() const { return CSSLoc; }
+  SourceLocation getSpecifierModifierLoc() const { return CSMLoc; }
+  SourceLocation getBundledSpecifierLoc() const { return BNDLoc; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CompoundStmtClass;
@@ -1825,7 +1989,23 @@ class ValueStmt : public Stmt {
 protected:
   using Stmt::Stmt;
 
+private:
+  WhereClause *WClause = nullptr;
+  BundlePositionBitfield PosInBundle;
+
 public:
+  /// Build a value statement.
+  ValueStmt(StmtClass SC) : Stmt(SC) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
+
+  /// Build an empty value statement.
+  explicit ValueStmt(StmtClass SC, EmptyShell Empty) : Stmt(SC, Empty) {
+    PosInBundle.FirstStmt = 0;
+    PosInBundle.LastStmt = 0;
+  }
+
   const Expr *getExprStmt() const;
   Expr *getExprStmt() {
     const ValueStmt *ConstThis = this;
@@ -1836,6 +2016,14 @@ public:
     return T->getStmtClass() >= firstValueStmtConstant &&
            T->getStmtClass() <= lastValueStmtConstant;
   }
+
+  void setWhereClause(WhereClause *WC) { WClause = WC; }
+  WhereClause *getWhereClause() const { return WClause; }
+
+  void markFirstStmtOfBundledBlk() { PosInBundle.FirstStmt = 1; }
+  bool isFirstStmtOfBundledBlk() const { return PosInBundle.FirstStmt == 1; }
+  void markLastStmtOfBundledBlk() { PosInBundle.LastStmt = 1; }
+  bool isLastStmtOfBundledBlk() const { return PosInBundle.LastStmt == 1; }
 };
 
 /// LabelStmt - Represents a label, which has a substatement.  For example:

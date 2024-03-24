@@ -18,6 +18,11 @@
 #error MSVC does not have inttypes.h prior to Visual Studio 2013
 #endif
 
+#ifdef __checkedc
+#pragma CHECKED_SCOPE push
+#pragma CHECKED_SCOPE off
+#endif
+
 #include_next <inttypes.h>
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
@@ -92,6 +97,16 @@
 #define SCNx32 "x"
 #define SCNxLEAST32 "x"
 #define SCNxFAST32 "x"
+#endif
+
+#ifdef __checkedc
+#pragma CHECKED_SCOPE pop
+#endif
+
+#if defined __checkedc && !defined NO_IMPLICIT_INCLUDE_CHECKED_HDRS
+// If compiling for Checked C and if implicit inclusion of checked headers is
+// enabled.
+#include <inttypes_checked_internal.h>
 #endif
 
 #endif /* __CLANG_INTTYPES_H */

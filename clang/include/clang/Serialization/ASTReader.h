@@ -2267,6 +2267,12 @@ public:
   /// Reads an expression.
   Expr *ReadExpr(ModuleFile &F);
 
+  /// Reads a bounds expression.
+  BoundsExpr *ReadBoundsExpr(ModuleFile &F);
+
+  /// Reads bounds annotations
+  BoundsAnnotations ReadBoundsAnnotations(ModuleFile &F);
+
   /// Reads a sub-statement operand during statement reading.
   Stmt *ReadSubStmt() {
     assert(ReadingKind == Read_Stmt &&

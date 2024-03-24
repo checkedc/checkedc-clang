@@ -63,6 +63,7 @@ class TestingConfig(object):
             'DFLTCC',
         ]
 
+<<<<<<< HEAD
         if sys.platform.startswith('aix'):
             pass_vars += ['LIBPATH']
         elif sys.platform == 'win32':
@@ -73,6 +74,13 @@ class TestingConfig(object):
                 'PATHEXT',
                 'USERPROFILE',
             ]
+=======
+        if sys.platform == 'win32':
+            pass_vars.append('INCLUDE')
+            pass_vars.append('LIB')
+            pass_vars.append('PATHEXT')
+            pass_vars.append('PROGRAMDATA')
+>>>>>>> main
             environment['PYTHONBUFFERED'] = '1'
 
         for var in pass_vars:

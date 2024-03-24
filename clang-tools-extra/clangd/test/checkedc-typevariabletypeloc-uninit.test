@@ -1,0 +1,83 @@
+# Regression test for a bug where Parser::ParseForanySpecifierHelper left the
+# memory representing the SourceLocation of the TypeVariableTypeLoc
+# uninitialized (the second sub-issue of
+# https://github.com/microsoft/checkedc-clang/issues/1066).
+
+# The original symptom was that when a C file includes a header containing a
+# _For_any or _Itype_for_any construct, clangd writes out a precompiled header
+# with a garbage value for the SourceLocation, and when clangd reads the
+# precompiled header back in, the bad SourceLocation causes an "offset overflow"
+# assertion failure with TypeLocReader::VisitTypeVariableTypeLoc on the call
+# stack. However, this is nondeterministic depending on the content of the
+# uninitialized memory. To write a test that consistently catches the problem,
+# we run clangd under valgrind memcheck and check for an uninitialized memory
+# error. Alternatively, there might be a way to query the SourceLocation from
+# clangd so we can check that it is actually correct, although conceivably this
+# could falsely pass if the uninitialized memory coincidentally contained the
+# correct value.
+
+# Note that lit has a --vg command-line option to run test(s) under `valgrind
+# --error-exitcode`, but there doesn't seem to be a way that we can force that
+# option to be enabled just for this test, so we hard-code the valgrind command
+# here. If valgrind isn't available on the system, the test will fail;
+# effectively, we're requiring the user to install valgrind in order to run the
+# clangd test suite. We consider this a lesser evil than automatically skipping
+# the test if valgrind is unavailable, in which case users might not pay
+# attention to the fact that they should run it at all.
+
+# This test won't work correctly when run under a second level of valgrind via
+# `lit --vg`, so treat it as unsupported in that case. Hopefully users don't run
+# the test suite _only_ with --vg and forget to run this test.
+# UNSUPPORTED: valgrind
+
+# No good drop-in replacement for valgrind is currently available for Windows.
+# UNSUPPORTED: system-windows
+
+# Notes about command-line arguments:
+#
+# - Without --compile_args_from=lsp, clangd seems to automatically take
+#   undesired compiler options from the LLVM monorepo's own compilation
+#   database.
+#
+# - --path-mappings seems to be the easiest way to get the `#include` to resolve
+#   to our desired header file in the Inputs directory, since lit expands %S
+#   there but not in the uri in the actual LSP message. This is modeled on
+#   path-mappings.test, although the purpose of path-mappings.test is actually
+#   to test the path mapping, while here, we just use it to facilitate the
+#   TypeVariableTypeLoc test.
+
+
+# Notes on upgrade to LLVM/Clang 12.x:
+#
+# In LLVM/Clang 12.x, clangd has code in file TidyProvider.cpp that accesses
+# uninitialized memory on lines 65 thro' 68 that is allocated in function
+# read in file FileCache.cpp. This is happening when clangd is trying to
+# read configuration data from .clang-tidy files, with caching. Valgrind
+# reports this access of uninitialized memory, causing the test case to fail.
+# Additionally, this issue is present only in the release build and not in the
+# debug build.
+# (Note: The above uninitialized memory access was not present in LLVM 11.x.)
+#
+# As this is a low priority issue for the Checked C Clang compiler, a temporary
+# fix is made as follows:
+# Valgrind is invoked with --track-origins=yes. If Valgrind reports any access
+# of an uninitialized object, or allocation of an object any of whose fields may
+# be uninitialized, or if Valgrind reports any other memory error detected by
+# the --memcheck option such that the error is in a function invoked by the
+# compiler frontend, then this test case will fail. If the issue reported by
+# Valgrind is in a function not invoked by the compiler frontend, this test
+# case will pass.
+#
+# TODO: Need to fix the above uninitialized memory access in clangd.
+#
+# RUN: valgrind --track-origins=yes clangd --compile_args_from=lsp --path-mappings '/test-workspace=%S/Inputs' -lit-test < %s 2>&1 | FileCheck %s
+
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":123,"rootPath":"clangd","capabilities":{},"trace":"off"}}
+---
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///test-workspace/checkedc-typevariabletypeloc-uninit.c","languageId":"c","version":1,"text":"#include \"checkedc-typevariabletypeloc-uninit.h\""}}}
+
+# CHECK-NOT: clang::FrontendAction::Execute()
+---
+{"jsonrpc":"2.0","id":2,"method":"shutdown"}
+---
+{"jsonrpc":"2.0","method":"exit"}

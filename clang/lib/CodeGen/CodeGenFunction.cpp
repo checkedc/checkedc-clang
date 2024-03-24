@@ -247,7 +247,12 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::Enum:
     case Type::ObjCObjectPointer:
     case Type::Pipe:
+<<<<<<< HEAD
     case Type::BitInt:
+=======
+    case Type::ExtInt:
+    case Type::TypeVariable:
+>>>>>>> main
       return TEK_Scalar;
 
     // Complexes.
@@ -266,6 +271,10 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     // We operate on atomic values according to their underlying type.
     case Type::Atomic:
       type = cast<AtomicType>(type)->getValueType();
+      continue;
+    // An existential type's evaluation kind delegates to its inner type.
+    case Type::Existential:
+      type = cast<ExistentialType>(type)->innerType();
       continue;
     }
     llvm_unreachable("unknown type kind!");
@@ -2243,7 +2252,13 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::ObjCObject:
     case Type::ObjCInterface:
     case Type::ObjCObjectPointer:
+<<<<<<< HEAD
     case Type::BitInt:
+=======
+    case Type::ExtInt:
+    case Type::TypeVariable:
+    case Type::Existential:
+>>>>>>> main
       llvm_unreachable("type class is never variably-modified!");
 
     case Type::Elaborated:

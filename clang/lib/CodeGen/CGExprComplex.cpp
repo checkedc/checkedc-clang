@@ -109,6 +109,9 @@ public:
     return Visit(E->getSubExpr());
   }
   ComplexPairTy VisitParenExpr(ParenExpr *PE) { return Visit(PE->getSubExpr());}
+  ComplexPairTy VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+    return Visit(E->getSubExpr());
+  }
   ComplexPairTy VisitGenericSelectionExpr(GenericSelectionExpr *GE) {
     return Visit(GE->getResultExpr());
   }
@@ -483,6 +486,8 @@ ComplexPairTy ComplexExprEmitter::EmitCast(CastKind CK, Expr *Op,
   case CK_NonAtomicToAtomic:
   case CK_NoOp:
   case CK_LValueToRValue:
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_UserDefinedConversion:
     return Visit(Op);
 

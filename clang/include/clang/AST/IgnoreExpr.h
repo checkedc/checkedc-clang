@@ -68,6 +68,9 @@ inline Expr *IgnoreImplicitCastsExtraSingleStep(Expr *E) {
   if (auto *NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(E))
     return NTTP->getReplacement();
 
+  if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E))
+    return Binding->getSubExpr();
+
   return E;
 }
 
@@ -83,6 +86,9 @@ inline Expr *IgnoreCastsSingleStep(Expr *E) {
 
   if (auto *NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(E))
     return NTTP->getReplacement();
+
+  if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E))
+    return Binding->getSubExpr();
 
   return E;
 }

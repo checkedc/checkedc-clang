@@ -1,0 +1,13 @@
+# Regression test for a crash caused by Checked C deferred bounds annotations
+# not being marked as reinjected (the first sub-issue of
+# https://github.com/microsoft/checkedc-clang/issues/1066).
+
+# We only care that this doesn't crash.
+# RUN: clangd -lit-test < %s
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":123,"rootPath":"clangd","capabilities":{},"trace":"off"}}
+---
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"test:///main.c","languageId":"c","version":1,"text":"_Array_ptr<int> foo(void) : count(2);"}}}
+---
+{"jsonrpc":"2.0","id":2,"method":"shutdown"}
+---
+{"jsonrpc":"2.0","method":"exit"}

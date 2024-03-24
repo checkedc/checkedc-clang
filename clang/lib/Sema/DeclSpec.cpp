@@ -180,6 +180,9 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
                                                  DeclsInPrototype,
                                              SourceLocation LocalRangeBegin,
                                              SourceLocation LocalRangeEnd,
+                                             SourceLocation ReturnAnnotsColonLoc,
+                                             InteropTypeExpr *ReturnInteropTypeExpr,
+                                             std::unique_ptr<CachedTokens> ReturnBounds,
                                              Declarator &TheDeclarator,
                                              TypeResult TrailingReturnType,
                                              SourceLocation
@@ -229,6 +232,9 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
     I.Fun.MethodQualifiers->getAttributes().takeAllFrom(attrs);
     I.Fun.MethodQualifiers->getAttributePool().takeAllFrom(attrs.getPool());
   }
+  I.Fun.ReturnAnnotsColonLoc    = ReturnAnnotsColonLoc.getRawEncoding();
+  I.Fun.ReturnBounds            = ReturnBounds.release();
+  I.Fun.ReturnInteropType       = ReturnInteropTypeExpr;
 
   assert(I.Fun.ExceptionSpecType == ESpecType && "bitfield overflow");
 
@@ -374,6 +380,10 @@ bool Declarator::isDeclarationOfFunction() const {
     case TST_void:
     case TST_wchar:
     case TST_BFloat16:
+    case TST_arrayPtr:
+    case TST_plainPtr:
+    case TST_ntarrayPtr:
+    case TST_exists:
 #define GENERIC_IMAGE_TYPE(ImgType, Id) case TST_##ImgType##_t:
 #include "clang/Basic/OpenCLImageTypes.def"
       return false;
@@ -433,6 +443,12 @@ void DeclSpec::forEachCVRUQualifier(
     Handle(TQ_volatile, "volatile", TQ_volatileLoc);
   if (TypeQualifiers & TQ_restrict)
     Handle(TQ_restrict, "restrict", TQ_restrictLoc);
+  if (TypeQualifiers & TQ_CheckedPtr)
+    Handle(TQ_CheckedPtr, "_Single", TQ_CheckedPtrLoc);
+  if (TypeQualifiers & TQ_CheckedArrayPtr)
+    Handle(TQ_CheckedArrayPtr, "_Array", TQ_CheckedArrayPtrLoc);
+  if (TypeQualifiers & TQ_CheckedNtArrayPtr)
+    Handle(TQ_CheckedNtArrayPtr, "_Nt_array", TQ_CheckedNtArrayPtrLoc);
   if (TypeQualifiers & TQ_unaligned)
     Handle(TQ_unaligned, "unaligned", TQ_unalignedLoc);
 }
@@ -465,9 +481,20 @@ unsigned DeclSpec::getParsedSpecifiers() const {
     Res |= PQ_TypeSpecifier;
 
   if (FS_inline_specified || FS_virtual_specified || hasExplicitSpecifier() ||
-      FS_noreturn_specified || FS_forceinline_specified)
+      FS_noreturn_specified || FS_forceinline_specified ||
+      FS_checked_specified)
     Res |= PQ_FunctionSpecifier;
   return Res;
+}
+
+void DeclSpec::setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars) {
+  assert(!TypeVarInfo && "Already has type variable info!");
+  assert(NewTypeVarInfo.size() == NewNumTypeVars && "Type variable count mismatch!");
+  NumTypeVars = NewNumTypeVars;
+
+  if (NewTypeVarInfo.empty()) return;
+  TypeVarInfo = new (C) TypedefDecl*[NewTypeVarInfo.size()];
+  std::copy(NewTypeVarInfo.begin(), NewTypeVarInfo.end(), TypeVarInfo);
 }
 
 template <class T> static bool BadSpecifier(T TNew, T TPrev,
@@ -588,6 +615,10 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   case DeclSpec::TST_unknown_anytype: return "__unknown_anytype";
   case DeclSpec::TST_atomic: return "_Atomic";
   case DeclSpec::TST_BFloat16: return "__bf16";
+  case DeclSpec::TST_arrayPtr: return "_Array_ptr";
+  case DeclSpec::TST_plainPtr: return "_Ptr";
+  case DeclSpec::TST_nt_arrayPtr: return "_Nt_array_ptr";
+  case DeclSpec::TST_exists: return "_Exists";
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   case DeclSpec::TST_##ImgType##_t: \
     return #ImgType "_t";
@@ -619,6 +650,10 @@ const char *DeclSpec::getSpecifierName(TQ T) {
   case DeclSpec::TQ_volatile:    return "volatile";
   case DeclSpec::TQ_atomic:      return "_Atomic";
   case DeclSpec::TQ_unaligned:   return "__unaligned";
+  case DeclSpec::TQ_CheckedPtr:  return "_Single";
+  case DeclSpec::TQ_CheckedArrayPtr: return "_Array";
+  case DeclSpec::TQ_CheckedNtArrayPtr: return "_Nt_array";
+
   }
   llvm_unreachable("Unknown typespec!");
 }
@@ -987,6 +1022,9 @@ bool DeclSpec::SetTypeQual(TQ T, SourceLocation Loc) {
   case TQ_volatile: TQ_volatileLoc = Loc; return false;
   case TQ_unaligned: TQ_unalignedLoc = Loc; return false;
   case TQ_atomic:   TQ_atomicLoc = Loc; return false;
+  case TQ_CheckedPtr: TQ_CheckedPtrLoc = Loc; return false;
+  case TQ_CheckedArrayPtr: TQ_CheckedArrayPtrLoc = Loc; return false;
+  case TQ_CheckedNtArrayPtr: TQ_CheckedNtArrayPtrLoc = Loc; return false;
   }
 
   llvm_unreachable("Unknown type qualifier!");
@@ -1067,6 +1105,67 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
   return false;
 }
 
+bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
+                                      CheckedScopeSpecifier CSS,
+                                      const char *&PrevSpec,
+                                      unsigned &DiagID) {
+  if (FS_checked_specified != CSS_None) {
+    if (FS_checked_specified == CSS)
+      DiagID = diag::warn_duplicate_declspec;
+    else
+      DiagID = diag::err_invalid_decl_spec_combination;
+
+    switch (FS_checked_specified) {
+      case CSS_None: PrevSpec = ""; break;
+      case CSS_Unchecked: PrevSpec = "_Unchecked"; break;
+      case CSS_Bounds: PrevSpec = "_Checked _Bounds_only"; break;
+      case CSS_Memory: PrevSpec = "_Checked"; break;
+    }
+    return true;
+  }
+  FS_checked_specified = CSS;
+  FS_checkedLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setSpecForany(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID) {
+  if (FS_itypeforany_specified) {
+    PrevSpec = "_Itype_for_any";
+    DiagID = diag::err_invalid_decl_spec_combination;
+    return true;
+  }
+  if (FS_forany_specified) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "_For_any";
+    return true;
+  }
+  FS_forany_specified = true;
+  FS_foranyLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setSpecItypeforany(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID) {
+  if (FS_forany_specified) {
+    PrevSpec = "_For_any";
+    DiagID = diag::err_invalid_decl_spec_combination;
+    return true;
+  }
+  if (FS_itypeforany_specified) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "_IType_For_any";
+    return true;
+  }
+  FS_itypeforany_specified = true;
+  FS_itypeforanyloc = Loc;
+  return false;
+}
+
+bool DeclSpec::setUnpackSpec(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID) {
+  Unpack_specified = true;
+  UnpackLoc = Loc;
+  return false;
+}
+
 bool DeclSpec::SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                              unsigned &DiagID) {
   if (Friend_specified) {
@@ -1135,11 +1234,12 @@ void DeclSpec::Finish(Sema &S, const PrintingPolicy &Policy) {
        getTypeSpecSign() != TypeSpecifierSign::Unspecified ||
        TypeAltiVecVector || TypeAltiVecPixel || TypeAltiVecBool ||
        TypeQualifiers)) {
-    const unsigned NumLocs = 9;
+    const unsigned NumLocs = 12;
     SourceLocation ExtraLocs[NumLocs] = {
         TSWRange.getBegin(), TSCLoc,       TSSLoc,
         AltiVecLoc,          TQ_constLoc,  TQ_restrictLoc,
-        TQ_volatileLoc,      TQ_atomicLoc, TQ_unalignedLoc};
+        TQ_volatileLoc,      TQ_atomicLoc, TQ_unalignedLoc,
+          TQ_CheckedPtrLoc, TQ_CheckedArrayPtrLoc, TQ_CheckedNtArrayPtrLoc};
     FixItHint Hints[NumLocs];
     SourceLocation FirstLoc;
     for (unsigned I = 0; I != NumLocs; ++I) {

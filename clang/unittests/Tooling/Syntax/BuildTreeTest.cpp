@@ -1405,6 +1405,29 @@ FloatingLiteralExpression Expression
 }
 
 TEST_P(BuildSyntaxTreeTest, StringLiteral) {
+  // Checked C wraps each StringLiteral expression in a CHKCBindTemporary
+  // expression. When the test language is C, Checked C is enabled by default.
+  if (!GetParam().isCXX()) {
+    EXPECT_TRUE(treeDumpEqualOnAnnotations(
+      R"cpp(
+void test() {
+  [["a\n\0\x20"]];
+  [[L"αβ"]];
+}
+)cpp",
+      {R"txt(
+CHKCBindTemporaryExpression Expression
+`-StringLiteralExpression SubExpression
+  `-'"a\n\0\x20"' LiteralToken
+)txt",
+       R"txt(
+CHKCBindTemporaryExpression Expression
+`-StringLiteralExpression SubExpression
+  `-'L"αβ"' LiteralToken
+)txt"}));
+    return;
+  }
+
   EXPECT_TRUE(treeDumpEqualOnAnnotations(
       R"cpp(
 void test() {

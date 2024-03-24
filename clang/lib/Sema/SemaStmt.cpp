@@ -407,7 +407,11 @@ sema::CompoundScopeInfo &Sema::getCurCompoundScope() const {
 }
 
 StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
-                                   ArrayRef<Stmt *> Elts, bool isStmtExpr) {
+                                   ArrayRef<Stmt *> Elts, bool isStmtExpr,
+                                   CheckedScopeSpecifier WrittenCSS,
+                                   SourceLocation CSSLoc,
+                                   SourceLocation CSMLoc,
+                                   SourceLocation BNDLoc) {
   const unsigned NumElts = Elts.size();
 
   // If we're in C mode, check that we don't have any decls after stmts.  If
@@ -442,6 +446,7 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
+<<<<<<< HEAD
   // Calculate difference between FP options in this compound statement and in
   // the enclosing one. If this is a function body, take the difference against
   // default options. In this case the difference will indicate options that are
@@ -452,6 +457,70 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
   FPOptionsOverride FPDiff = getCurFPFeatures().getChangesFrom(FPO);
 
   return CompoundStmt::Create(Context, Elts, FPDiff, L, R);
+=======
+  // Get the inferred checked scope specifier for this compound statement.
+  CheckedScopeSpecifier InferredCSS = GetCheckedScopeInfo();
+
+  bool IsBundledBlk = BNDLoc.isValid();
+  bool ValidBundledBlk = IsBundledBlk;
+  Stmt *FirstStmtOfBndBlk = nullptr;
+  Stmt *LastStmtOfBndBlk = nullptr;
+  SourceLocation LocOfInvalidStmt;
+
+  for (Stmt *S : Elts) {
+    if (!S)
+      continue;
+
+    if (IsBundledBlk && ValidBundledBlk) {
+
+      // A valid bundled block can contain only DeclStmts and ExpressionStmts.
+      if (!isa<DeclStmt>(S)) {
+        if (!isa<ValueStmt>(S))
+          ValidBundledBlk = false;
+        else if (isa<LabelStmt>(S) || isa<AttributedStmt>(S))
+          ValidBundledBlk = false;
+      }
+
+      // If the bundled block is invalid, remember the source location of the
+      // first invalid statement in the bundled block.
+      if (!ValidBundledBlk) {
+        if (LocOfInvalidStmt.isInvalid())
+          LocOfInvalidStmt = S->getBeginLoc();
+      }
+      else {
+        // Record the first and last statements of the bundled block.
+        if (!FirstStmtOfBndBlk)
+          FirstStmtOfBndBlk = S;
+        LastStmtOfBndBlk = S;
+      }
+    }
+
+    if (auto *L = dyn_cast<LabelStmt>(S))
+      S = L->getSubStmt();
+    // Set the checked scope specifiers for all statements that are part of
+    // this compound statement.
+    S->setCheckedScopeSpecifier(InferredCSS);
+  }
+
+  if (IsBundledBlk) {
+    if (!ValidBundledBlk)
+      Diag(LocOfInvalidStmt,
+           diag::err_bundled_blk_can_contain_only_decl_value_stmts);
+    else if (FirstStmtOfBndBlk && LastStmtOfBndBlk) {
+      if (auto *VS = dyn_cast<ValueStmt>(FirstStmtOfBndBlk))
+        VS->markFirstStmtOfBundledBlk();
+      else if (auto *DS = dyn_cast<DeclStmt>(FirstStmtOfBndBlk))
+        DS->markFirstStmtOfBundledBlk();
+      if (auto *VS = dyn_cast<ValueStmt>(LastStmtOfBndBlk))
+        VS->markLastStmtOfBundledBlk();
+      else if (auto *DS = dyn_cast<DeclStmt>(LastStmtOfBndBlk))
+        DS->markLastStmtOfBundledBlk();
+    }
+  }
+
+  return CompoundStmt::Create(Context, Elts, L, R, WrittenCSS,
+                              InferredCSS, CSSLoc, CSMLoc, BNDLoc);
+>>>>>>> main
 }
 
 ExprResult
@@ -3920,6 +3989,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
   if (RetValExp && DiagnoseUnexpandedParameterPack(RetValExp))
     return StmtError();
 
+<<<<<<< HEAD
   // HACK: We suppress simpler implicit move here in msvc compatibility mode
   // just as a temporary work around, as the MSVC STL has issues with
   // this change.
@@ -3932,14 +4002,24 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
   if (isa<CapturingScopeInfo>(getCurFunction()))
     return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp, NRInfo,
                                    SupressSimplerImplicitMoves);
+=======
+  if (isa<CapturingScopeInfo>(getCurFunction())) {
+    // In Checked C, there is no way to write the return bounds for clang
+    // extensions to C that capture variables such as __Block, so it is OK
+    // to call this.  There is nothing to check.
+    return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp);
+  }
+>>>>>>> main
 
   QualType FnRetType;
+  BoundsAnnotations FnRetBounds;
   QualType RelatedRetType;
   const AttrVec *Attrs = nullptr;
   bool isObjCMethod = false;
 
   if (const FunctionDecl *FD = getCurFunctionDecl()) {
     FnRetType = FD->getReturnType();
+    FnRetBounds = FD->getBoundsAnnotations();;
     if (FD->hasAttrs())
       Attrs = &FD->getAttrs();
     if (FD->isNoReturn())
@@ -4048,6 +4128,9 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
       } else if (!RetValExp->isTypeDependent()) {
         // C99 6.8.6.4p1 (ext_ since GCC warns)
         unsigned D = diag::ext_return_has_expr;
+        if (IsCheckedScope())
+          D = diag::err_return_has_expr;
+
         if (RetValExp->getType()->isVoidType()) {
           NamedDecl *CurDecl = getCurFunctionOrMethodDecl();
           if (isa<CXXConstructorDecl>(CurDecl) ||
@@ -4115,6 +4198,18 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
       // C90 6.6.6.4p4
       unsigned DiagID = getLangOpts().C99 ? diag::ext_return_missing_expr
                                           : diag::warn_return_missing_expr;
+
+      // In Checked C, it is an error if a return expression is
+      // missing in a checked scope or when there are return bounds.
+      if (getLangOpts().CheckedC) {
+        if (FnRetType->isCheckedPointerType())
+          DiagID = diag::err_return_missing_expr_for_checked_pointer;
+        else if (!FnRetBounds.IsEmpty())
+          DiagID = diag::err_return_missing_expr_for_bounds;
+        else if (IsCheckedScope())
+          DiagID = diag::err_return_missing_expr;
+      }
+
       // Note that at this point one of getCurFunctionDecl() or
       // getCurMethodDecl() must be non-null (see above).
       assert((getCurFunctionDecl() || getCurMethodDecl()) &&
@@ -4139,6 +4234,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
     // the C version of which boils down to CheckSingleAssignmentConstraints.
     if (!HasDependentReturnType && !RetValExp->isTypeDependent()) {
       // we have a non-void function with an expression, continue checking
+<<<<<<< HEAD
       InitializedEntity Entity =
           InitializedEntity::InitializeResult(ReturnLoc, RetType);
       ExprResult Res = PerformMoveOrCopyInitialization(
@@ -4146,6 +4242,14 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
       if (Res.isInvalid() && AllowRecovery)
         Res = CreateRecoveryExpr(RetValExp->getBeginLoc(),
                                  RetValExp->getEndLoc(), RetValExp, RetType);
+=======
+      InitializedEntity Entity = InitializedEntity::InitializeResult(ReturnLoc,
+                                                                     RetType,
+                                                      NRVOCandidate != nullptr,
+                                                                     FnRetBounds);
+      ExprResult Res = PerformMoveOrCopyInitialization(Entity, NRVOCandidate,
+                                                       RetType, RetValExp);
+>>>>>>> main
       if (Res.isInvalid()) {
         // FIXME: Clean up temporaries here anyway?
         return StmtError();
@@ -4826,4 +4930,77 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
   RD->completeDefinition();
 
   return Res;
+}
+
+WhereClause *Sema::ActOnWhereClause(SourceLocation WhereLoc) {
+  return new (Context) WhereClause(WhereLoc);
+}
+
+BoundsDeclFact
+*Sema::ActOnBoundsDeclFact(IdentifierInfo *Id, Expr *E,
+                           Scope *CurScope,
+                           SourceLocation IdLoc,
+                           SourceLocation BoundsLoc) {
+  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E);
+  if (!Bounds) {
+    Diag(BoundsLoc, diag::err_expected_bounds_expr_for_member);
+    return nullptr;
+  }
+
+  LookupResult Lookup(*this, Id, IdLoc, Sema::LookupOrdinaryName);
+  LookupParsedName(Lookup, CurScope, nullptr, true);
+  if (Lookup.empty()) {
+    Diag(IdLoc, diag::err_undeclared_var_use) << Id->getName();
+    return nullptr;
+  }
+
+  VarDecl *VD = Lookup.getAsSingle<VarDecl>();
+  if (!VD) {
+    Diag(IdLoc, diag::err_undeclared_var_use) << Id->getName();
+    return nullptr;
+  }
+
+  BoundsDeclFact *F = new (Context) BoundsDeclFact(VD, Bounds, IdLoc);
+  NormalizeBounds(F);
+  return F;
+}
+
+EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
+  // We define an equality-op fact in terms of equality-expressions as defined
+  // in section 6.5.9 of the C11 spec. Equality-op facts have an added
+  // constraint that the equality-expressions should be non-modifying
+  // expressions.
+
+  // Here, we are checking whether E is an equality expression defined as:
+  // equality-expression:
+  //   relational-expression
+  //   equality-expression == equality-expression
+  //   equality-expression != equality-expression
+
+  Lexicographic Lex(Context, nullptr);
+  Expr *TmpE = Lex.IgnoreValuePreservingOperations(Context, E);
+
+  // TODO: Handle equality-op facts joined by logical operators, like
+  // _Where equality-op-fact && equality-op-fact || equality-op-fact.
+
+  auto *BO = dyn_cast_or_null<BinaryOperator>(TmpE);
+
+  if (!BO) {
+    if (getCurScope()->isWhereClauseScope())
+      Diag(ExprLoc, diag::err_invalid_expr_in_where_clause);
+    return nullptr;
+  }
+
+  // isComparisonOp checks for equality and relational operators.
+  if (!BO->isComparisonOp()) {
+    Diag(ExprLoc, diag::err_expected_comparison_op_in_equality_expr);
+    return nullptr;
+  }
+
+  // CheckIsNonModifying issues a diagnostic if its argument is not
+  // non-modifying.
+  if (!CheckIsNonModifying(BO->getLHS()) ||
+      !CheckIsNonModifying(BO->getRHS()))
+    return nullptr;
+  return new (Context) EqualityOpFact(BO, ExprLoc);
 }

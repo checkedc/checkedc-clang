@@ -193,6 +193,10 @@ public:
 
   void Visit(const APValue &Value, QualType Ty);
 
+  void Visit(BoundsExpr::Kind K);
+
+  void Visit(BoundsCheckKind K);
+
   void dumpPointer(const void *Ptr);
   void dumpLocation(SourceLocation Loc);
   void dumpSourceRange(SourceRange R);
@@ -301,6 +305,11 @@ public:
   void VisitOMPIteratorExpr(const OMPIteratorExpr *Node);
   void VisitConceptSpecializationExpr(const ConceptSpecializationExpr *Node);
   void VisitRequiresExpr(const RequiresExpr *Node);
+
+  void VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node);
+  void VisitCountBoundsExpr(const CountBoundsExpr *Node);
+  void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
+  void VisitBoundsValueExpr(const BoundsValueExpr *Node);
 
   void VisitRValueReferenceType(const ReferenceType *T);
   void VisitArrayType(const ArrayType *T);

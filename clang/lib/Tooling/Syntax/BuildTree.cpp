@@ -1125,6 +1125,14 @@ public:
     return true;
   }
 
+  bool WalkUpFromCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *S) {
+    Builder.markExprChild(S->getSubExpr(),
+                          syntax::NodeRole::SubExpression);
+    Builder.foldNode(Builder.getExprRange(S),
+                     new (allocator()) syntax::CHKCBindTemporaryExpression, S);
+    return true;
+  }
+
   bool WalkUpFromIntegerLiteral(IntegerLiteral *S) {
     Builder.markChildToken(S->getLocation(), syntax::NodeRole::LiteralToken);
     Builder.foldNode(Builder.getExprRange(S),

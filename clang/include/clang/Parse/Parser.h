@@ -168,6 +168,34 @@ class Parser : public CodeCompletionHandler {
   mutable IdentifierInfo *Ident_import;
   mutable IdentifierInfo *Ident_module;
 
+  /// Checked C contextual keywords
+
+  /// These keywords are for bounds expressions.  They are contextual to avoid
+  /// collisions with existing identifiers in programs.  Some keywords like "count"
+  /// and "any" are likely to collide.  Others are unlikely to collide, but we make
+  /// them contextual for consistency.
+
+  /// \brief Identifier for "bounds".
+  IdentifierInfo *Ident_bounds;
+
+  /// \brief Identifier for "byte_count".
+  IdentifierInfo *Ident_byte_count;
+
+  /// \brief Identifier for "count".
+  IdentifierInfo *Ident_count;
+
+  /// \brief Identifier for "unknown".
+  IdentifierInfo *Ident_unknown;
+
+  /// \brief Identifier for "itype"
+  IdentifierInfo *Ident_itype;
+
+  /// \brief Identifier for "rel_align"
+  IdentifierInfo *Ident_rel_align;
+
+  /// \brief Identifier for "rel_align_value"
+  IdentifierInfo *Ident_rel_align_value;
+
   // C++ type trait keywords that can be reverted to identifiers and still be
   // used as type traits.
   llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertibleTypeTraits;
@@ -218,7 +246,11 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> AttributePragmaHandler;
   std::unique_ptr<PragmaHandler> MaxTokensHerePragmaHandler;
   std::unique_ptr<PragmaHandler> MaxTokensTotalPragmaHandler;
+<<<<<<< HEAD
   std::unique_ptr<PragmaHandler> RISCVPragmaHandler;
+=======
+  std::unique_ptr<PragmaHandler> CheckedScopeHandler;
+>>>>>>> main
 
   std::unique_ptr<CommentHandler> CommentSemaHandler;
 
@@ -800,6 +832,10 @@ private:
 
   void HandlePragmaAttribute();
 
+  /// \brief Handle the annotation token produced for
+  /// #pragma CHECKED_SCOPE [on-off-switch]
+  void HandlePragmaCheckedScope();
+
   /// GetLookAheadToken - This peeks ahead N tokens and returns that token
   /// without consuming any tokens.  LookAhead(0) returns 'Tok', LookAhead(1)
   /// returns the token after Tok, etc.
@@ -1260,6 +1296,10 @@ public:
   /// have a missleading indentation. If there is no
   /// MisleadingIndentationChecker on an else active, this location is invalid.
   SourceLocation MisleadingIndentationElseLoc;
+
+  // If the current scope is a Checked C _Forany or _Itypeforany scope, exit it.
+  // TODO: this probably doesn't belong in the parser.
+  void ExitQuantifiedTypeScope(DeclSpec &DS);
 
 private:
   //===--------------------------------------------------------------------===//
@@ -2047,6 +2087,82 @@ private:
   ExprResult ParseInitializerWithPotentialDesignator(DesignatorCompletionInfo);
 
   //===--------------------------------------------------------------------===//
+  // Checked C Expressions
+
+  /// \brief Return true if this token can start a bounds expression.
+  bool StartsBoundsExpression(const Token &Tok);
+  /// \brief Return true if this token can start a bounds-safe interface
+  /// type annotation.
+  bool StartsInteropTypeAnnotation(const Token &tok);
+
+  bool StartsRelativeBoundsClause(Token &tok);
+
+  bool StartsWhereClause(const Token &tok);
+
+  bool ParseRelativeBoundsClauseForDecl(ExprResult &Expr);
+
+  RelativeBoundsClause *ParseRelativeBoundsClause(bool &isError,
+                                                   IdentifierInfo *Ident,
+                                                   SourceLocation BoundsKWLoc);
+
+  void SkipInvalidBoundsExpr(SourceLocation CurrentLoc);
+
+  ExprResult ParseBoundsCastExpression();
+
+  ExprResult ParseBoundsExpression();
+  ExprResult ParseGenericFunctionApplication(ExprResult TypeFunc, SourceLocation Loc);
+
+  using TypeArgVector = SmallVector<TypeArgument, 4>;
+  std::pair<bool, TypeArgVector> ParseGenericTypeArgumentList(SourceLocation Loc);
+
+  QualType SubstituteTypeVariable(QualType QT,
+    SmallVector<TypeArgument, 4> &typeNames);
+
+  ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
+  bool ParseBoundsAnnotations(const Declarator &D,
+                              SourceLocation ColonLoc,
+                              BoundsAnnotations &Result,
+                              std::unique_ptr<CachedTokens> *DeferredToks = nullptr,
+                              bool IsReturn=false,
+                              Decl *ThisDecl = nullptr);
+  bool DeferredParseBoundsAnnotations(std::unique_ptr<CachedTokens> Toks,
+                                      BoundsAnnotations &Result,
+                                      const Declarator &D,
+                                      Decl *ThisDecl = nullptr);
+  bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
+  bool ConsumeAndStoreWhereClause(CachedTokens &Toks);
+
+  // Delay parse a return bounds expression in Toks.  Used to parse return
+  // bounds after the return type has been constructed.  Stores the bounds
+  // expression in Result.  Returns true if there was a parsing error.
+  static bool ParseBoundsCallback(void *P,
+                                  std::unique_ptr<CachedTokens> Toks,
+                                  ArrayRef<ParmVarDecl *> Params,
+                                  BoundsAnnotations &Result,
+                                  const Declarator &D);
+
+  ExprResult ParseReturnValueExpression();
+
+  DeclResult ParseRecordTypeApplication(RecordDecl *Base, bool IsItypeGeneric);
+
+  /// Parse a pack expression of the form '_Pack(expr, existential_type, substitution_type)'.
+  ExprResult ParsePackExpression();
+
+  /// Enters and exits WhereClause scope. Invokes ParseWhereClauseHelper to parse a where
+  /// clause.
+  WhereClause *ParseWhereClause();
+
+  /// Parse a Checked C where clause.
+  WhereClause *ParseWhereClauseHelper();
+
+  /// Parse a Checked C where clause fact.
+  WhereClauseFact *ParseWhereClauseFact();
+
+  /// Parse a where clause occurring on a declaration.
+  /// Returns false on error, true otherwise.
+  bool ParseWhereClauseOnDecl(Decl *D);
+
+  //===--------------------------------------------------------------------===//
   // clang Expressions
 
   ExprResult ParseBlockLiteralExpression();  // ^{...}
@@ -2099,12 +2215,16 @@ private:
                                 ExprResult Expr = ExprResult());
   StmtResult ParseDefaultStatement(ParsedStmtContext StmtCtx);
   StmtResult ParseCompoundStatement(bool isStmtExpr = false);
-  StmtResult ParseCompoundStatement(bool isStmtExpr,
-                                    unsigned ScopeFlags);
+  StmtResult ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags);
   void ParseCompoundStatementLeadingPragmas();
   void DiagnoseLabelAtEndOfCompoundStatement();
   bool ConsumeNullStmt(StmtVector &Stmts);
-  StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
+  StmtResult ParseCompoundStatementBody(bool isStmtExpr = false,
+                                        CheckedScopeSpecifier WrittenCSS = CSS_None,
+                                        SourceLocation CSSLoc = SourceLocation(),
+                                        SourceLocation CSMLoc = SourceLocation(),
+                                        SourceLocation BNDLoc = SourceLocation());
+
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
                                  Sema::ConditionResult &CondResult,
                                  SourceLocation Loc, Sema::ConditionKind CK,
@@ -2397,7 +2517,8 @@ private:
       Declarator &D,
       const ParsedTemplateInfo &TemplateInfo = ParsedTemplateInfo(),
       ForRangeInit *FRI = nullptr);
-  Decl *ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope);
+  Decl *ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope,
+                                   CheckedScopeSpecifier Kind = CSS_None);
   Decl *ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope);
 
   /// When in code-completion, skip parsing of the function/method body
@@ -2997,6 +3118,13 @@ private:
                                          SourceLocation StartLoc,
                                          SourceLocation EndLoc);
   void ParseAtomicSpecifier(DeclSpec &DS);
+  void ParseCheckedPointerSpecifiers(DeclSpec & DS);
+  void ParseExistentialTypeSpecifier(DeclSpec &DS);
+  void ParseUnpackSpecifier(DeclSpec &DS);
+  void ParseExistentialTypeSpecifierHelper(DeclSpec &DS);
+  void ParseForanySpecifier(DeclSpec &DS);
+  bool ParseForanySpecifierHelper(DeclSpec &DS, Scope::ScopeFlags S);
+  void ParseItypeforanySpecifier(DeclSpec &DS);
 
   ExprResult ParseAlignArgument(SourceLocation Start,
                                 SourceLocation &EllipsisLoc);
@@ -3613,6 +3741,10 @@ private:
   bool isGNUAsmQualifier(const Token &TokAfterAsm) const;
   GNUAsmQualifiers::AQ getGNUAsmQualifier(const Token &Tok) const;
   bool parseGNUAsmQualifierListOpt(GNUAsmQualifiers &AQ);
+  bool isMacroCheckedCKeyword(tok::TokenKind Kind);
+  std::pair<bool, TypeArgVector> ParseGenericMacroTypeArgumentList(SourceLocation Loc);
+  ExprResult ParseGenericMacroFunctionApplication(ExprResult Res,
+                                                  SourceLocation Loc);
 };
 
 }  // end namespace clang

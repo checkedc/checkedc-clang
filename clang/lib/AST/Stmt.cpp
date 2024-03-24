@@ -362,9 +362,18 @@ int64_t Stmt::getID(const ASTContext &Context) const {
   return Context.getAllocator().identifyKnownAlignedObject<Stmt>(this);
 }
 
+<<<<<<< HEAD
 CompoundStmt::CompoundStmt(ArrayRef<Stmt *> Stmts, FPOptionsOverride FPFeatures,
                            SourceLocation LB, SourceLocation RB)
     : Stmt(CompoundStmtClass), LBraceLoc(LB), RBraceLoc(RB) {
+=======
+CompoundStmt::CompoundStmt(ArrayRef<Stmt*> Stmts, SourceLocation LB,
+                           SourceLocation RB, CheckedScopeSpecifier WrittenCSS,
+                           CheckedScopeSpecifier CSS, SourceLocation CSSLoc,
+                           SourceLocation CSMLoc, SourceLocation BNDLoc)
+  : Stmt(CompoundStmtClass), RBraceLoc(RB), WrittenCSS(WrittenCSS),
+    CSS(CSS), CSSLoc(CSSLoc), CSMLoc(CSMLoc), BNDLoc(BNDLoc) {
+>>>>>>> main
   CompoundStmtBits.NumStmts = Stmts.size();
   CompoundStmtBits.HasFPFeatures = FPFeatures.requiresTrailingStorage();
   setStmts(Stmts);
@@ -380,6 +389,7 @@ void CompoundStmt::setStmts(ArrayRef<Stmt *> Stmts) {
 }
 
 CompoundStmt *CompoundStmt::Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
+<<<<<<< HEAD
                                    FPOptionsOverride FPFeatures,
                                    SourceLocation LB, SourceLocation RB) {
   void *Mem =
@@ -387,6 +397,18 @@ CompoundStmt *CompoundStmt::Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
                      Stmts.size(), FPFeatures.requiresTrailingStorage()),
                  alignof(CompoundStmt));
   return new (Mem) CompoundStmt(Stmts, FPFeatures, LB, RB);
+=======
+                                   SourceLocation LB, SourceLocation RB,
+                                   CheckedScopeSpecifier WrittenCSS,
+                                   CheckedScopeSpecifier CSS,
+                                   SourceLocation CSSLoc,
+                                   SourceLocation CSMLoc,
+                                   SourceLocation BNDLoc) {
+  void *Mem =
+      C.Allocate(totalSizeToAlloc<Stmt *>(Stmts.size()), alignof(CompoundStmt));
+  return new (Mem) CompoundStmt(Stmts, LB, RB, WrittenCSS, CSS,
+                                CSSLoc, CSMLoc, BNDLoc);
+>>>>>>> main
 }
 
 CompoundStmt *CompoundStmt::CreateEmpty(const ASTContext &C, unsigned NumStmts,

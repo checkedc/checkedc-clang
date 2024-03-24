@@ -6629,7 +6629,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addOptInFlag(CmdArgs, options::OPT_fborland_extensions,
                     options::OPT_fno_borland_extensions);
 
+<<<<<<< HEAD
   // -fno-declspec is default, except for PS4/PS5.
+=======
+  Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_extension);
+  Args.AddLastArg(CmdArgs, options::OPT_fno_checkedc_extension);
+  Args.AddLastArg(CmdArgs, options::OPT_fdump_inferred_bounds);
+  Args.AddLastArg(CmdArgs, options::OPT_f3c_tool);
+  Args.AddLastArg(CmdArgs, options::OPT_finject_verifier_calls);
+  Args.AddLastArg(CmdArgs, options::OPT_funchecked_pointers_dynamic_check);
+
+  Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_null_ptr_arith,
+                           options::OPT_fno_checkedc_null_ptr_arith);
+
+  // -fno-declspec is default, except for PS4.
+>>>>>>> main
   if (Args.hasFlag(options::OPT_fdeclspec, options::OPT_fno_declspec,
                    RawTriple.isPS()))
     CmdArgs.push_back("-fdeclspec");

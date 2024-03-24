@@ -2107,7 +2107,8 @@ void MicrosoftCXXNameMangler::mangleFunctionArgumentType(QualType T,
     if (const auto *AT = getASTContext().getAsArrayType(OriginalType))
       OriginalType = getASTContext().getIncompleteArrayType(
           AT->getElementType(), AT->getSizeModifier(),
-          AT->getIndexTypeCVRQualifiers());
+          AT->getIndexTypeCVRQualifiers(),
+          AT->getKind());
 
     TypePtr = OriginalType.getCanonicalType().getAsOpaquePtr();
     // If the original parameter was textually written as an array,
@@ -3264,6 +3265,24 @@ void MicrosoftCXXNameMangler::mangleType(
 
 void MicrosoftCXXNameMangler::mangleType(const PackExpansionType *T, Qualifiers,
                                          SourceRange Range) {
+  DiagnosticsEngine &Diags = Context.getDiags();
+  unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+    "cannot mangle this pack expansion yet");
+  Diags.Report(Range.getBegin(), DiagID)
+    << Range;
+}
+
+void MicrosoftCXXNameMangler::mangleType(const TypeVariableType *T, Qualifiers,
+  SourceRange Range) {
+  DiagnosticsEngine &Diags = Context.getDiags();
+  unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+    "cannot mangle this pack expansion yet");
+  Diags.Report(Range.getBegin(), DiagID)
+    << Range;
+}
+
+void MicrosoftCXXNameMangler::mangleType(const ExistentialType *T, Qualifiers,
+  SourceRange Range) {
   DiagnosticsEngine &Diags = Context.getDiags();
   unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
     "cannot mangle this pack expansion yet");

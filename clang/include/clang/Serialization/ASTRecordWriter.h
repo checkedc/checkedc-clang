@@ -126,8 +126,15 @@ public:
     AddStmt(const_cast<Stmt*>(S));
   }
 
+<<<<<<< HEAD
   /// Write an BTFTypeTagAttr object.
   void writeBTFTypeTagAttr(const BTFTypeTagAttr *A) { AddAttr(A); }
+=======
+  void AddBoundsAnnotations(BoundsAnnotations BA);
+  void writeBoundsAnnotations(BoundsAnnotations BA) {
+    AddBoundsAnnotations(BA);
+  }
+>>>>>>> main
 
   /// Add a definition for the given function to the queue of statements
   /// to emit.

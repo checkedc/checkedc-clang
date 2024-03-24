@@ -104,11 +104,18 @@ public:
     Policy.SuppressScope = true;
   }
 
+<<<<<<< HEAD
   ~ElaboratedTypePolicyRAII() {
     Policy.SuppressTagKeyword = SuppressTagKeyword;
     Policy.SuppressScope = SuppressScope;
   }
 };
+=======
+    void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
+               StringRef PlaceHolder);
+    void print(QualType T, raw_ostream &OS, StringRef PlaceHolder);
+    void print(const BoundsAnnotations BA, raw_ostream &OS);
+>>>>>>> main
 
 class TypePrinter {
   PrintingPolicy Policy;
@@ -142,10 +149,19 @@ public:
   void print##CLASS##After(const CLASS##Type *T, raw_ostream &OS);
 #include "clang/AST/TypeNodes.inc"
 
+<<<<<<< HEAD
 private:
   void printBefore(const Type *ty, Qualifiers qs, raw_ostream &OS);
   void printAfter(const Type *ty, Qualifiers qs, raw_ostream &OS);
 };
+=======
+  private:
+    void printBefore(const Type *ty, Qualifiers qs, raw_ostream &OS);
+    void printAfter(const Type *ty, Qualifiers qs, raw_ostream &OS);
+    void printArrayAfter(const ArrayType *ty, Qualifiers qs, raw_ostream &OS,
+                         bool isInnerDimension);
+  };
+>>>>>>> main
 
 } // namespace
 
@@ -186,6 +202,22 @@ static SplitQualType splitAccordingToPolicy(QualType QT,
 void TypePrinter::print(QualType t, raw_ostream &OS, StringRef PlaceHolder) {
   SplitQualType split = splitAccordingToPolicy(t, Policy);
   print(split.Ty, split.Quals, OS, PlaceHolder);
+}
+
+void TypePrinter::print(const BoundsAnnotations BA, raw_ostream &OS) {
+  bool printedColon = false;
+  if (const BoundsExpr *const Bounds = BA.getBoundsExpr()) {
+    OS << " : ";
+    printedColon = true;
+    Bounds->printPretty(OS, nullptr, Policy);
+  }
+  if (const InteropTypeExpr *const IType = BA.getInteropTypeExpr()) {
+    if (printedColon)
+      OS << " ";
+    else
+      OS << " : ";
+    IType->printPretty(OS, nullptr, Policy);
+  }
 }
 
 void TypePrinter::print(const Type *T, Qualifiers Quals, raw_ostream &OS,
@@ -244,9 +276,16 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::ObjCInterface:
     case Type::Atomic:
     case Type::Pipe:
+<<<<<<< HEAD
     case Type::BitInt:
     case Type::DependentBitInt:
     case Type::BTFTagAttributed:
+=======
+    case Type::ExtInt:
+    case Type::DependentExtInt:
+    case Type::TypeVariable:
+    case Type::Existential:
+>>>>>>> main
       CanPrefixQualifiers = true;
       break;
 
@@ -396,6 +435,7 @@ void TypePrinter::printComplexAfter(const ComplexType *T, raw_ostream &OS) {
 
 void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
+<<<<<<< HEAD
   SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getPointeeType(), OS);
   // Handle things like 'int (*A)[4];' correctly.
@@ -413,6 +453,49 @@ void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
   if (isa<ArrayType>(T->getPointeeType()))
     OS << ')';
   printAfter(T->getPointeeType(), OS);
+=======
+  CheckedPointerKind kind = T->getKind();
+  if (kind == CheckedPointerKind::Unchecked) {
+    SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+    printBefore(T->getPointeeType(), OS);
+    // Handle things like 'int (*A)[4];' correctly.
+    // FIXME: this should include vectors, but vectors use attributes I guess.
+    if (isa<ArrayType>(T->getPointeeType()))
+      OS << '(';
+    OS << '*';
+  }
+  else {
+    switch (T->getKind()) {
+      case CheckedPointerKind::Unchecked:
+        llvm_unreachable("should have been handled already");
+        break;
+      case CheckedPointerKind::Ptr:
+        OS << "_Ptr<";
+        break;
+      case CheckedPointerKind::Array:
+        OS << "_Array_ptr<";
+        break;
+      case CheckedPointerKind::NtArray:
+        OS << "_Nt_array_ptr<";
+        break;
+    }
+    print(T->getPointeeType(), OS, StringRef());
+    OS << '>';
+    spaceBeforePlaceHolder(OS);
+  }
+}
+
+void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
+  if (T->getKind() == CheckedPointerKind::Unchecked) {
+    IncludeStrongLifetimeRAII Strong(Policy);
+    SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+    // Handle things like 'int (*A)[4];' correctly.
+    // FIXME: this should include vectors, but vectors use attributes I guess.
+    if (isa<ArrayType>(T->getPointeeType()))
+      OS << ')';
+    printAfter(T->getPointeeType(), OS);
+  }
+>>>>>>> main
 }
 
 void TypePrinter::printBlockPointerBefore(const BlockPointerType *T,
@@ -520,20 +603,61 @@ void TypePrinter::printConstantArrayBefore(const ConstantArrayType *T,
   printBefore(T->getElementType(), OS);
 }
 
+
 void TypePrinter::printConstantArrayAfter(const ConstantArrayType *T,
                                           raw_ostream &OS) {
-  OS << '[';
-  if (T->getIndexTypeQualifiers().hasQualifiers()) {
-    AppendTypeQualList(OS, T->getIndexTypeCVRQualifiers(),
-                       Policy.Restrict);
-    OS << ' ';
+  printArrayAfter(T, Qualifiers(), OS, false);
+}
+
+// For multi-dimensional checked arrays, print the checked keyword once before
+// the outermost dimension.
+//
+// To avoid passing state to all print functions, create a specialized array
+// printer that recursively calls itself with the state.
+void TypePrinter::printArrayAfter(const ArrayType *T, Qualifiers Quals, raw_ostream &OS,
+                                  bool checkedOuterDimension) {
+  if (T->isExactlyChecked() && !checkedOuterDimension)
+    OS << "_Checked";
+  else if (T->isNtChecked())
+      OS << "_Nt_checked";
+  else if (checkedOuterDimension && !T->isChecked()) {
+    // This case is never supposed to happen, but print an accurate type name if it does.
+    OS << "_Unchecked";
+  }
+  switch (T->getTypeClass()) {
+    case Type::IncompleteArray:
+      OS << "[]";
+      break;
+    case Type::ConstantArray: {
+      const ConstantArrayType *ct = cast<ConstantArrayType>(T);
+      assert(ct);
+      OS << '[';
+      if (ct->getIndexTypeQualifiers().hasQualifiers()) {
+        AppendTypeQualList(OS, ct->getIndexTypeCVRQualifiers(), Policy.Restrict);
+        OS << ' ';
+      }
+
+      if (ct->getSizeModifier() == ArrayType::Static)
+        OS << "static ";
+
+      OS << ct->getSize().getZExtValue() << ']';
+      break;
+    }
+    case Type::DependentSizedArray:
+    case Type::VariableArray:
+    default:
+      assert(!T->isChecked() && "unexpected checked array type");
+      printAfter(T, Quals, OS);
+      return;
   }
 
-  if (T->getSizeModifier() == ArrayType::Static)
-    OS << "static ";
-
-  OS << T->getSize().getZExtValue() << ']';
-  printAfter(T->getElementType(), OS);
+  const QualType qualElemType = T->getElementType();
+  SplitQualType split = qualElemType.split();
+  if (isa<ArrayType>(split.Ty)) {
+    const ArrayType *arrayElemType = cast<ArrayType>(split.Ty);
+    printArrayAfter(arrayElemType, split.Quals, OS, T->isChecked());
+  }
+  else printAfter(split.Ty, split.Quals, OS);
 }
 
 void TypePrinter::printIncompleteArrayBefore(const IncompleteArrayType *T,
@@ -544,8 +668,7 @@ void TypePrinter::printIncompleteArrayBefore(const IncompleteArrayType *T,
 
 void TypePrinter::printIncompleteArrayAfter(const IncompleteArrayType *T,
                                             raw_ostream &OS) {
-  OS << "[]";
-  printAfter(T->getElementType(), OS);
+  printArrayAfter(T, Qualifiers(), OS, false);
 }
 
 void TypePrinter::printVariableArrayBefore(const VariableArrayType *T,
@@ -842,6 +965,12 @@ FunctionProtoType::printExceptionSpecification(raw_ostream &OS,
 
 void TypePrinter::printFunctionProtoBefore(const FunctionProtoType *T,
                                            raw_ostream &OS) {
+  if (T->isGenericFunction() && T->getNumTypeVars() > 0)
+    OS << "_For_any(" << T->getNumTypeVars() << ") ";
+
+  if (T->isItypeGenericFunction() && T->getNumTypeVars() > 0)
+    OS << "_Itype_for_any(" << T->getNumTypeVars() << ") ";
+
   if (T->hasTrailingReturn()) {
     OS << "auto ";
     if (!HasEmptyPlaceHolder)
@@ -881,6 +1010,7 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
   OS << '(';
   {
     ParamPolicyRAII ParamPolicy(Policy);
+    bool HasAnnots = T->hasParamAnnots();
     for (unsigned i = 0, e = T->getNumParams(); i != e; ++i) {
       if (i) OS << ", ";
 
@@ -893,6 +1023,8 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
         OS << "__attribute__((" << getParameterABISpelling(ABI) << ")) ";
 
       print(T->getParamType(i), OS, StringRef());
+      if (HasAnnots)
+        print(T->getParamAnnots(i), OS);
     }
   }
 
@@ -910,6 +1042,9 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
   FunctionType::ExtInfo Info = T->getExtInfo();
 
   printFunctionAfter(Info, OS);
+
+  const BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
+  print(ReturnAnnots, OS);
 
   if (!T->getMethodQuals().empty())
     OS << " " << T->getMethodQuals().getAsString();
@@ -1066,6 +1201,7 @@ void TypePrinter::printUnresolvedUsingBefore(const UnresolvedUsingType *T,
 void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                             raw_ostream &OS) {}
 
+<<<<<<< HEAD
 void TypePrinter::printUsingBefore(const UsingType *T, raw_ostream &OS) {
   // After `namespace b { using a::X }`, is the type X within B a::X or b::X?
   //
@@ -1080,6 +1216,27 @@ void TypePrinter::printUsingBefore(const UsingType *T, raw_ostream &OS) {
 }
 
 void TypePrinter::printUsingAfter(const UsingType *T, raw_ostream &OS) {}
+=======
+void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
+                                             raw_ostream &OS) {
+  OS << "(" << T->GetDepth() << ", " << T->GetIndex() << ")";
+  if (T->IsBoundsInterfaceType()) {
+    OS << " __BoundsInterface";
+  }
+}
+
+void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream &OS) { }
+
+void TypePrinter::printExistentialBefore(const ExistentialType *T, raw_ostream &OS) {
+  OS << "Exists(";
+  print(QualType(T->typeVar(), 0 /* Quals */), OS, "");
+  OS << ", ";
+  print(T->innerType(), OS, "");
+  OS << ")";
+}
+
+void TypePrinter::printExistentialAfter(const ExistentialType *T, raw_ostream &OS) { }
+>>>>>>> main
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
   printTypeSpec(T->getDecl(), OS);
@@ -1408,7 +1565,18 @@ void TypePrinter::printRecordBefore(const RecordType *T, raw_ostream &OS) {
     }
   }
 
-  printTag(T->getDecl(), OS);
+  auto Decl = T->getDecl();
+  printTag(Decl, OS);
+  if (Decl->isInstantiated()) {
+    OS << "<";
+    auto HasPrev = false;
+    for (auto TArg : Decl->typeArgs()) {
+      if (HasPrev) OS << ", ";
+      print(TArg.typeName, OS, "");
+      HasPrev = true;
+    }
+    OS << ">";
+  }
 }
 
 void TypePrinter::printRecordAfter(const RecordType *T, raw_ostream &OS) {}

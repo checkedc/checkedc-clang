@@ -323,9 +323,14 @@ struct PragmaForceCUDAHostDeviceHandler : public PragmaHandler {
       : PragmaHandler("force_cuda_host_device"), Actions(Actions) {}
   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
                     Token &FirstToken) override;
-
 private:
   Sema &Actions;
+};
+
+struct PragmaCheckedScopeHandler : public PragmaHandler {
+  PragmaCheckedScopeHandler() : PragmaHandler("CHECKED_SCOPE") {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
 };
 
 /// PragmaAttributeHandler - "\#pragma clang attribute ...".
@@ -508,10 +513,15 @@ void Parser::initializePragmaHandlers() {
   MaxTokensTotalPragmaHandler = std::make_unique<PragmaMaxTokensTotalHandler>();
   PP.AddPragmaHandler("clang", MaxTokensTotalPragmaHandler.get());
 
+<<<<<<< HEAD
   if (getTargetInfo().getTriple().isRISCV()) {
     RISCVPragmaHandler = std::make_unique<PragmaRISCVHandler>(Actions);
     PP.AddPragmaHandler("clang", RISCVPragmaHandler.get());
   }
+=======
+  CheckedScopeHandler.reset(new PragmaCheckedScopeHandler());
+  PP.AddPragmaHandler(CheckedScopeHandler.get());
+>>>>>>> main
 }
 
 void Parser::resetPragmaHandlers() {
@@ -639,10 +649,15 @@ void Parser::resetPragmaHandlers() {
   PP.RemovePragmaHandler("clang", MaxTokensTotalPragmaHandler.get());
   MaxTokensTotalPragmaHandler.reset();
 
+<<<<<<< HEAD
   if (getTargetInfo().getTriple().isRISCV()) {
     PP.RemovePragmaHandler("clang", RISCVPragmaHandler.get());
     RISCVPragmaHandler.reset();
   }
+=======
+  PP.RemovePragmaHandler(CheckedScopeHandler.get());
+  CheckedScopeHandler.reset();
+>>>>>>> main
 }
 
 /// Handle the annotation token produced for #pragma unused(...)
@@ -1948,6 +1963,16 @@ void Parser::HandlePragmaAttribute() {
     Actions.ActOnPragmaAttributeAttribute(Attribute, PragmaLoc,
                                           SubjectMatchRules);
   }
+}
+
+// #pragma CHECKED_SCOPE [on|off|_Bounds_decl|push|pop]
+void Parser::HandlePragmaCheckedScope() {
+  assert(Tok.is(tok::annot_pragma_checked_scope));
+  Sema::PragmaCheckedScopeKind Kind =
+    static_cast<Sema::PragmaCheckedScopeKind>(
+    reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
+  SourceLocation PragmaLoc = ConsumeAnnotationToken();
+  Actions.ActOnPragmaCheckedScope(Kind, PragmaLoc);
 }
 
 // #pragma GCC visibility comes in two variants:
@@ -4004,6 +4029,7 @@ void PragmaMaxTokensTotalHandler::HandlePragma(Preprocessor &PP,
   PP.overrideMaxTokens(MaxTokens, Loc);
 }
 
+<<<<<<< HEAD
 // Handle '#pragma clang riscv intrinsic vector'.
 void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
                                       PragmaIntroducer Introducer,
@@ -4015,10 +4041,46 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
   if (!II || !II->isStr("intrinsic")) {
     PP.Diag(Tok.getLocation(), diag::warn_pragma_invalid_argument)
         << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true << "'intrinsic'";
+=======
+// Handle the checked-c top level scope checked property.
+// #pragma CHECKED_SCOPE [OFF|ON|off|on|push|pop]
+// To handle precise scope property, annotation token is better
+void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
+                                             PragmaIntroducer Introducer,
+                                             Token &Tok) {
+  PP.Lex(Tok);
+  Sema::PragmaCheckedScopeKind Kind = Sema::PCSK_On;
+
+  if (Tok.is(tok::identifier)) {
+    IdentifierInfo *II = Tok.getIdentifierInfo();
+    if (II->isStr("ON"))
+      Kind = Sema::PCSK_On;
+    else if (II->isStr("on"))
+      Kind = Sema::PCSK_On;
+    else if (II->isStr("OFF"))
+      Kind = Sema::PCSK_Off;
+    else if (II->isStr("off"))
+      Kind = Sema::PCSK_Off;
+    else if (II->isStr("push"))
+      Kind = Sema::PCSK_Push;
+    else if (II->isStr("pop"))
+      Kind = Sema::PCSK_Pop;
+    else {
+      PP.Diag(Tok, diag::err_pragma_checked_scope_invalid_argument)
+        << PP.getSpelling(Tok);
+      return;
+    }
+  } else if (Tok.is(tok::kw__Bounds_only))
+    Kind = Sema::PCSK_BoundsOnly;
+  else {
+    PP.Diag(Tok, diag::err_pragma_checked_scope_invalid_argument)
+      << PP.getSpelling(Tok);
+>>>>>>> main
     return;
   }
 
   PP.Lex(Tok);
+<<<<<<< HEAD
   II = Tok.getIdentifierInfo();
   if (!II || !II->isStr("vector")) {
     PP.Diag(Tok.getLocation(), diag::warn_pragma_invalid_argument)
@@ -4034,4 +4096,20 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
   }
 
   Actions.DeclareRISCVVBuiltins = true;
+=======
+  // Verify that this is followed by EOD.
+  if (Tok.isNot(tok::eod))
+    PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
+        << "CHECKED_SCOPE";
+
+  MutableArrayRef<Token> Toks(PP.getPreprocessorAllocator().Allocate<Token>(1),
+                              1);
+  Toks[0].startToken();
+  Toks[0].setKind(tok::annot_pragma_checked_scope);
+  Toks[0].setLocation(Tok.getLocation());
+  Toks[0].setAnnotationEndLoc(Tok.getLocation());
+  Toks[0].setAnnotationValue(
+      reinterpret_cast<void *>(static_cast<uintptr_t>(Kind)));
+  PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/true, /*IsReinject=*/false);
+>>>>>>> main
 }

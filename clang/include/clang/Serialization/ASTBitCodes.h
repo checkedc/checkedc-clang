@@ -1825,6 +1825,7 @@ enum StmtCode {
   /// A CXXConstructExpr record.
   EXPR_CXX_CONSTRUCT,
 
+<<<<<<< HEAD
   /// A CXXInheritedCtorInitExpr record.
   EXPR_CXX_INHERITED_CTOR_INIT,
 
@@ -2149,6 +2150,301 @@ public:
 };
 
 /// @}
+=======
+      /// A CXXAddrspaceCastExpr record.
+      EXPR_CXX_ADDRSPACE_CAST,
+
+      /// A CXXFunctionalCastExpr record.
+      EXPR_CXX_FUNCTIONAL_CAST,
+
+      /// A BuiltinBitCastExpr record.
+      EXPR_BUILTIN_BIT_CAST,
+
+      /// A UserDefinedLiteral record.
+      EXPR_USER_DEFINED_LITERAL,
+
+      /// A CXXStdInitializerListExpr record.
+      EXPR_CXX_STD_INITIALIZER_LIST,
+
+      /// A CXXBoolLiteralExpr record.
+      EXPR_CXX_BOOL_LITERAL,
+
+      EXPR_CXX_NULL_PTR_LITERAL,  // CXXNullPtrLiteralExpr
+      EXPR_CXX_TYPEID_EXPR,       // CXXTypeidExpr (of expr).
+      EXPR_CXX_TYPEID_TYPE,       // CXXTypeidExpr (of type).
+      EXPR_CXX_THIS,              // CXXThisExpr
+      EXPR_CXX_THROW,             // CXXThrowExpr
+      EXPR_CXX_DEFAULT_ARG,       // CXXDefaultArgExpr
+      EXPR_CXX_DEFAULT_INIT,      // CXXDefaultInitExpr
+      EXPR_CXX_BIND_TEMPORARY,    // CXXBindTemporaryExpr
+
+      EXPR_CXX_SCALAR_VALUE_INIT, // CXXScalarValueInitExpr
+      EXPR_CXX_NEW,               // CXXNewExpr
+      EXPR_CXX_DELETE,            // CXXDeleteExpr
+      EXPR_CXX_PSEUDO_DESTRUCTOR, // CXXPseudoDestructorExpr
+
+      EXPR_EXPR_WITH_CLEANUPS,    // ExprWithCleanups
+
+      EXPR_CXX_DEPENDENT_SCOPE_MEMBER,   // CXXDependentScopeMemberExpr
+      EXPR_CXX_DEPENDENT_SCOPE_DECL_REF, // DependentScopeDeclRefExpr
+      EXPR_CXX_UNRESOLVED_CONSTRUCT,     // CXXUnresolvedConstructExpr
+      EXPR_CXX_UNRESOLVED_MEMBER,        // UnresolvedMemberExpr
+      EXPR_CXX_UNRESOLVED_LOOKUP,        // UnresolvedLookupExpr
+
+      EXPR_CXX_EXPRESSION_TRAIT,  // ExpressionTraitExpr
+      EXPR_CXX_NOEXCEPT,          // CXXNoexceptExpr
+
+      EXPR_OPAQUE_VALUE,          // OpaqueValueExpr
+      EXPR_BINARY_CONDITIONAL_OPERATOR,  // BinaryConditionalOperator
+      EXPR_TYPE_TRAIT,            // TypeTraitExpr
+      EXPR_ARRAY_TYPE_TRAIT,      // ArrayTypeTraitIntExpr
+
+      EXPR_PACK_EXPANSION,        // PackExpansionExpr
+      EXPR_SIZEOF_PACK,           // SizeOfPackExpr
+      EXPR_SUBST_NON_TYPE_TEMPLATE_PARM, // SubstNonTypeTemplateParmExpr
+      EXPR_SUBST_NON_TYPE_TEMPLATE_PARM_PACK,// SubstNonTypeTemplateParmPackExpr
+      EXPR_FUNCTION_PARM_PACK,    // FunctionParmPackExpr
+      EXPR_MATERIALIZE_TEMPORARY, // MaterializeTemporaryExpr
+      EXPR_CXX_FOLD,              // CXXFoldExpr
+      EXPR_CONCEPT_SPECIALIZATION,// ConceptSpecializationExpr
+      EXPR_REQUIRES,              // RequiresExpr
+
+      // CUDA
+      EXPR_CUDA_KERNEL_CALL,       // CUDAKernelCallExpr
+
+      // Checked C
+      EXPR_COUNT_BOUNDS_EXPR,      // CountBoundsExpr
+      EXPR_NULLARY_BOUNDS_EXPR,    // NullaryBoundsExpr
+      EXPR_RANGE_BOUNDS_EXPR,      // RangeBoundsExpr
+      EXPR_INTEROPTYPE_BOUNDS_ANNOTATION,// InteropTypeBoundsAnnotation
+      EXPR_POSITIONAL_PARAMETER_EXPR, // PositionalParameterExpr
+      EXPR_BOUNDS_CAST,
+      EXPR_BOUNDS_VALUE_EXPR,        // BoundsValueExpr
+      EXPR_CHKC_BIND_TEMPORARY_EXPR, // CHKCBindTemporaryExpr
+
+      // OpenCL
+      EXPR_ASTYPE,                 // AsTypeExpr
+
+      // Microsoft
+      EXPR_CXX_PROPERTY_REF_EXPR, // MSPropertyRefExpr
+      EXPR_CXX_PROPERTY_SUBSCRIPT_EXPR, // MSPropertySubscriptExpr
+      EXPR_CXX_UUIDOF_EXPR,       // CXXUuidofExpr (of expr).
+      EXPR_CXX_UUIDOF_TYPE,       // CXXUuidofExpr (of type).
+      STMT_SEH_LEAVE,             // SEHLeaveStmt
+      STMT_SEH_EXCEPT,            // SEHExceptStmt
+      STMT_SEH_FINALLY,           // SEHFinallyStmt
+      STMT_SEH_TRY,               // SEHTryStmt
+
+      // OpenMP directives
+      STMT_OMP_PARALLEL_DIRECTIVE,
+      STMT_OMP_SIMD_DIRECTIVE,
+      STMT_OMP_FOR_DIRECTIVE,
+      STMT_OMP_FOR_SIMD_DIRECTIVE,
+      STMT_OMP_SECTIONS_DIRECTIVE,
+      STMT_OMP_SECTION_DIRECTIVE,
+      STMT_OMP_SINGLE_DIRECTIVE,
+      STMT_OMP_MASTER_DIRECTIVE,
+      STMT_OMP_CRITICAL_DIRECTIVE,
+      STMT_OMP_PARALLEL_FOR_DIRECTIVE,
+      STMT_OMP_PARALLEL_FOR_SIMD_DIRECTIVE,
+      STMT_OMP_PARALLEL_MASTER_DIRECTIVE,
+      STMT_OMP_PARALLEL_SECTIONS_DIRECTIVE,
+      STMT_OMP_TASK_DIRECTIVE,
+      STMT_OMP_TASKYIELD_DIRECTIVE,
+      STMT_OMP_BARRIER_DIRECTIVE,
+      STMT_OMP_TASKWAIT_DIRECTIVE,
+      STMT_OMP_FLUSH_DIRECTIVE,
+      STMT_OMP_DEPOBJ_DIRECTIVE,
+      STMT_OMP_SCAN_DIRECTIVE,
+      STMT_OMP_ORDERED_DIRECTIVE,
+      STMT_OMP_ATOMIC_DIRECTIVE,
+      STMT_OMP_TARGET_DIRECTIVE,
+      STMT_OMP_TARGET_DATA_DIRECTIVE,
+      STMT_OMP_TARGET_ENTER_DATA_DIRECTIVE,
+      STMT_OMP_TARGET_EXIT_DATA_DIRECTIVE,
+      STMT_OMP_TARGET_PARALLEL_DIRECTIVE,
+      STMT_OMP_TARGET_PARALLEL_FOR_DIRECTIVE,
+      STMT_OMP_TEAMS_DIRECTIVE,
+      STMT_OMP_TASKGROUP_DIRECTIVE,
+      STMT_OMP_CANCELLATION_POINT_DIRECTIVE,
+      STMT_OMP_CANCEL_DIRECTIVE,
+      STMT_OMP_TASKLOOP_DIRECTIVE,
+      STMT_OMP_TASKLOOP_SIMD_DIRECTIVE,
+      STMT_OMP_MASTER_TASKLOOP_DIRECTIVE,
+      STMT_OMP_MASTER_TASKLOOP_SIMD_DIRECTIVE,
+      STMT_OMP_PARALLEL_MASTER_TASKLOOP_DIRECTIVE,
+      STMT_OMP_PARALLEL_MASTER_TASKLOOP_SIMD_DIRECTIVE,
+      STMT_OMP_DISTRIBUTE_DIRECTIVE,
+      STMT_OMP_TARGET_UPDATE_DIRECTIVE,
+      STMT_OMP_DISTRIBUTE_PARALLEL_FOR_DIRECTIVE,
+      STMT_OMP_DISTRIBUTE_PARALLEL_FOR_SIMD_DIRECTIVE,
+      STMT_OMP_DISTRIBUTE_SIMD_DIRECTIVE,
+      STMT_OMP_TARGET_PARALLEL_FOR_SIMD_DIRECTIVE,
+      STMT_OMP_TARGET_SIMD_DIRECTIVE,
+      STMT_OMP_TEAMS_DISTRIBUTE_DIRECTIVE,
+      STMT_OMP_TEAMS_DISTRIBUTE_SIMD_DIRECTIVE,
+      STMT_OMP_TEAMS_DISTRIBUTE_PARALLEL_FOR_SIMD_DIRECTIVE,
+      STMT_OMP_TEAMS_DISTRIBUTE_PARALLEL_FOR_DIRECTIVE,
+      STMT_OMP_TARGET_TEAMS_DIRECTIVE,
+      STMT_OMP_TARGET_TEAMS_DISTRIBUTE_DIRECTIVE,
+      STMT_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_FOR_DIRECTIVE,
+      STMT_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_FOR_SIMD_DIRECTIVE,
+      STMT_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD_DIRECTIVE,
+      EXPR_OMP_ARRAY_SECTION,
+      EXPR_OMP_ARRAY_SHAPING,
+      EXPR_OMP_ITERATOR,
+
+      // ARC
+      EXPR_OBJC_BRIDGED_CAST,     // ObjCBridgedCastExpr
+
+      STMT_MS_DEPENDENT_EXISTS,   // MSDependentExistsStmt
+      EXPR_LAMBDA,                // LambdaExpr
+      STMT_COROUTINE_BODY,
+      STMT_CORETURN,
+      EXPR_COAWAIT,
+      EXPR_COYIELD,
+      EXPR_DEPENDENT_COAWAIT,
+
+      // FixedPointLiteral
+      EXPR_FIXEDPOINT_LITERAL,
+    };
+
+    /// The kinds of designators that can occur in a
+    /// DesignatedInitExpr.
+    enum DesignatorTypes {
+      /// Field designator where only the field name is known.
+      DESIG_FIELD_NAME  = 0,
+
+      /// Field designator where the field has been resolved to
+      /// a declaration.
+      DESIG_FIELD_DECL  = 1,
+
+      /// Array designator.
+      DESIG_ARRAY       = 2,
+
+      /// GNU array range designator.
+      DESIG_ARRAY_RANGE = 3
+    };
+
+    /// The different kinds of data that can occur in a
+    /// CtorInitializer.
+    enum CtorInitializerType {
+      CTOR_INITIALIZER_BASE,
+      CTOR_INITIALIZER_DELEGATING,
+      CTOR_INITIALIZER_MEMBER,
+      CTOR_INITIALIZER_INDIRECT_MEMBER
+    };
+
+    /// Kinds of cleanup objects owned by ExprWithCleanups.
+    enum CleanupObjectKind { COK_Block, COK_CompoundLiteral };
+
+    /// Describes the redeclarations of a declaration.
+    struct LocalRedeclarationsInfo {
+      // The ID of the first declaration
+      DeclID FirstID;
+
+      // Offset into the array of redeclaration chains.
+      unsigned Offset;
+
+      friend bool operator<(const LocalRedeclarationsInfo &X,
+                            const LocalRedeclarationsInfo &Y) {
+        return X.FirstID < Y.FirstID;
+      }
+
+      friend bool operator>(const LocalRedeclarationsInfo &X,
+                            const LocalRedeclarationsInfo &Y) {
+        return X.FirstID > Y.FirstID;
+      }
+
+      friend bool operator<=(const LocalRedeclarationsInfo &X,
+                             const LocalRedeclarationsInfo &Y) {
+        return X.FirstID <= Y.FirstID;
+      }
+
+      friend bool operator>=(const LocalRedeclarationsInfo &X,
+                             const LocalRedeclarationsInfo &Y) {
+        return X.FirstID >= Y.FirstID;
+      }
+    };
+
+    /// Describes the categories of an Objective-C class.
+    struct ObjCCategoriesInfo {
+      // The ID of the definition
+      DeclID DefinitionID;
+
+      // Offset into the array of category lists.
+      unsigned Offset;
+
+      friend bool operator<(const ObjCCategoriesInfo &X,
+                            const ObjCCategoriesInfo &Y) {
+        return X.DefinitionID < Y.DefinitionID;
+      }
+
+      friend bool operator>(const ObjCCategoriesInfo &X,
+                            const ObjCCategoriesInfo &Y) {
+        return X.DefinitionID > Y.DefinitionID;
+      }
+
+      friend bool operator<=(const ObjCCategoriesInfo &X,
+                             const ObjCCategoriesInfo &Y) {
+        return X.DefinitionID <= Y.DefinitionID;
+      }
+
+      friend bool operator>=(const ObjCCategoriesInfo &X,
+                             const ObjCCategoriesInfo &Y) {
+        return X.DefinitionID >= Y.DefinitionID;
+      }
+    };
+
+    /// A key used when looking up entities by \ref DeclarationName.
+    ///
+    /// Different \ref DeclarationNames are mapped to different keys, but the
+    /// same key can occasionally represent multiple names (for names that
+    /// contain types, in particular).
+    class DeclarationNameKey {
+      using NameKind = unsigned;
+
+      NameKind Kind = 0;
+      uint64_t Data = 0;
+
+    public:
+      DeclarationNameKey() = default;
+      DeclarationNameKey(DeclarationName Name);
+      DeclarationNameKey(NameKind Kind, uint64_t Data)
+          : Kind(Kind), Data(Data) {}
+
+      NameKind getKind() const { return Kind; }
+
+      IdentifierInfo *getIdentifier() const {
+        assert(Kind == DeclarationName::Identifier ||
+               Kind == DeclarationName::CXXLiteralOperatorName ||
+               Kind == DeclarationName::CXXDeductionGuideName);
+        return (IdentifierInfo *)Data;
+      }
+
+      Selector getSelector() const {
+        assert(Kind == DeclarationName::ObjCZeroArgSelector ||
+               Kind == DeclarationName::ObjCOneArgSelector ||
+               Kind == DeclarationName::ObjCMultiArgSelector);
+        return Selector(Data);
+      }
+
+      OverloadedOperatorKind getOperatorKind() const {
+        assert(Kind == DeclarationName::CXXOperatorName);
+        return (OverloadedOperatorKind)Data;
+      }
+
+      /// Compute a fingerprint of this key for use in on-disk hash table.
+      unsigned getHash() const;
+
+      friend bool operator==(const DeclarationNameKey &A,
+                             const DeclarationNameKey &B) {
+        return A.Kind == B.Kind && A.Data == B.Data;
+      }
+    };
+
+    /// @}
+>>>>>>> main
 
 } // namespace serialization
 } // namespace clang
