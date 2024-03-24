@@ -322,48 +322,34 @@ include(VersionFromVCS)
 option(LLVM_APPEND_VC_REV
   "Embed the version control system revision in LLVM" ON)
 
-<<<<<<< HEAD
 option(LLVM_TOOL_LLVM_DRIVER_BUILD "Enables building the llvm multicall tool" OFF)
-
-set(PACKAGE_NAME LLVM)
-set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
-set(PACKAGE_BUGREPORT "https://github.com/llvm/llvm-project/issues/")
-=======
 set(PACKAGE_NAME CheckedC-Clang)
 set(CPACK_PACKAGE_NAME CheckedC-Clang)
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
-set(PACKAGE_BUGREPORT "https://github.com/Microsoft/checkedc-clang/issues")
->>>>>>> main
+set(PACKAGE_BUGREPORT "https://github.com/checkedc/checkedc-llvm-project/issues")
+
 
 set(BUG_REPORT_URL "${PACKAGE_BUGREPORT}" CACHE STRING
   "Default URL where bug reports are to be submitted.")
 
 # Configure CPack.
-<<<<<<< HEAD
 if(NOT DEFINED CPACK_PACKAGE_INSTALL_DIRECTORY)
-  set(CPACK_PACKAGE_INSTALL_DIRECTORY "LLVM")
+  set(CPACK_PACKAGE_INSTALL_DIRECTORY "CheckedC-Clang")
 endif()
 if(NOT DEFINED CPACK_PACKAGE_VENDOR)
-  set(CPACK_PACKAGE_VENDOR "LLVM")
+  set(CPACK_PACKAGE_VENDOR "Secure Software Development Project")
 endif()
-=======
-set(CPACK_PACKAGE_INSTALL_DIRECTORY "CheckedC-Clang")
-set(CPACK_PACKAGE_VENDOR "Microsoft")
->>>>>>> main
 set(CPACK_PACKAGE_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${LLVM_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${LLVM_VERSION_PATCH})
 set(CPACK_PACKAGE_VERSION ${PACKAGE_VERSION})
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.TXT")
 if(WIN32 AND NOT UNIX)
-<<<<<<< HEAD
   set(CPACK_NSIS_COMPRESSOR "/SOLID lzma \r\n SetCompressorDictSize 32")
   if(NOT DEFINED CPACK_PACKAGE_INSTALL_REGISTRY_KEY)
-    set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "LLVM")
+    set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "CheckedC-Clang")
   endif()
-=======
-  set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "CheckedC-Clang")
->>>>>>> main
+
   set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_logo.bmp")
   set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_icon.ico")
   set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\cmake\\\\nsis_icon.ico")
