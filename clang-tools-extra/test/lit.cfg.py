@@ -4,11 +4,6 @@ import os
 import shlex
 
 import lit.formats
-<<<<<<< HEAD
-
-=======
-import lit.util
->>>>>>> main
 from lit.llvm import llvm_config
 
 # Configuration file for the 'lit' test runner.
