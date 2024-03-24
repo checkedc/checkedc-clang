@@ -165,20 +165,12 @@ macro(add_clang_tool name)
     add_clang_executable(${name} ${ARGN})
     add_dependencies(${name} clang-resource-headers)
 
-<<<<<<< HEAD
     if (CLANG_BUILD_TOOLS)
       get_target_export_arg(${name} Clang export_to_clangtargets)
       install(TARGETS ${name}
         ${export_to_clangtargets}
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
         COMPONENT ${name})
-=======
-  add_clang_executable(${name} ${ARGN})
-  add_dependencies(${name} clang-resource-headers)
-  if (CHECKEDC_IN_TREE)
-    add_dependencies(${name} checkedc-headers)
-  endif()
->>>>>>> main
 
       if(NOT LLVM_ENABLE_IDE)
         add_llvm_install_targets(install-${name}
@@ -187,6 +179,10 @@ macro(add_clang_tool name)
       endif()
       set_property(GLOBAL APPEND PROPERTY CLANG_EXPORTS ${name})
     endif()
+  endif()
+
+  if (CHECKEDC_IN_TREE)
+    add_dependencies(${name} checkedc-headers)
   endif()
 endmacro()
 
