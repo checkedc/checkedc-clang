@@ -9953,14 +9953,11 @@ def err_return_has_expr : Error<
 
 def err_noreturn_block_has_return_expr : Error<
   "block declared 'noreturn' should not return">;
-<<<<<<< HEAD
-=======
 def err_noreturn_missing_on_first_decl : Error<
   "function declared '[[noreturn]]' after its first declaration">;
 def note_noreturn_missing_first_decl : Note<
   "declaration missing '[[noreturn]]' attribute is here">;
 
->>>>>>> main
 def err_carries_dependency_missing_on_first_decl : Error<
   "%select{function|parameter}0 declared '[[carries_dependency]]' "
   "after its first declaration">;
@@ -11772,7 +11769,6 @@ def warn_tcb_enforcement_violation : Warning<
   "calling %0 is a violation of trusted computing base '%1'">,
   InGroup<DiagGroup<"tcb-enforcement">>;
 
-<<<<<<< HEAD
 // RISC-V builtin required extension warning
 def err_riscv_builtin_requires_extension : Error<
   "builtin requires%select{| at least one of the following extensions to be enabled}0: %1">;
@@ -11832,7 +11828,6 @@ def note_unsafe_buffer_operation : Note<
   "used%select{| in pointer arithmetic| in buffer access}0 here">;
 def err_loongarch_builtin_requires_la32 : Error<
   "this builtin requires target: loongarch32">;
-=======
 def err_expected_comparison_op_in_equality_expr : Error<
   "expected comparison operator in equality expression">;
 
@@ -12426,14 +12421,14 @@ def err_bounds_type_annotation_lost_checking : Error<
     "format specifies type %0 but the argument has "
     "%select{type|underlying type}2 %1">;
   def err_format_conversion_argument_type_mismatch_pedantic : Error<
-    err_format_conversion_argument_type_mismatch.Text>;
+    err_format_conversion_argument_type_mismatch.Summary>;
   def err_format_conversion_argument_type_mismatch_confusion : Error<
-    err_format_conversion_argument_type_mismatch.Text>;
+    err_format_conversion_argument_type_mismatch.Summary>;
   def err_format_argument_needs_cast : Error<
     "%select{values of type|enum values with underlying type}2 '%0' should not "
     "be used as format arguments; add an explicit cast to %1 instead">;
   def err_format_argument_needs_cast_pedantic : Error<
-    err_format_argument_needs_cast.Text>;
+    err_format_argument_needs_cast.Summary>;
   def err_printf_positional_arg_exceeds_data_args : Error <
     "data argument position '%0' exceeds the number of data arguments (%1)">;
   def err_format_invalid_positional_specifier : Error<
@@ -12476,5 +12471,4 @@ def err_bounds_type_annotation_lost_checking : Error<
     "using '%0' format specifier, but argument has boolean value">;
 
 } // end of Checked C Category
->>>>>>> main
 } // end of sema component.

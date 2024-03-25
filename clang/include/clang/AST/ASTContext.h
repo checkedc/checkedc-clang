@@ -26,13 +26,6 @@
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/AST/TemplateName.h"
-<<<<<<< HEAD
-=======
-#include "clang/AST/Type.h"
-#include "clang/AST/TypeOrdering.h"
-#include "clang/Basic/AddressSpaces.h"
-#include "clang/Basic/AttrKinds.h"
->>>>>>> main
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
@@ -40,11 +33,6 @@
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/ProfileList.h"
 #include "clang/Basic/SourceLocation.h"
-<<<<<<< HEAD
-=======
-#include "clang/Basic/Specifiers.h"
-#include "clang/Basic/TargetInfo.h"
->>>>>>> main
 #include "clang/Basic/XRayLists.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -198,12 +186,8 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable SmallVector<Type *, 0> Types;
   mutable llvm::FoldingSet<ExtQuals> ExtQualNodes;
   mutable llvm::FoldingSet<ComplexType> ComplexTypes;
-<<<<<<< HEAD
   mutable llvm::FoldingSet<PointerType> PointerTypes{GeneralTypesLog2InitSize};
-=======
-  mutable llvm::FoldingSet<PointerType> PointerTypes;
   mutable llvm::FoldingSet<TypeVariableType> TypeVariableTypes;
->>>>>>> main
   mutable llvm::FoldingSet<AdjustedType> AdjustedTypes;
   mutable llvm::FoldingSet<BlockPointerType> BlockPointerTypes;
   mutable llvm::FoldingSet<LValueReferenceType> LValueReferenceTypes;
@@ -320,11 +304,9 @@ class ASTContext : public RefCountedBase<ASTContext> {
   /// This is lazily created.  This is intentionally not serialized.
   mutable llvm::StringMap<StringLiteral *> StringLiteralCache;
 
-<<<<<<< HEAD
   /// MD5 hash of CUID. It is calculated when first used and cached by this
   /// data member.
   mutable std::string CUIDHash;
-=======
   /// Mapping from (generic record decl, type arguments) pairs to instantiated record decls.
   /// e.g. (List, int) -> List<int>
   /// This keeps tracks of all type applications both so we can preserve the uniqueness invariant
@@ -352,7 +334,6 @@ class ASTContext : public RefCountedBase<ASTContext> {
   /// Another way to say this is to say that this map contains entries that are (functional)
   /// duplicates.
   llvm::DenseMap<std::pair<const Type *, QualType>, const ExistentialType *> CachedExistTypes;
->>>>>>> main
 
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
@@ -1436,14 +1417,11 @@ public:
   /// Get address space for OpenCL type.
   LangAS getOpenCLTypeAddrSpace(const Type *T) const;
 
-<<<<<<< HEAD
   /// Returns default address space based on OpenCL version and enabled features
   inline LangAS getDefaultOpenCLPointeeAddrSpace() {
     return LangOpts.OpenCLGenericAddressSpace ? LangAS::opencl_generic
                                               : LangAS::opencl_private;
   }
-=======
->>>>>>> main
 
   void setcudaConfigureCallDecl(FunctionDecl *FD) {
     cudaConfigureCallDecl = FD;
@@ -2956,21 +2934,12 @@ public:
   bool canBindObjCObjectType(QualType To, QualType From);
 
   // Functions for calculating composite types
-<<<<<<< HEAD
   QualType mergeTypes(QualType, QualType, bool OfBlockPointer = false,
                       bool Unqualified = false, bool BlockReturnType = false,
-                      bool IsConditionalOperator = false);
+                      bool IsConditionalOperator = false,  bool IgnoreBounds = false);
   QualType mergeFunctionTypes(QualType, QualType, bool OfBlockPointer = false,
                               bool Unqualified = false, bool AllowCXX = false,
-                              bool IsConditionalOperator = false);
-=======
-  QualType mergeTypes(QualType, QualType, bool OfBlockPointer=false,
-                      bool Unqualified = false, bool BlockReturnType = false,
-                      bool IgnoreBounds = false);
-  QualType mergeFunctionTypes(QualType, QualType, bool OfBlockPointer=false,
-                              bool Unqualified = false, bool AllowCXX = false,
-                              bool IgnoreBounds = false);
->>>>>>> main
+                              bool IsConditionalOperator = false, bool IgnoreBounds = false);
   QualType mergeFunctionParameterTypes(QualType, QualType,
                                        bool OfBlockPointer = false,
                                        bool Unqualified = false,
@@ -3087,6 +3056,7 @@ public:
 
   // Members are stored in reverse order.  Given a.b.c, we store c.b.a
   typedef SmallVector<const FieldDecl *,4> MemberPath;
+
   struct PathCompare {
   private:
     Lexicographic Comparer;

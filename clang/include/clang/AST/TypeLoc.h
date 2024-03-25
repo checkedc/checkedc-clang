@@ -665,7 +665,6 @@ public:
   }
 };
 
-<<<<<<< HEAD
 /// Wrapper for source info for types used via transparent aliases.
 class UsingTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
                                                       UsingTypeLoc, UsingType> {
@@ -674,7 +673,8 @@ public:
     return getTypePtr()->getUnderlyingType();
   }
   UsingShadowDecl *getFoundDecl() const { return getTypePtr()->getFoundDecl(); }
-=======
+};
+
 class TypeVariableTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
                                                              TypeVariableTypeLoc,
                                                              TypeVariableType> {
@@ -684,7 +684,6 @@ class TypeVariableTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
 class ExistentialTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
                                                             ExistentialTypeLoc,
                                                             ExistentialType> {
->>>>>>> main
 };
 
 /// Wrapper for source info for typedefs.

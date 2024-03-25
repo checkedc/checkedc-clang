@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/TargetInfo.h"
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
@@ -44,7 +45,7 @@ ImplicitCastExpr *ExprCreatorUtil::CreateImplicitCast(Sema &SemaRef, Expr *E,
                                                       CastKind CK,
                                                       QualType T) {
   return ImplicitCastExpr::Create(SemaRef.Context, T, CK, E, nullptr,
-                                  ExprValueKind::VK_RValue, FPOptionsOverride());
+                                  ExprValueKind::VK_PRValue, FPOptionsOverride());
 }
 
 Expr *ExprCreatorUtil::CreateExplicitCast(Sema &SemaRef, QualType Target,
@@ -56,7 +57,7 @@ Expr *ExprCreatorUtil::CreateExplicitCast(Sema &SemaRef, QualType Target,
   // Synthesize some dummy type source source information.
   TypeSourceInfo *DI = SemaRef.Context.getTrivialTypeSourceInfo(Target);
   CStyleCastExpr *CE = CStyleCastExpr::Create(SemaRef.Context, Target,
-    ExprValueKind::VK_RValue, CK, E, nullptr, FPOptionsOverride(), DI,
+    ExprValueKind::VK_PRValue, CK, E, nullptr, FPOptionsOverride(), DI,
     SourceLocation(), SourceLocation());
   CE->setBoundsSafeInterface(isBoundsSafeInterface);
   return CE;
@@ -74,7 +75,7 @@ MemberExpr *ExprCreatorUtil::CreateMemberExpr(Sema &SemaRef, Expr *Base,
   if (IsArrow)
     ResultKind = VK_LValue;
   else
-    ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
+    ResultKind = Base->isLValue() ? VK_LValue : VK_PRValue;
   FieldDecl *F = const_cast<FieldDecl *>(Field);
   return MemberExpr::CreateImplicit(SemaRef.getASTContext(), Base, IsArrow,
                                     F, F->getType(), ResultKind,
@@ -93,7 +94,7 @@ UnaryOperator *ExprCreatorUtil::CreateUnaryOperator(Sema &SemaRef, Expr *Child,
 }
 
 Expr *ExprCreatorUtil::EnsureRValue(Sema &SemaRef, Expr *E) {
-  if (E->isRValue())
+  if (E->isPRValue())
     return E;
 
   CastKind Kind;
@@ -137,7 +138,7 @@ IntegerLiteral *ExprCreatorUtil::CreateIntegerLiteral(ASTContext &Ctx,
                                                       int Value, QualType Ty) {
   if (Ty->isPointerType()) {
     const llvm::APInt
-      ResultVal(Ctx.getTargetInfo().getPointerWidth(0), Value);
+      ResultVal(Ctx.getTargetInfo().getPointerWidth(LangAS::Default), Value);
     return CreateIntegerLiteral(Ctx, ResultVal);
   }
 
@@ -229,14 +230,14 @@ bool ExprUtil::getReferentSizeInChars(ASTContext &Ctx, QualType Ty,
     return false;
   uint64_t ElemBitSize = Ctx.getTypeSize(Pointee);
   uint64_t ElemSize = Ctx.toCharUnitsFromBits(ElemBitSize).getQuantity();
-  Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(0), ElemSize), false);
+  Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(LangAS::Default), ElemSize), false);
   return true;
 }
 
 llvm::APSInt ExprUtil::ConvertToSignedPointerWidth(ASTContext &Ctx,
                                                    llvm::APSInt I,
                                                    bool &Overflow) {
-  uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
+  uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(LangAS::Default);
   Overflow = false;
   if (I.getBitWidth() > PointerWidth) {
     Overflow = true;

@@ -1690,11 +1690,7 @@ class DeclContext {
   };
 
   /// Number of non-inherited bits in FunctionDeclBitfields.
-<<<<<<< HEAD
-  enum { NumFunctionDeclBits = 29 };
-=======
-  enum { NumFunctionDeclBits = 33 };
->>>>>>> main
+  enum { NumFunctionDeclBits = 35 };
 
   /// Stores the bits used by CXXConstructorDecl. If modified
   /// NumCXXConstructorDeclBits and the accessor
@@ -1711,11 +1707,7 @@ class DeclContext {
     /// exactly 64 bits and thus the width of NumCtorInitializers
     /// will need to be shrunk if some bit is added to NumDeclContextBitfields,
     /// NumFunctionDeclBitfields or CXXConstructorDeclBitfields.
-<<<<<<< HEAD
-    uint64_t NumCtorInitializers : 19;
-=======
-    uint64_t NumCtorInitializers : 15;
->>>>>>> main
+    uint64_t NumCtorInitializers : 13;
     uint64_t IsInheritingConstructor : 1;
 
     /// Whether this constructor has a trail-allocated explicit specifier.

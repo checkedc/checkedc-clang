@@ -258,27 +258,16 @@ public:
 
   /// Create the initialization entity for a parameter.
   static InitializedEntity InitializeParameter(ASTContext &Context,
-<<<<<<< HEAD
                                                ParmVarDecl *Parm) {
-    return InitializeParameter(Context, Parm, Parm->getType());
-=======
-                                               const ParmVarDecl *Parm) {
     return InitializeParameter(Context, Parm, Parm->getType(),
                                Parm->getBoundsAnnotations());
->>>>>>> main
   }
 
   /// Create the initialization entity for a parameter, but use
   /// another type.
-<<<<<<< HEAD
-  static InitializedEntity
-  InitializeParameter(ASTContext &Context, ParmVarDecl *Parm, QualType Type) {
-=======
-  static InitializedEntity InitializeParameter(ASTContext &Context,
-                                               const ParmVarDecl *Parm,
-                                               QualType Type,
-                         const BoundsAnnotations Annots = BoundsAnnotations()) {
->>>>>>> main
+  static InitializedEntity 
+  InitializeParameter(ASTContext &Context, ParmVarDecl *Parm, QualType Type,
+                      const BoundsAnnotations Annots = BoundsAnnotations()) {
     bool Consumed = (Context.getLangOpts().ObjCAutoRefCount &&
                      Parm->hasAttr<NSConsumedAttr>());
 
@@ -287,13 +276,8 @@ public:
     Entity.Type =
       Context.getVariableArrayDecayedType(Type.getUnqualifiedType());
     Entity.Parent = nullptr;
-<<<<<<< HEAD
     Entity.Parameter = {Parm, Consumed};
-=======
-    Entity.Parameter
-      = (static_cast<uintptr_t>(Consumed) | reinterpret_cast<uintptr_t>(Parm));
     Entity.Annots = Annots;
->>>>>>> main
     return Entity;
   }
 
@@ -325,14 +309,9 @@ public:
 
   /// Create the initialization entity for the result of a function.
   static InitializedEntity InitializeResult(SourceLocation ReturnLoc,
-<<<<<<< HEAD
-                                            QualType Type) {
-    return InitializedEntity(EK_Result, ReturnLoc, Type);
-=======
-                                            QualType Type, bool NRVO,
+                                            QualType Type, 
                          const BoundsAnnotations Annots = BoundsAnnotations()) {
-    return InitializedEntity(EK_Result, ReturnLoc, Type, NRVO, Annots);
->>>>>>> main
+    return InitializedEntity(EK_Result, ReturnLoc, Type, Annots);
   }
 
   static InitializedEntity InitializeStmtExprResult(SourceLocation ReturnLoc,

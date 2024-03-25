@@ -1189,9 +1189,7 @@ def MicrosoftAnonTag : DiagGroup<"microsoft-anon-tag">;
 def MicrosoftCommentPaste : DiagGroup<"microsoft-comment-paste">;
 def MicrosoftEndOfFile : DiagGroup<"microsoft-end-of-file">;
 def MicrosoftInaccessibleBase : DiagGroup<"microsoft-inaccessible-base">;
-<<<<<<< HEAD
 def MicrosoftStaticAssert : DiagGroup<"microsoft-static-assert">;
-=======
 
 // Checked C warnings for bounds declaration checking.
 def CheckBoundsDeclsUnchecked : DiagGroup<"check-bounds-decls-unchecked-scope">;
@@ -1202,7 +1200,6 @@ def CheckBoundsDecls : DiagGroup<"check-bounds-decls",
 // Checked C warnings about memory accesses determined to be out of
 // declared bounds.
 def CheckMemoryAccesses : DiagGroup<"check-memory-accesses">;
->>>>>>> main
 
 // Aliases.
 def : DiagGroup<"msvc-include", [MicrosoftInclude]>;
@@ -1409,7 +1406,6 @@ def WebAssemblyExceptionSpec : DiagGroup<"wasm-exception-spec">;
 
 def RTTI : DiagGroup<"rtti">;
 
-<<<<<<< HEAD
 def OpenCLCoreFeaturesDiagGroup : DiagGroup<"pedantic-core-features">;
 
 // Warnings and extensions to make preprocessor macro usage pedantic.
@@ -1431,7 +1427,5 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage">;
-=======
 // A warning group for all Checked C warnings
 def CheckedC : DiagGroup<"checkedc">;
->>>>>>> main

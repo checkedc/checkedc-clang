@@ -4969,7 +4969,6 @@ const FieldDecl *RecordDecl::findFirstNamedDataMember() const {
   return nullptr;
 }
 
-<<<<<<< HEAD
 unsigned RecordDecl::getODRHash() {
   if (hasODRHash())
     return RecordDeclBits.ODRHash;
@@ -4981,7 +4980,8 @@ unsigned RecordDecl::getODRHash() {
   // bit of RecordDeclBits, adjust the hash to accomodate.
   setODRHash(Hash.CalculateHash() >> 6);
   return RecordDeclBits.ODRHash;
-=======
+}
+
 // Checked C
 
 // Type Parameters
@@ -5022,7 +5022,6 @@ bool RecordDecl::isDelayedTypeApp() const {
 
 void RecordDecl::setDelayedTypeApp(bool IsDelayed) {
   this->IsDelayed = IsDelayed;
->>>>>>> main
 }
 
 //===----------------------------------------------------------------------===//

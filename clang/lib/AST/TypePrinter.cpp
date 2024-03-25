@@ -104,18 +104,11 @@ public:
     Policy.SuppressScope = true;
   }
 
-<<<<<<< HEAD
   ~ElaboratedTypePolicyRAII() {
     Policy.SuppressTagKeyword = SuppressTagKeyword;
     Policy.SuppressScope = SuppressScope;
   }
 };
-=======
-    void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
-               StringRef PlaceHolder);
-    void print(QualType T, raw_ostream &OS, StringRef PlaceHolder);
-    void print(const BoundsAnnotations BA, raw_ostream &OS);
->>>>>>> main
 
 class TypePrinter {
   PrintingPolicy Policy;
@@ -130,6 +123,7 @@ public:
   void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
              StringRef PlaceHolder);
   void print(QualType T, raw_ostream &OS, StringRef PlaceHolder);
+  void print(const BoundsAnnotations BA, raw_ostream &OS);  
 
   static bool canPrefixQualifiers(const Type *T, bool &NeedARCStrongQualifier);
   void spaceBeforePlaceHolder(raw_ostream &OS);
@@ -149,20 +143,12 @@ public:
   void print##CLASS##After(const CLASS##Type *T, raw_ostream &OS);
 #include "clang/AST/TypeNodes.inc"
 
-<<<<<<< HEAD
 private:
   void printBefore(const Type *ty, Qualifiers qs, raw_ostream &OS);
   void printAfter(const Type *ty, Qualifiers qs, raw_ostream &OS);
+  void printArrayAfter(const ArrayType *ty, Qualifiers qs, raw_ostream &OS,
+                       bool isInnerDimension);
 };
-=======
-  private:
-    void printBefore(const Type *ty, Qualifiers qs, raw_ostream &OS);
-    void printAfter(const Type *ty, Qualifiers qs, raw_ostream &OS);
-    void printArrayAfter(const ArrayType *ty, Qualifiers qs, raw_ostream &OS,
-                         bool isInnerDimension);
-  };
->>>>>>> main
-
 } // namespace
 
 static void AppendTypeQualList(raw_ostream &OS, unsigned TypeQuals,
@@ -276,16 +262,11 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::ObjCInterface:
     case Type::Atomic:
     case Type::Pipe:
-<<<<<<< HEAD
     case Type::BitInt:
     case Type::DependentBitInt:
     case Type::BTFTagAttributed:
-=======
-    case Type::ExtInt:
-    case Type::DependentExtInt:
     case Type::TypeVariable:
     case Type::Existential:
->>>>>>> main
       CanPrefixQualifiers = true;
       break;
 
@@ -435,25 +416,6 @@ void TypePrinter::printComplexAfter(const ComplexType *T, raw_ostream &OS) {
 
 void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-<<<<<<< HEAD
-  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
-  printBefore(T->getPointeeType(), OS);
-  // Handle things like 'int (*A)[4];' correctly.
-  // FIXME: this should include vectors, but vectors use attributes I guess.
-  if (isa<ArrayType>(T->getPointeeType()))
-    OS << '(';
-  OS << '*';
-}
-
-void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
-  IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
-  // Handle things like 'int (*A)[4];' correctly.
-  // FIXME: this should include vectors, but vectors use attributes I guess.
-  if (isa<ArrayType>(T->getPointeeType()))
-    OS << ')';
-  printAfter(T->getPointeeType(), OS);
-=======
   CheckedPointerKind kind = T->getKind();
   if (kind == CheckedPointerKind::Unchecked) {
     SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
@@ -495,7 +457,6 @@ void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
       OS << ')';
     printAfter(T->getPointeeType(), OS);
   }
->>>>>>> main
 }
 
 void TypePrinter::printBlockPointerBefore(const BlockPointerType *T,
@@ -1201,7 +1162,6 @@ void TypePrinter::printUnresolvedUsingBefore(const UnresolvedUsingType *T,
 void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                             raw_ostream &OS) {}
 
-<<<<<<< HEAD
 void TypePrinter::printUsingBefore(const UsingType *T, raw_ostream &OS) {
   // After `namespace b { using a::X }`, is the type X within B a::X or b::X?
   //
@@ -1216,7 +1176,6 @@ void TypePrinter::printUsingBefore(const UsingType *T, raw_ostream &OS) {
 }
 
 void TypePrinter::printUsingAfter(const UsingType *T, raw_ostream &OS) {}
-=======
 void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
                                              raw_ostream &OS) {
   OS << "(" << T->GetDepth() << ", " << T->GetIndex() << ")";
@@ -1236,7 +1195,6 @@ void TypePrinter::printExistentialBefore(const ExistentialType *T, raw_ostream &
 }
 
 void TypePrinter::printExistentialAfter(const ExistentialType *T, raw_ostream &OS) { }
->>>>>>> main
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
   printTypeSpec(T->getDecl(), OS);

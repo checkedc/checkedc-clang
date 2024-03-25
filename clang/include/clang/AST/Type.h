@@ -4750,12 +4750,40 @@ public:
   }
 };
 
-<<<<<<< HEAD
 class UsingType final : public Type,
                         public llvm::FoldingSetNode,
                         private llvm::TrailingObjects<UsingType, QualType> {
   UsingShadowDecl *Found;
-=======
+
+  friend class ASTContext; // ASTContext creates these.
+  friend TrailingObjects;
+
+  UsingType(const UsingShadowDecl *Found, QualType Underlying, QualType Canon);
+
+public:
+  UsingShadowDecl *getFoundDecl() const { return Found; }
+  QualType getUnderlyingType() const;
+
+  bool isSugared() const { return true; }
+
+  // This always has the 'same' type as declared, but not necessarily identical.
+  QualType desugar() const { return getUnderlyingType(); }
+
+  // Internal helper, for debugging purposes.
+  bool typeMatchesDecl() const { return !UsingBits.hasTypeDifferentFromDecl; }
+
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, Found, typeMatchesDecl() ? QualType() : getUnderlyingType());
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, const UsingShadowDecl *Found,
+                      QualType Underlying) {
+    ID.AddPointer(Found);
+    if (!Underlying.isNull())
+      Underlying.Profile(ID);
+  }
+  static bool classof(const Type *T) { return T->getTypeClass() == Using; }
+};
+
 class TypeVariableType : public Type, public llvm::FoldingSetNode {
   // Similar to ParmVarDecl's depth. However, instead of keeping track of
   // prototype scope depth, this keeps track of the depth of forany scope.
@@ -4792,40 +4820,6 @@ public:
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
-};
-
-class TypedefType : public Type {
-  TypedefNameDecl *Decl;
-
-private:
->>>>>>> main
-  friend class ASTContext; // ASTContext creates these.
-  friend TrailingObjects;
-
-  UsingType(const UsingShadowDecl *Found, QualType Underlying, QualType Canon);
-
-public:
-  UsingShadowDecl *getFoundDecl() const { return Found; }
-  QualType getUnderlyingType() const;
-
-  bool isSugared() const { return true; }
-
-  // This always has the 'same' type as declared, but not necessarily identical.
-  QualType desugar() const { return getUnderlyingType(); }
-
-  // Internal helper, for debugging purposes.
-  bool typeMatchesDecl() const { return !UsingBits.hasTypeDifferentFromDecl; }
-
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, Found, typeMatchesDecl() ? QualType() : getUnderlyingType());
-  }
-  static void Profile(llvm::FoldingSetNodeID &ID, const UsingShadowDecl *Found,
-                      QualType Underlying) {
-    ID.AddPointer(Found);
-    if (!Underlying.isNull())
-      Underlying.Profile(ID);
-  }
-  static bool classof(const Type *T) { return T->getTypeClass() == Using; }
 };
 
 class TypedefType final : public Type,

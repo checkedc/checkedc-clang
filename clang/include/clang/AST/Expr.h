@@ -3668,7 +3668,7 @@ private:
 
 public:
   PackExpr(Expr *PackedExpr, QualType ExistType, QualType Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
-   Expr(PackExprClass, ExistType, VK_RValue, OK_Ordinary),
+   Expr(PackExprClass, ExistType, VK_PRValue, OK_Ordinary),
    StartLoc(StartLoc), EndLoc(EndLoc), PackedExpr(PackedExpr), ExistType(ExistType), Subst(Subst) {
     setDependence(ExprDependence::None);
     if(!ExistType->isExistentialType()) {
@@ -3734,7 +3734,7 @@ public:
 
   BoundsExpr(StmtClass StmtClass, QualType Ty, Kind BoundsKind, SourceLocation StartLoc,
              SourceLocation EndLoc)
-    : Expr(StmtClass, Ty, VK_RValue, OK_Ordinary),
+    : Expr(StmtClass, Ty,  VK_PRValue, OK_Ordinary),
       StartLoc(StartLoc), EndLoc(EndLoc) {
     setKind(BoundsKind);
     setCompilerGenerated(false);
@@ -6566,7 +6566,7 @@ private:
 public:
   InteropTypeExpr(QualType Ty, SourceLocation StartLoc, SourceLocation EndLoc,
                   TypeSourceInfo *TyAsWritten)
-    : Expr(InteropTypeExprClass, Ty, VK_RValue, OK_Ordinary),
+    : Expr(InteropTypeExprClass, Ty, VK_PRValue, OK_Ordinary),
       StartLoc(StartLoc), EndLoc(EndLoc),
            TIInfo(TyAsWritten) {
     setCompilerGenerated(false);
@@ -6707,7 +6707,7 @@ private:
 
 public:
   BoundsValueExpr(SourceLocation L, QualType Type, Kind K)
-    : Expr(BoundsValueExprClass, Type, VK_RValue, OK_Ordinary),
+    : Expr(BoundsValueExprClass, Type, VK_PRValue, OK_Ordinary),
       Temp(nullptr), Loc(L),
       ValueExprKind(K) {
     setDependence(ExprDependence::None);

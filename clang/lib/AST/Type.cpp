@@ -210,12 +210,8 @@ void ConstantArrayType::Profile(llvm::FoldingSetNodeID &ID,
   ID.AddInteger(ArraySize.getZExtValue());
   ID.AddInteger(SizeMod);
   ID.AddInteger(TypeQuals);
-<<<<<<< HEAD
   ID.AddBoolean(SizeExpr != nullptr);
-=======
-  ID.AddBoolean(SizeExpr != 0);
   ID.AddInteger((unsigned)kind);
->>>>>>> main
   if (SizeExpr)
     SizeExpr->Profile(ID, Context, true);
 }
@@ -4378,15 +4374,8 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::ObjCInterface:
   case Type::Atomic:
   case Type::Pipe:
-<<<<<<< HEAD
-  case Type::BitInt:
-  case Type::DependentBitInt:
-=======
-  case Type::ExtInt:
-  case Type::DependentExtInt:
   case Type::TypeVariable:
   case Type::Existential:
->>>>>>> main
     return false;
   }
   llvm_unreachable("bad type kind!");

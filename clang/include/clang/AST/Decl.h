@@ -4463,12 +4463,13 @@ public:
   /// nullptr is returned if no named data member exists.
   const FieldDecl *findFirstNamedDataMember() const;
 
-<<<<<<< HEAD
   /// Get precomputed ODRHash or add a new one.
   unsigned getODRHash();
-=======
-  // Checked C
+  /// True if a valid hash is stored in ODRHash.
+  bool hasODRHash() const { return RecordDeclBits.ODRHash; }
+  void setODRHash(unsigned Hash) { RecordDeclBits.ODRHash = Hash; }
 
+  // Checked C
   /// Whether the record is generic. At most one of 'isGeneric' and 'isItypeGeneric' will be set.
   bool isGeneric() const;
   /// Whether the record has a generic interface. At most one of 'isTypeGeneric' and 'isGeneric' will be set.
@@ -4494,17 +4495,11 @@ public:
   bool isDelayedTypeApp() const;
   /// Indicate whether this record is currently a delayed type application.
   void setDelayedTypeApp(bool IsDelayed);
->>>>>>> main
 
 private:
   /// Deserialize just the fields.
   void LoadFieldsFromExternalStorage() const;
 
-<<<<<<< HEAD
-  /// True if a valid hash is stored in ODRHash.
-  bool hasODRHash() const { return RecordDeclBits.ODRHash; }
-  void setODRHash(unsigned Hash) { RecordDeclBits.ODRHash = Hash; }
-=======
   // Checked C
   // There are two sets of fields we add below to support generic structs:
   //   - 'GenericKind' and type-params-related fields are set for _definitions_ of generic structs:
@@ -4528,7 +4523,6 @@ private:
   /// Whether this record represents a delayed type application.
   /// A delayed type application won't contain any fields, until it is completed via 'Sema::CompleteTypeAppFields'.
   bool IsDelayed = false;
->>>>>>> main
 };
 
 class FileScopeAsmDecl : public Decl {

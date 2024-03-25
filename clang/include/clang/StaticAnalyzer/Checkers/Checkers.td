@@ -1001,7 +1001,7 @@ let ParentPackage = SecurityAlpha in {
 
 def SimpleBoundsChecker : Checker<"SimpleBounds">,
   HelpText<"Warn about out-of-bounds accesses">,
-  Documentation<HasAlphaDocumentation>;
+  Documentation<HasDocumentation>;
 
 def ArrayBoundChecker : Checker<"ArrayBound">,
   HelpText<"Warn about buffer overflows (older checker)">,

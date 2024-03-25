@@ -13,6 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/TargetInfo.h"
 #include "clang/AST/PreorderAST.h"
 
 using namespace clang;
@@ -227,7 +228,7 @@ void PreorderAST::AddZero(Expr *E, Node *Parent) {
   auto *N = new BinaryOperatorNode(BO_Add, Parent);
   AttachNode(N, Parent);
 
-  llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
   auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
                                                SourceLocation());
   auto *L = new LeafExprNode(ZeroLiteral, N);
@@ -606,7 +607,7 @@ bool PreorderAST::GetExprIntDiff(Node *E1, Node *E2, llvm::APSInt &Offset) {
   if (B1->Children.size() != B2->Children.size())
       return false;
 
-  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth());
   // Initialize Offset to 0.
   Offset = Zero;
 

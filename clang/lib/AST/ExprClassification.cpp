@@ -443,7 +443,6 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::CoawaitExprClass:
   case Expr::CoyieldExprClass:
     return ClassifyInternal(Ctx, cast<CoroutineSuspendExpr>(E)->getResumeExpr());
-<<<<<<< HEAD
   case Expr::SYCLUniqueStableNameExprClass:
     return Cl::CL_PRValue;
     break;
@@ -452,7 +451,6 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
     if (isa<ArrayType>(E->getType()))
       return Cl::CL_ArrayTemporary;
     return Cl::CL_ClassTemporary;
-=======
 
   // We might need to classify positional parameters, which occur
   // as subexpressions of bounds expressions.
@@ -470,7 +468,6 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
     else
       // For uses of temporaries, delegate to the underlying expression.
       return ClassifyInternal(Ctx, BV->getTemporaryBinding()->getSubExpr());
->>>>>>> main
   }
 
   case Expr::CountBoundsExprClass:

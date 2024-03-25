@@ -76,7 +76,6 @@ namespace clang {
     TST_enum,
     TST_union,
     TST_struct,
-<<<<<<< HEAD
     TST_class,     // C++ class type
     TST_interface, // C++ (Microsoft-specific) __interface type
     TST_typename,  // Typedef, C++ class-name or enum name, etc.
@@ -92,24 +91,10 @@ namespace clang {
     TST_auto_type,       // __auto_type extension
     TST_unknown_anytype, // __unknown_anytype extension
     TST_atomic,          // C11 _Atomic
-=======
-    TST_class,        // C++ class type
-    TST_interface,    // C++ (Microsoft-specific) __interface type
-    TST_typename,     // Typedef, C++ class-name or enum name, etc.
-    TST_typeofType,
-    TST_typeofExpr,
-    TST_decltype,         // C++11 decltype
-    TST_underlyingType,   // __underlying_type for C++11
-    TST_auto,             // C++11 auto
-    TST_decltype_auto,    // C++1y decltype(auto)
-    TST_auto_type,        // __auto_type extension
-    TST_unknown_anytype,  // __unknown_anytype extension
-    TST_atomic,           // C11 _Atomic
     TST_plainPtr,     // Checked C _Ptr type
     TST_arrayPtr,     // Checked C _Array_ptr type
     TST_ntarrayPtr ,  // Chcecked C _Nt_array_ptr type
     TST_exists,       // Checked C _Exists type
->>>>>>> main
 #define GENERIC_IMAGE_TYPE(ImgType, Id) TST_##ImgType##_t, // OpenCL image types
 #include "clang/Basic/OpenCLImageTypes.def"
     TST_error // erroneous type

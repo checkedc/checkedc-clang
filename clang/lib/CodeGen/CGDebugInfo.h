@@ -177,14 +177,10 @@ class CGDebugInfo {
   /// ivars and property accessors.
   llvm::DIType *CreateType(const BuiltinType *Ty);
   llvm::DIType *CreateType(const ComplexType *Ty);
-<<<<<<< HEAD
   llvm::DIType *CreateType(const BitIntType *Ty);
-=======
-  llvm::DIType *CreateType(const AutoType *Ty);
-  llvm::DIType *CreateType(const ExtIntType *Ty);
+
   llvm::DIType *CreateType(const TypeVariableType *Ty);
   llvm::DIType *CreateType(const ExistentialType *Ty);
->>>>>>> main
   llvm::DIType *CreateQualifiedType(QualType Ty, llvm::DIFile *Fg);
   llvm::DIType *CreateQualifiedType(const FunctionProtoType *Ty,
                                     llvm::DIFile *Fg);

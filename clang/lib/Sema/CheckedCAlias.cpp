@@ -297,7 +297,7 @@ private:
        // Paths are stored in reverse order, so we can just copy
        // the path and truncate it.
       ASTContext::MemberPath SuffixPath(Path);
-      SuffixPath.set_size(i);
+      SuffixPath.resize(i);
       // Taking the address of a member used in a bounds expression is not
       // allowed.
 

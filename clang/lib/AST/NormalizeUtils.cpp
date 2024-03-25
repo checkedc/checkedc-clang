@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/TargetInfo.h"
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/NormalizeUtils.h"
 
@@ -148,7 +149,7 @@ bool NormalizeUtil::GetVariableAndConstant(Sema &S, Expr *E, Expr *&Variable,
   exit:
     // Return (E, 0).
     Variable = E;
-    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(LangAS::Default);
     Constant = llvm::APSInt(PointerWidth, false);
     return false;
 }
@@ -195,7 +196,7 @@ bool NormalizeUtil::ConstantFold(Sema &S, Expr *E, QualType T, Expr *&Variable,
   exit:
     // Return (E, 0).
     Variable = E;
-    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(LangAS::Default);
     Constant = llvm::APSInt(PointerWidth, false);
     return false;
 }
@@ -244,7 +245,7 @@ bool NormalizeUtil::GetRHSConstant(Sema &S, BinaryOperator *E, QualType T,
     return false;
   // Normalize the operation by negating the offset if necessary.
   if (E->getOpcode() == BO_Sub) {
-    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(LangAS::Default);
     Constant = llvm::APSInt(PointerWidth, false).ssub_ov(Constant, Overflow);
     if (Overflow)
       return false;
@@ -290,7 +291,7 @@ bool NormalizeUtil::QueryPointerAdditiveConstant(Sema &S, Expr *E,
     return false;
   // Normalize the operation by negating the offset if necessary.
   if (BO->getOpcode() == BO_Sub) {
-    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+    uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(LangAS::Default);
     Constant = llvm::APSInt(PointerWidth, false).ssub_ov(Constant, Overflow);
     if (Overflow)
       return false;

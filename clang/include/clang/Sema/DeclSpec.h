@@ -335,19 +335,16 @@ public:
     // FIXME: Attributes should be included here.
   };
 
-<<<<<<< HEAD
   enum FriendSpecified : bool {
     No,
     Yes,
   };
-=======
   typedef CheckedScopeSpecifier CSS;
   static const CSS CSS_None = clang::CSS_None;
   static const CSS CSS_Unchecked = clang::CSS_Unchecked;
   static const CSS CSS_Bounds = clang::CSS_Bounds;
   static const CSS CSS_Memory = clang::CSS_Memory;
 
->>>>>>> main
 
 private:
   // storage-class-specifier
@@ -445,15 +442,10 @@ private:
   ObjCDeclSpec *ObjCQualifiers;
 
   static bool isTypeRep(TST T) {
-<<<<<<< HEAD
     return T == TST_atomic || T == TST_typename || T == TST_typeofType ||
-           T == TST_typeof_unqualType || isTransformTypeTrait(T);
-=======
-    return (T == TST_typename || T == TST_typeofType ||
-            T == TST_underlyingType || T == TST_atomic ||
-            T == TST_plainPtr || T == TST_arrayPtr ||
-            T == TST_nt_arrayPtr || T == TST_exists);
->>>>>>> main
+           T == TST_typeof_unqualType || isTransformTypeTrait(T) ||
+           T == TST_plainPtr || T == TST_arrayPtr ||
+           T == TST_nt_arrayPtr || T == TST_exists;
   }
   static bool isExprRep(TST T) {
     return T == TST_typeofExpr || T == TST_typeof_unqualExpr ||
@@ -495,11 +487,6 @@ public:
 	FS_noreturn_specified(false), Friend_specified(false),
         ConstexprSpecifier(
             static_cast<unsigned>(ConstexprSpecKind::Unspecified)),
-<<<<<<< HEAD
-        Attrs(attrFactory), writtenBS(), ObjCQualifiers(nullptr) {}
-=======
-        FS_explicit_specifier(), Attrs(attrFactory),
-        // Checked C - checked function
         FS_checked_specified(CSS_None),
         FS_forany_specified(false),
         FS_itypeforany_specified(false),
@@ -509,9 +496,7 @@ public:
         NumTypeVars(0),
         GenericFunctionOrStruct(false),
         ItypeGenericFunctionOrStruct(false),
-        writtenBS(),
-        ObjCQualifiers(nullptr) {}
->>>>>>> main
+        Attrs(attrFactory), writtenBS(), ObjCQualifiers(nullptr) {}
 
   // storage-class-specifier
   SCS getStorageClassSpec() const { return (SCS)StorageClassSpec; }
@@ -2128,23 +2113,17 @@ public:
                                    FunctionDefinitionKind::Declaration)),
         Redeclaration(false), Extension(false), ObjCIvar(false),
         ObjCWeakProperty(false), InlineStorageUsed(false),
-<<<<<<< HEAD
         HasInitializer(false), Attrs(DS.getAttributePool().getFactory()),
         DeclarationAttrs(DeclarationAttrs), AsmLabel(nullptr),
         TrailingRequiresClause(nullptr),
-        InventedTemplateParameterList(nullptr) {
+        InventedTemplateParameterList(nullptr),
+        ReturnBounds(nullptr)  {
     assert(llvm::all_of(DeclarationAttrs,
                         [](const ParsedAttr &AL) {
                           return AL.isStandardAttributeSyntax();
                         }) &&
            "DeclarationAttrs may only contain [[]] attributes");
   }
-=======
-        HasInitializer(false), Attrs(ds.getAttributePool().getFactory()),
-	AsmLabel(nullptr), TrailingRequiresClause(nullptr),
-        InventedTemplateParameterList(nullptr),
-        ReturnBounds(nullptr) {}
->>>>>>> main
 
   ~Declarator() {
     clear();
@@ -2869,19 +2848,14 @@ public:
 struct FieldDeclarator {
   Declarator D;
   Expr *BitfieldSize;
-<<<<<<< HEAD
-  explicit FieldDeclarator(const DeclSpec &DS,
-                           const ParsedAttributes &DeclarationAttrs)
-      : D(DS, DeclarationAttrs, DeclaratorContext::Member),
-        BitfieldSize(nullptr) {}
-=======
   std::unique_ptr<CachedTokens> BoundsExprTokens;
   InteropTypeExpr *InteropType;
 
-  explicit FieldDeclarator(const DeclSpec &DS)
-      : D(DS, DeclaratorContext::Member), BitfieldSize(nullptr),
-	BoundsExprTokens(nullptr), InteropType(nullptr) {}
->>>>>>> main
+  explicit FieldDeclarator(const DeclSpec &DS,
+                           const ParsedAttributes &DeclarationAttrs)
+      : D(DS, DeclarationAttrs, DeclaratorContext::Member),
+        BitfieldSize(nullptr), BoundsExprTokens(nullptr),
+        InteropType(nullptr) {}
 };
 
 /// Represents a C++11 virt-specifier-seq.

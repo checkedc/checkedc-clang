@@ -109,14 +109,9 @@ def ObjCInterfaceType : TypeNode<ObjCObjectType>, LeafType;
 def ObjCObjectPointerType : TypeNode<Type>;
 def PipeType : TypeNode<Type>;
 def AtomicType : TypeNode<Type>;
-<<<<<<< HEAD
 def BitIntType : TypeNode<Type>;
 def DependentBitIntType : TypeNode<Type>, AlwaysDependent;
-=======
-def ExtIntType : TypeNode<Type>;
-def DependentExtIntType : TypeNode<Type>, AlwaysDependent;
-
 // Checked C specific.
 def ExistentialType : TypeNode<Type>;
 def TypeVariableType : TypeNode<Type>;
->>>>>>> main
+

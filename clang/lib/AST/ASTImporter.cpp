@@ -6506,12 +6506,6 @@ ExpectedStmt ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
   if (!ToRBracLocOrErr)
     return ToRBracLocOrErr.takeError();
 
-<<<<<<< HEAD
-  FPOptionsOverride FPO =
-      S->hasStoredFPFeatures() ? S->getStoredFPFeatures() : FPOptionsOverride();
-  return CompoundStmt::Create(Importer.getToContext(), ToStmts, FPO,
-                              *ToLBracLocOrErr, *ToRBracLocOrErr);
-=======
   ExpectedSLoc ToCheckedSpecifierLocOrErr = import(S->getCheckedSpecifierLoc());
   if (!ToCheckedSpecifierLocOrErr)
     return ToCheckedSpecifierLocOrErr.takeError();
@@ -6520,13 +6514,14 @@ ExpectedStmt ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
   if (!ToSpecifierModifierorErr)
     return ToSpecifierModifierorErr.takeError();
 
-  return CompoundStmt::Create(
-      Importer.getToContext(), ToStmts,
-      *ToLBracLocOrErr, *ToRBracLocOrErr,
-      S->getWrittenCheckedSpecifier(), 
-      S->getCheckedSpecifier(),
-      *ToCheckedSpecifierLocOrErr, *ToSpecifierModifierorErr);
->>>>>>> main
+  FPOptionsOverride FPO =
+      S->hasStoredFPFeatures() ? S->getStoredFPFeatures() : FPOptionsOverride();
+  return CompoundStmt::Create(Importer.getToContext(), ToStmts, FPO,
+                              *ToLBracLocOrErr, *ToRBracLocOrErr,
+                              S->getWrittenCheckedSpecifier(), 
+                              S->getCheckedSpecifier(),
+                              *ToCheckedSpecifierLocOrErr, 
+                              *ToSpecifierModifierorErr);
 }
 
 ExpectedStmt ASTNodeImporter::VisitCaseStmt(CaseStmt *S) {

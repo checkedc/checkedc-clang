@@ -2313,15 +2313,10 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
   case Type::Atomic:
   case Type::Pipe:
   case Type::MacroQualified:
-<<<<<<< HEAD
   case Type::BitInt:
   case Type::DependentBitInt:
-=======
-  case Type::ExtInt:
-  case Type::DependentExtInt:
   case Type::TypeVariable:
   case Type::Existential:
->>>>>>> main
     llvm_unreachable("type is illegal as a nested name specifier");
 
   case Type::SubstTemplateTypeParmPack:
@@ -5141,7 +5136,6 @@ recurse:
     Out << "v18co_yield";
     mangleExpression(cast<CoawaitExpr>(E)->getOperand());
     break;
-<<<<<<< HEAD
   case Expr::SYCLUniqueStableNameExprClass: {
     const auto *USN = cast<SYCLUniqueStableNameExpr>(E);
     NotPrimaryExpr();
@@ -5150,10 +5144,8 @@ recurse:
     mangleType(USN->getTypeSourceInfo()->getType());
 
     Out << "E";
-=======
   case Expr::PackExprClass:
     llvm_unreachable("Don't know how to mangle pack expressions");
->>>>>>> main
     break;
   }
   }

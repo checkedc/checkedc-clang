@@ -2860,9 +2860,7 @@ DEF_TRAVERSE_STMT(SubstNonTypeTemplateParmExpr, {})
 DEF_TRAVERSE_STMT(FunctionParmPackExpr, {})
 DEF_TRAVERSE_STMT(CXXFoldExpr, {})
 DEF_TRAVERSE_STMT(AtomicExpr, {})
-<<<<<<< HEAD
 DEF_TRAVERSE_STMT(CXXParenListInitExpr, {})
-=======
 DEF_TRAVERSE_STMT(CountBoundsExpr, {})
 DEF_TRAVERSE_STMT(NullaryBoundsExpr, {})
 DEF_TRAVERSE_STMT(RangeBoundsExpr, {})
@@ -2870,7 +2868,6 @@ DEF_TRAVERSE_STMT(InteropTypeExpr, {})
 DEF_TRAVERSE_STMT(PositionalParameterExpr, {})
 DEF_TRAVERSE_STMT(CHKCBindTemporaryExpr, {})
 DEF_TRAVERSE_STMT(PackExpr, {})
->>>>>>> main
 
 DEF_TRAVERSE_STMT(MaterializeTemporaryExpr, {
   if (S->getLifetimeExtendedTemporaryDecl()) {

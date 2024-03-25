@@ -1767,10 +1767,8 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (D->isTrivial())
     OS << " trivial";
 
-<<<<<<< HEAD
   if (D->isIneligibleOrNotSelected())
     OS << (isa<CXXDestructorDecl>(D) ? " not_selected" : " ineligible");
-=======
   // Checked C specific.
   switch (D->getWrittenCheckedSpecifier()) {
     case CSS_None: break;
@@ -1778,7 +1776,6 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
     case CSS_Memory: OS << " checked"; break;
     case CSS_Unchecked: OS << " unchecked"; break;
   }
->>>>>>> main
 
   if (const auto *FPT = D->getType()->getAs<FunctionProtoType>()) {
     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();

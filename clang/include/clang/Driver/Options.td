@@ -1396,13 +1396,9 @@ defm addrsig : BoolFOption<"addrsig",
   CodeGenOpts<"Addrsig">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Emit">, NegFlag<SetFalse, [], "Don't emit">,
   BothFlags<[CoreOption], " an address-significance table">>;
-<<<<<<< HEAD
 defm blocks : OptInCC1FFlag<"blocks", "Enable the 'blocks' language feature", "", "", [CoreOption]>;
-=======
-defm blocks : OptInFFlag<"blocks", "Enable the 'blocks' language feature", "", "", [CoreOption]>;
 def f3c_tool : Flag<["-"], "f3c-tool">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Enable 3C tool mode (supposed to be run by tools that needs only AST)">;
->>>>>>> main
 def fbootclasspath_EQ : Joined<["-"], "fbootclasspath=">, Group<f_Group>;
 defm borland_extensions : BoolFOption<"borland-extensions",
   LangOpts<"Borland">, DefaultFalse,
@@ -4392,21 +4388,18 @@ def fno_integrated_cc1 : Flag<["-"], "fno-integrated-cc1">,
                          Flags<[CoreOption, NoXarchOption]>, Group<f_Group>,
                          HelpText<"Spawn a separate process for each cc1">;
 
-<<<<<<< HEAD
 def fintegrated_objemitter : Flag<["-"], "fintegrated-objemitter">,
   Flags<[CoreOption, NoXarchOption]>, Group<f_Group>,
   HelpText<"Use internal machine object code emitter.">;
 def fno_integrated_objemitter : Flag<["-"], "fno-integrated-objemitter">,
   Flags<[CoreOption, NoXarchOption]>, Group<f_Group>,
   HelpText<"Use external machine object code emitter.">;
-=======
 def fcheckedc_null_ptr_arith : Flag<["-"], "fcheckedc-null-ptr-arith">,
   Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Enable runtime null pointer arithmetic checks">;
 def fno_checkedc_null_ptr_arith : Flag<["-"], "fno-checkedc-null-ptr-arith">,
   Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Disable runtime null pointer arithmetic checks">;
->>>>>>> main
 
 def : Flag<["-"], "integrated-as">, Alias<fintegrated_as>, Flags<[NoXarchOption]>;
 def : Flag<["-"], "no-integrated-as">, Alias<fno_integrated_as>,

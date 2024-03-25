@@ -137,7 +137,6 @@ public:
     /// This is the scope of a C++ catch statement.
     CatchScope = 0x1000000,
 
-<<<<<<< HEAD
     /// This is a scope in which a condition variable is currently being
     /// parsed. If such a scope is a ContinueScope, it's invalid to jump to the
     /// continue block from here.
@@ -146,21 +145,20 @@ public:
     /// This is a scope of some OpenMP directive with
     /// order clause which specifies concurrent
     OpenMPOrderClauseScope = 0x4000000,
-=======
+
     /// Checked C - _For_any Polymorphic type scopes
-    ForanyScope = 0x2000000,
+    ForanyScope = 0x8000000,
 
     /// Checked C - _Itype_for_any Polymorphic bounds safe interface type scopes
-    ItypeforanyScope = 0x4000000,
+    ItypeforanyScope = 0x10000000,
 
     /// Checked C - Scope for an existential type
     /// e.g. when we write '_Exists(T, struct Foo<T>)', T's scope is exactly the
     /// type 'struct Foo<T>'.
-    ExistentialTypeScope = 0x8000000,
+    ExistentialTypeScope = 0x20000000,
 
     /// Checked C - Where clause scope.
-    WhereClauseScope = 0x10000000
->>>>>>> main
+    WhereClauseScope = 0x80000000
   };
 
 private:

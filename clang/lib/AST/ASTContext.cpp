@@ -958,22 +958,14 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
                                         LangOpts.XRayAttrListFiles, SM)),
       ProfList(new ProfileList(LangOpts.ProfileListFiles, SM)),
       PrintingPolicy(LOpts), Idents(idents), Selectors(sels),
-<<<<<<< HEAD
       BuiltinInfo(builtins), TUKind(TUKind), DeclarationNames(*this),
       Comments(SM), CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
-      CompCategories(this_()), LastSDM(nullptr, 0) {
-  addTranslationUnitDecl();
-=======
-      BuiltinInfo(builtins), DeclarationNames(*this), Comments(SM),
-      CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
       CompCategories(this_()),
       PrebuiltByteCountOne(nullptr), PrebuiltCountZero(nullptr),
       PrebuiltCountOne(nullptr), PrebuiltBoundsUnknown(nullptr),
       UsingBounds(PathCompare(*this)),
       LastSDM(nullptr, 0) {
-  TUDecl = TranslationUnitDecl::Create(*this);
-  TraversalScope = {TUDecl};
->>>>>>> main
+  addTranslationUnitDecl();
 }
 
 void ASTContext::cleanup() {
@@ -3677,14 +3669,9 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
   case Type::PackExpansion:
-<<<<<<< HEAD
   case Type::BitInt:
   case Type::DependentBitInt:
-=======
-  case Type::ExtInt:
-  case Type::DependentExtInt:
   case Type::Existential:
->>>>>>> main
     llvm_unreachable("type should never be variably-modified");
 
   // These types can be variably-modified but should never need to
@@ -4564,13 +4551,8 @@ QualType ASTContext::getFunctionTypeInternal(
       FunctionType::FunctionTypeExtraBitfields,
       FunctionType::ExceptionType, Expr *, FunctionDecl *,
       FunctionProtoType::ExtParameterInfo, Qualifiers>(
-<<<<<<< HEAD
       NumArgs, EPI.Variadic, EPI.requiresFunctionProtoTypeExtraBitfields(),
-=======
-      NumArgs, EPI.Variadic,
       EPI.ParamAnnots ? NumArgs : 0,
-      FunctionProtoType::hasExtraBitfields(EPI.ExceptionSpec.Type),
->>>>>>> main
       ESH.NumExceptionType, ESH.NumExprPtr, ESH.NumFunctionDeclPtr,
       EPI.ExtParameterInfos ? NumArgs : 0,
       EPI.TypeQuals.hasNonFastQualifiers() ? 1 : 0);
@@ -10341,12 +10323,9 @@ QualType ASTContext::mergeFunctionParameterTypes(QualType lhs, QualType rhs,
 
 QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
                                         bool OfBlockPointer, bool Unqualified,
-<<<<<<< HEAD
                                         bool AllowCXX,
-                                        bool IsConditionalOperator) {
-=======
-                                        bool AllowCXX, bool IgnoreBounds) {
->>>>>>> main
+                                        bool IsConditionalOperator,
+                                        bool IgnoreBounds) {
   const auto *lbase = lhs->castAs<FunctionType>();
   const auto *rbase = rhs->castAs<FunctionType>();
   const auto *lproto = dyn_cast<FunctionProtoType>(lbase);
@@ -10662,19 +10641,14 @@ static QualType mergeEnumWithInteger(ASTContext &Context, const EnumType *ET,
   return {};
 }
 
-<<<<<<< HEAD
 QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
                                 bool Unqualified, bool BlockReturnType,
-                                bool IsConditionalOperator) {
+                                bool IsConditionalOperator,
+                                bool IgnoreBounds) {
   // For C++ we will not reach this code with reference types (see below),
   // for OpenMP variant call overloading we might.
   //
-=======
-QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
-                                bool OfBlockPointer,
-                                bool Unqualified, bool BlockReturnType,
-                                bool IgnoreBounds) {
->>>>>>> main
+
   // C++ [expr]: If an expression initially has the type "reference to T", the
   // type is adjusted to "T" prior to any further analysis, the expression
   // designates the object or function denoted by the reference, and the
@@ -10728,12 +10702,16 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     if (GC_L == Qualifiers::Strong && RHSCan->isObjCObjectPointerType()) {
       return mergeTypes(LHS, getObjCGCQualType(RHS, Qualifiers::Strong),
                         /*OfBlockPointer=*/false,/*Unqualifed=*/false,
-                        /*BlockReturnType=*/false, IgnoreBounds);
+                        /*BlockReturnType=*/false, 
+                        /*IsConditionalOperator=*/false,
+                        IgnoreBounds);
     }
     if (GC_R == Qualifiers::Strong && LHSCan->isObjCObjectPointerType()) {
       return mergeTypes(getObjCGCQualType(LHS, Qualifiers::Strong), RHS,
                         /*OfBlockPointer=*/false,/*Unqualifed=*/false,
-                        /*BlockReturnType=*/false, IgnoreBounds);
+                        /*BlockReturnType=*/false,
+                        /*IsConditionalOperator=*/false,
+                        IgnoreBounds);
     }
     return {};
   }
@@ -10831,7 +10809,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
       RHSPointee = RHSPointee.getUnqualifiedType();
     }
     QualType ResultType = mergeTypes(LHSPointee, RHSPointee, false,
-                                     Unqualified, IgnoreBounds);
+                                     Unqualified, false, IgnoreBounds);
     if (ResultType.isNull())
       return {};
     if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
@@ -10864,7 +10842,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
           QualType(RHSPointee.getTypePtr(), RHSPteeQual.getAsOpaqueValue());
     }
     QualType ResultType = mergeTypes(LHSPointee, RHSPointee, OfBlockPointer,
-                                     Unqualified, IgnoreBounds);
+                                     Unqualified, false, IgnoreBounds);
     if (ResultType.isNull())
       return {};
     if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
@@ -10883,7 +10861,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
       RHSValue = RHSValue.getUnqualifiedType();
     }
     QualType ResultType = mergeTypes(LHSValue, RHSValue, false,
-                                     Unqualified, IgnoreBounds);
+                                     Unqualified, false, IgnoreBounds);
     if (ResultType.isNull())
       return {};
     if (getCanonicalType(LHSValue) == getCanonicalType(ResultType))
@@ -10913,7 +10891,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
       RHSElem = RHSElem.getUnqualifiedType();
     }
 
-    QualType ResultType = mergeTypes(LHSElem, RHSElem, false, Unqualified, IgnoreBounds);
+    QualType ResultType = mergeTypes(LHSElem, RHSElem, false, Unqualified, false, IgnoreBounds);
     if (ResultType.isNull())
       return {};
 
@@ -10982,11 +10960,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   }
   case Type::FunctionNoProto:
     return mergeFunctionTypes(LHS, RHS, OfBlockPointer, Unqualified,
-<<<<<<< HEAD
-                              /*AllowCXX=*/false, IsConditionalOperator);
-=======
-                              /*AllowCXX=*/false, IgnoreBounds);
->>>>>>> main
+                              /*AllowCXX=*/false, IsConditionalOperator,
+                              IgnoreBounds);
   case Type::Record:
   case Type::Enum:
     return {};

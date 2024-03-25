@@ -11,6 +11,7 @@
 // https://github.com/microsoft/checkedc-clang/blob/master/clang/docs/checkedc/Bounds-Widening-for-Null-Terminated-Arrays.md
 //===---------------------------------------------------------------------===//
 
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/BoundsWideningAnalysis.h"
 
 namespace clang {
@@ -1366,7 +1367,7 @@ Expr *BoundsWideningUtil::AddOffsetToExpr(Expr *E, unsigned Offset) const {
   // MAX_INT and Offset is 1.
 
   const llvm::APInt
-    APIntOff(Ctx.getTargetInfo().getPointerWidth(0), Offset);
+    APIntOff(Ctx.getTargetInfo().getPointerWidth(LangAS::Default), Offset);
 
   IntegerLiteral *WidenedOffset =
     ExprCreatorUtil::CreateIntegerLiteral(Ctx, APIntOff);

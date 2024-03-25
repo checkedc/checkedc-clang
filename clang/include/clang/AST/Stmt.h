@@ -22,10 +22,7 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
-<<<<<<< HEAD
 #include "llvm/ADT/APFloat.h"
-=======
->>>>>>> main
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/PointerIntPair.h"
@@ -136,14 +133,10 @@ protected:
     friend class CompoundStmt;
 
     unsigned : NumStmtBits;
-<<<<<<< HEAD
 
     /// True if the compound statement has one or more pragmas that set some
     /// floating-point features.
     unsigned HasFPFeatures : 1;
-=======
-    unsigned NumStmts : 32 - NumStmtBits;
->>>>>>> main
 
     unsigned NumStmts;
   };
@@ -551,10 +544,6 @@ protected:
     unsigned : NumExprBits;
 
     unsigned Kind : 7;
-<<<<<<< HEAD
-=======
-
->>>>>>> main
     unsigned PartOfExplicitCast : 1; // Only set for ImplicitCastExpr.
     unsigned BoundsSafeInterface : 1;
 
@@ -1531,11 +1520,6 @@ class CompoundStmt final
   /// The location of the closing "}".
   SourceLocation RBraceLoc;
 
-<<<<<<< HEAD
-  CompoundStmt(ArrayRef<Stmt *> Stmts, FPOptionsOverride FPFeatures,
-               SourceLocation LB, SourceLocation RB);
-  explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty) {}
-=======
     // Written checked scope specifier.
   unsigned WrittenCSS : 2;
   // Inferred checked scope specifier, using information from parent
@@ -1550,7 +1534,8 @@ class CompoundStmt final
   // Bundled keyword (_Bundled) location.
   SourceLocation BNDLoc;
 
-  CompoundStmt(ArrayRef<Stmt *> Stmts, SourceLocation LB, SourceLocation RB,
+  CompoundStmt(ArrayRef<Stmt *> Stmts, FPOptionsOverride FPFeatures,
+               SourceLocation LB, SourceLocation RB,
                CheckedScopeSpecifier WrittenCSS = CSS_None,
                CheckedScopeSpecifier CSS = CSS_Unchecked,
                SourceLocation CSSLoc = SourceLocation(),
@@ -1559,7 +1544,6 @@ class CompoundStmt final
 
   explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty),
        WrittenCSS(CSS_None), CSS(CSS_Unchecked), CSSLoc(), CSMLoc(), BNDLoc() {}
->>>>>>> main
 
   void setStmts(ArrayRef<Stmt *> Stmts);
 
@@ -1574,17 +1558,8 @@ class CompoundStmt final
   }
 
 public:
-<<<<<<< HEAD
-  static CompoundStmt *Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
-                              FPOptionsOverride FPFeatures, SourceLocation LB,
-                              SourceLocation RB);
-
-  // Build an empty compound statement with a location.
-  explicit CompoundStmt(SourceLocation Loc)
-      : Stmt(CompoundStmtClass), LBraceLoc(Loc), RBraceLoc(Loc) {
-=======
   static CompoundStmt *Create(const ASTContext &C, ArrayRef<Stmt*> Stmts,
-               SourceLocation LB, SourceLocation RB,
+               FPOptionsOverride FPFeatures, SourceLocation LB, SourceLocation RB,
                CheckedScopeSpecifier WrittenCSS = CSS_None,
                CheckedScopeSpecifier CSS = CSS_Unchecked,
                SourceLocation CSSLoc = SourceLocation(),
@@ -1593,9 +1568,8 @@ public:
 
   // Build an empty compound statement with a location.
   explicit CompoundStmt(SourceLocation Loc)
-      : Stmt(CompoundStmtClass), RBraceLoc(Loc),  WrittenCSS(CSS_None),
+      : Stmt(CompoundStmtClass), LBraceLoc(Loc), RBraceLoc(Loc),  WrittenCSS(CSS_None),
         CSS(CSS_Unchecked), CSSLoc(Loc), CSMLoc(Loc), BNDLoc(SourceLocation()) {
->>>>>>> main
     CompoundStmtBits.NumStmts = 0;
     CompoundStmtBits.HasFPFeatures = 0;
   }
@@ -1607,7 +1581,6 @@ public:
   bool body_empty() const { return CompoundStmtBits.NumStmts == 0; }
   unsigned size() const { return CompoundStmtBits.NumStmts; }
 
-<<<<<<< HEAD
   bool hasStoredFPFeatures() const { return CompoundStmtBits.HasFPFeatures; }
 
   /// Get FPOptionsOverride from trailing storage.
@@ -1616,7 +1589,6 @@ public:
     return *getTrailingObjects<FPOptionsOverride>();
   }
 
-=======
   CheckedScopeSpecifier getWrittenCheckedSpecifier() const {
     return (CheckedScopeSpecifier) WrittenCSS;
   }
@@ -1630,7 +1602,6 @@ public:
   bool isCheckedScope() const { return CSS != CSS_Unchecked; }
   bool isBundledStmt() const { return BNDLoc.isValid(); }
 
->>>>>>> main
   using body_iterator = Stmt **;
   using body_range = llvm::iterator_range<body_iterator>;
 

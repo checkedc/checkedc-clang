@@ -1655,7 +1655,6 @@ def warn_max_tokens_total : Warning<
 
 def note_max_tokens_total_override : Note<"total token limit set here">;
 
-<<<<<<< HEAD
 // HLSL Parser Diagnostics
 
 def err_expected_semantic_identifier : Error<
@@ -1667,7 +1666,6 @@ def err_hlsl_separate_attr_arg_and_number : Error<"wrong argument format for hls
 def ext_hlsl_access_specifiers : ExtWarn<
   "access specifiers are a clang HLSL extension">,
   InGroup<HLSLExtension>;
-=======
 // Checked C parsing errors
 def err_expected_bounds_expr : Error<
   "expected bounds expression">;
@@ -1752,6 +1750,5 @@ def err_invalid_decl_where_clause : Error<
 
 def err_fn_body_cannot_be_bundled_blk : Error<
   "function body cannot be a bundled block">;
->>>>>>> main
 
 } // end of Parser diagnostics

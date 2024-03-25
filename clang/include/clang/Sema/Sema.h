@@ -3321,7 +3321,6 @@ public:
     TUK_Friend       // Friend declaration:  'friend struct foo;'
   };
 
-<<<<<<< HEAD
   enum OffsetOfKind {
     // Not parsing a type within __builtin_offsetof.
     OOK_Outside,
@@ -3331,19 +3330,6 @@ public:
     // To improve our diagnostic message.
     OOK_Macro,
   };
-=======
-  Decl *ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
-                 SourceLocation KWLoc, CXXScopeSpec &SS, IdentifierInfo *Name,
-                 SourceLocation NameLoc, const ParsedAttributesView &Attr,
-                 AccessSpecifier AS, SourceLocation ModulePrivateLoc,
-                 MultiTemplateParamsArg TemplateParameterLists, bool &OwnedDecl,
-                 bool &IsDependent, SourceLocation ScopedEnumKWLoc,
-                 bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
-                 bool IsTypeSpecifier, bool IsTemplateParamOrArg,
-                 SkipBodyInfo *SkipBody = nullptr,
-                 RecordDecl::Genericity GenericKind = RecordDecl::NonGeneric,
-                 ArrayRef<TypedefDecl *> TypeParams = ArrayRef<TypedefDecl *> {nullptr, 0} );
->>>>>>> main
 
   DeclResult ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
                       SourceLocation KWLoc, CXXScopeSpec &SS,
@@ -3357,7 +3343,12 @@ public:
                       bool IsTypeSpecifier, bool IsTemplateParamOrArg,
                       OffsetOfKind OOK,
                       UsingShadowDecl*& FoundUsingShadow,
-                      SkipBodyInfo *SkipBody = nullptr);
+                      SkipBodyInfo *SkipBody = nullptr,
+                      RecordDecl::Genericity GenericKind = 
+                        RecordDecl::NonGeneric,
+                      ArrayRef<TypedefDecl *> TypeParams = 
+                        ArrayRef<TypedefDecl *> {nullptr, 0}                       
+                      );
 
   DeclResult ActOnTemplatedFriendTag(Scope *S, SourceLocation FriendLoc,
                                      unsigned TagSpec, SourceLocation TagLoc,
@@ -3572,15 +3563,10 @@ public:
   void ActOnReenterFunctionContext(Scope* S, Decl* D);
   void ActOnExitFunctionContext();
 
-<<<<<<< HEAD
   /// If \p AllowLambda is true, treat lambda as function.
   DeclContext *getFunctionLevelDeclContext(bool AllowLambda = false);
-=======
   /// Push the parameters listed in Params into scope.
   void ActOnSetupParametersAgain(Scope* S, ArrayRef<ParmVarDecl *> Params);
-
-  DeclContext *getFunctionLevelDeclContext();
->>>>>>> main
 
   /// Returns a pointer to the innermost enclosing function, or nullptr if the
   /// current context is not inside a function. If \p AllowLambda is true,
@@ -5460,12 +5446,10 @@ public:
   void DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                         SourceLocation OpLoc);
 
-<<<<<<< HEAD
   /// Returns a field in a CXXRecordDecl that has the same name as the decl \p
   /// SelfAssigned when inside a CXXMethodDecl.
   const FieldDecl *
   getSelfAssignmentClassMemberCandidate(const ValueDecl *SelfAssigned);
-=======
   enum CheckedScopeTypeLocation {
     CSTL_TopLevel,
     CSTL_Nested,
@@ -5503,7 +5487,6 @@ public:
                            SourceLocation UseLoc = SourceLocation());
 
   bool DiagnoseTypeInCheckedScope(QualType Ty, SourceLocation Start, SourceLocation End);
->>>>>>> main
 
   /// Warn if we're implicitly casting from a _Nullable pointer type to a
   /// _Nonnull one.
@@ -12827,20 +12810,12 @@ public:
   /// ImpCastExprToType - If Expr is not of type 'Type', insert an implicit
   /// cast.  If there is already an implicit cast, merge into the existing one.
   /// If isLvalue, the result of the cast is an lvalue.
-<<<<<<< HEAD
   ExprResult
   ImpCastExprToType(Expr *E, QualType Type, CastKind CK,
                     ExprValueKind VK = VK_PRValue,
                     const CXXCastPath *BasePath = nullptr,
-                    CheckedConversionKind CCK = CCK_ImplicitConversion);
-=======
-  ExprResult ImpCastExprToType(Expr *E, QualType Type, CastKind CK,
-                               ExprValueKind VK = VK_RValue,
-                               const CXXCastPath *BasePath = nullptr,
-                               CheckedConversionKind CCK
-                                  = CCK_ImplicitConversion,
-                               bool isBoundsSafeInterfaceCast = false);
->>>>>>> main
+                    CheckedConversionKind CCK = CCK_ImplicitConversion,
+                    bool isBoundsSafeInterfaceCast = false);
 
   /// ScalarTypeToBooleanCastKind - Returns the cast kind corresponding
   /// to the conversion from scalar type ScalarTy to the Boolean type.

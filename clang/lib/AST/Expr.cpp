@@ -608,7 +608,6 @@ SourceLocation DeclRefExpr::getEndLoc() const {
   return getNameInfo().getEndLoc();
 }
 
-<<<<<<< HEAD
 SYCLUniqueStableNameExpr::SYCLUniqueStableNameExpr(SourceLocation OpLoc,
                                                    SourceLocation LParen,
                                                    SourceLocation RParen,
@@ -662,7 +661,8 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
   Ctx->mangleTypeName(Ty, Out);
 
   return Out.str();
-=======
+}
+
 DeclRefExpr::GenericInstInfo
   *DeclRefExpr::GenericInstInfo::Create(ASTContext &C,
   ArrayRef<TypeArgument> NewTypeVariableNames) {
@@ -675,7 +675,6 @@ DeclRefExpr::GenericInstInfo
       NewTypeVariableNames.end(), retVal->TypeArguments);
   }
   return retVal;
->>>>>>> main
 }
 
 PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
@@ -3654,9 +3653,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case SourceLocExprClass:
   case ConceptSpecializationExprClass:
   case RequiresExprClass:
-<<<<<<< HEAD
   case SYCLUniqueStableNameExprClass:
-=======
   // Checked C bounds expressions are not allowed to have assignments
   // embedded within them.
   case CountBoundsExprClass:
@@ -3665,7 +3662,6 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case RangeBoundsExprClass:
   case PositionalParameterExprClass:
   case BoundsValueExprClass:
->>>>>>> main
     // These never have a side-effect.
     return false;
 

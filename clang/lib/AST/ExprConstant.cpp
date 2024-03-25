@@ -15680,10 +15680,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CoawaitExprClass:
   case Expr::DependentCoawaitExprClass:
   case Expr::CoyieldExprClass:
-<<<<<<< HEAD
   case Expr::SYCLUniqueStableNameExprClass:
   case Expr::CXXParenListInitExprClass:
-=======
   case Expr::CountBoundsExprClass:
   case Expr::InteropTypeExprClass:
   case Expr::NullaryBoundsExprClass:
@@ -15692,7 +15690,6 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
     // These are parameter variables and are never constants,
   case Expr::RangeBoundsExprClass:
   case Expr::PackExprClass:
->>>>>>> main
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
   case Expr::InitListExprClass: {
