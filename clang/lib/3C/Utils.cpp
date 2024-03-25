@@ -424,15 +424,33 @@ std::string getSourceText(const clang::CharSourceRange &SR,
   return Srctxt.str();
 }
 
-unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
-                                  unsigned long Str1Len,
-                                  unsigned long Str2Len) {
-  if (Str1Len == 0 || Str2Len == 0)
-    return 0;
-  if (Str1[Str1Len - 1] == Str2[Str2Len - 1])
-    return 1 + longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len - 1);
-  return std::max(longestCommonSubsequence(Str1, Str2, Str1Len, Str2Len - 1),
-                  longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len));
+
+// The following code implements the Longest Common Subsequence (LCS)
+// algorithm using bottom-up dynamic programming. The code is adapted
+// from a source available at https://www.geeksforgeeks.org/longest-common-subsequence-dp-4/
+// with one modification: the array L, previously stack-allocated,
+// has been replaced with a C++ vector.
+unsigned longestCommonSubsequence(const char *X,
+                                  const char *Y,
+                            	    unsigned long M,
+                            	    unsigned long N)
+{
+  std::vector<std::vector<unsigned long>> L(M + 1, std::vector<unsigned long>(N + 1));
+    unsigned long I, J;
+
+    for (I = 0; I <= M; I++) {
+        for (J = 0; J <= N; J++) {
+            if (I == 0 || J == 0)
+                L[I][J] = 0;
+  
+            else if (X[I - 1] == Y[J - 1])
+                L[I][J] = L[I - 1][J - 1] + 1;
+  
+            else
+                L[I][J] = std::max(L[I - 1][J], L[I][J - 1]);
+        }
+    }
+  return L[M][N];
 }
 
 bool isTypeAnonymous(const clang::Type *T) {

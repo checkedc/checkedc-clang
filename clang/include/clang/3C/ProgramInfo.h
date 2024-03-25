@@ -83,6 +83,8 @@ public:
   typedef std::map<std::string, ExternalFunctionMapType> StaticFunctionMapType;
 
   ProgramInfo();
+  virtual ~ProgramInfo();
+  void clear();
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dumpJson(llvm::raw_ostream &O) const;

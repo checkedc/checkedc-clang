@@ -110,6 +110,8 @@ bool CountPlusOneBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
   return false;
 }
 
+ABounds *CountPlusOneBound::makeCopy(BoundsKey NK) { return new CountPlusOneBound(NK); }
+
 std::string ByteBound::mkStringWithLowerBound(AVarBoundsInfo *ABI,
                                               clang::Decl *D) {
   std::string LowerBound = ABounds::getBoundsKeyStr(LowerBoundKey, ABI, D);

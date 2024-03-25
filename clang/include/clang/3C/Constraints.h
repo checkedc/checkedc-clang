@@ -505,6 +505,7 @@ public:
   const ConstraintsGraph &getPtrTypCG() const;
 
   void resetEnvironment();
+  void clear();
   bool checkInitialEnvSanity();
 
   // Remove all constraints that were generated because of the

@@ -331,7 +331,10 @@ static void emit(Rewriter &R, ASTContext &C, bool &StdoutModeEmittedMainFile) {
         std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
         std::string Ext = sys::path::extension(FileName).str();
         std::string Stem = sys::path::stem(FileName).str();
-        NFile = Stem + "." + _3COpts.OutputPostfix + Ext;
+        if (_3COpts.OutputPostfix == "null")
+          NFile = Stem + Ext;
+        else
+          NFile = Stem + "." + _3COpts.OutputPostfix + Ext;
         if (!DirName.empty())
           NFile = DirName + sys::path::get_separator().str() + NFile;
       } else {

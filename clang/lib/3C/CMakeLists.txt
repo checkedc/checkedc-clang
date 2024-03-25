@@ -28,6 +28,7 @@ endif()
 add_clang_library(clang3C
   ABounds.cpp
   AVarBoundsInfo.cpp
+  AVarBoundsConflictResolver.cpp
   AVarGraph.cpp
   ArrayBoundsInferenceConsumer.cpp
   CastPlacement.cpp

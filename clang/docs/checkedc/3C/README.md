@@ -21,8 +21,7 @@ use 3C.
 documented in [the readme there](../../../tools/3c/README.md).
 - The second method is to use a vscode extension along with
 clangd lsp plugin. Steps to build and use the plugin can be
-found [here](https://3clsp.github.io/). Note that 3CLSP is based on
-an older fork and therefore won't have the latest changes to 3C.
+found [here](https://3clsp.github.io/).
 
 ## What 3C users should know about the development process
 

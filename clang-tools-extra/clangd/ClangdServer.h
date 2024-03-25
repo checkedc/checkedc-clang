@@ -38,7 +38,14 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+<<<<<<< HEAD
 #include <vector>
+=======
+#ifdef LSP3C
+#include <clang/3C/3C.h>
+#include "3CDiagnostics.h"
+#endif
+>>>>>>> main
 
 namespace clang {
 namespace clangd {
@@ -77,6 +84,7 @@ public:
     virtual void
     onBackgroundIndexProgress(const BackgroundQueue::Stats &Stats) {}
 
+<<<<<<< HEAD
     /// Called when the meaning of a source code may have changed without an
     /// edit. Usually clients assume that responses to requests are valid until
     /// they next edit the file. If they're invalidated at other times, we
@@ -84,7 +92,21 @@ public:
     /// build finishes, we can provide more accurate semantic tokens, so we
     /// should tell the client to refresh.
     virtual void onSemanticsMaybeChanged(PathRef File) {}
+=======
+>>>>>>> main
   };
+#ifdef LSP3C
+  class _3CLSPCallBack {
+  public:
+    virtual ~_3CLSPCallBack() = default;
+    virtual void
+    _3CisDone(std::string FileName,
+              bool ClearDiags = false) = 0;
+    virtual void
+    sendMessage(std::string Msg) = 0;
+  };
+
+#endif
   /// Creates a context provider that loads and installs config.
   /// Errors in loading config are reported as diagnostics via Callbacks.
   /// (This is typically used as ClangdServer::Options::ContextProvider).
@@ -398,10 +420,27 @@ public:
 
   // Blocks the main thread until the server is idle. Only for use in tests.
   // Returns false if the timeout expires.
+<<<<<<< HEAD
   // FIXME: various subcomponents each get the full timeout, so it's more of
   // an order of magnitude than a hard deadline.
   [[nodiscard]] bool
   blockUntilIdleForTest(std::optional<double> TimeoutSeconds = 10);
+=======
+  LLVM_NODISCARD bool
+  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
+#ifdef LSP3C
+  //These are 3C specific commands on ClangdServer
+
+  void execute3CCommand(_3CInterface &, _3CLSPCallBack *ConvCB);
+  void secondrun3C(_3CInterface &, _3CLSPCallBack *ConvCB);
+  void execute3CFix(_3CInterface &,ExecuteCommandParams Params,
+                    _3CLSPCallBack *ConvCB);
+  _3CDiagnostics DiagInfofor3C;
+  void _3COpenDocument(std::string FileName,
+                       _3CLSPCallBack *ConvCB);
+  void _3CCloseDocument(std::string FileName,_3CLSPCallBack *ConvCB);
+#endif
+>>>>>>> main
 
   /// Builds a nested representation of memory used by components.
   void profile(MemoryTree &MT) const;
@@ -413,7 +452,11 @@ private:
     return UseDirtyHeaders ? *DirtyFS : TFS;
   }
   const ThreadsafeFS &TFS;
-
+#ifdef LSP3C
+  void report3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
+  void report3CDiagsforFile(std::string FileName, _3CLSPCallBack *ConvCB);
+  void clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
+#endif
   Path ResourceDir;
   // The index used to look up symbols. This could be:
   //   - null (all index functionality is optional)

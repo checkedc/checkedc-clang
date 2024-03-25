@@ -23,6 +23,14 @@
 #include "index/Merge.h"
 #include "index/ProjectAware.h"
 #include "index/remote/Client.h"
+<<<<<<< HEAD
+=======
+#include "refactor/Rename.h"
+#ifdef LSP3C
+#include <clang/3C/3CGlobalOptions.h>
+#include "clang/3C/3C.h"
+#endif
+>>>>>>> main
 #include "support/Path.h"
 #include "support/Shutdown.h"
 #include "support/ThreadCrashReporter.h"
@@ -871,6 +879,33 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   ClangdLSPServer::Options Opts;
   Opts.UseDirBasedCDB = (CompileArgsFrom == FilesystemCompileArgs);
 
+<<<<<<< HEAD
+=======
+  // If --compile-commands-dir arg was invoked, check value and override default
+  // path.
+  if (!CompileCommandsDir.empty()) {
+    if (llvm::sys::fs::exists(CompileCommandsDir)) {
+      // We support passing both relative and absolute paths to the
+      // --compile-commands-dir argument, but we assume the path is absolute in
+      // the rest of clangd so we make sure the path is absolute before
+      // continuing.
+      llvm::SmallString<128> Path(CompileCommandsDir);
+
+      if (std::error_code EC = llvm::sys::fs::make_absolute(Path)) {
+        elog("Error while converting the relative path specified by "
+             "--compile-commands-dir to an absolute path: {0}. The argument "
+             "will be ignored.",
+             EC.message());
+      } else {
+        Opts.CompileCommandsDir = std::string(Path.str());
+      }
+    } else {
+      elog("Path specified by --compile-commands-dir does not exist. The "
+           "argument will be ignored.");
+    }
+  }
+
+>>>>>>> main
   switch (PCHStorage) {
   case PCHStorageFlag::Memory:
     Opts.StorePreamblesInMemory = true;
@@ -1022,8 +1057,46 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     TransportLayer = createPathMappingTransport(std::move(TransportLayer),
                                                 std::move(*Mappings));
   }
+#ifdef LSP3C
+  struct _3COptions CcOptions={0};
+  CcOptions.AllTypes=true;
+  CcOptions.AddCheckedRegions=false;
+  CcOptions.WarnRootCause=true;
+  CcOptions.AllowUnwritableChanges=true;
+  CcOptions.ItypesForExtern=true;
+  CcOptions.InferTypesForUndefs=true;
+  CcOptions.HandleVARARGS= true;
+  CcOptions.OutputPostfix="null";
+  CcOptions.AllocatorFunctions={};
+  std::string ErrorMsg;
+  // This is a weird hack to go over the condition of not finding a comp DB
+  // todo Cleanup this code segment below
+  std::string FileBuf = getClangRepositoryPath();
+  if (!CompileCommandsDir.empty()){
+    FileBuf = CompileCommandsDir;
+  }
+  std::unique_ptr<tooling::CompilationDatabase> CompDB(
+        tooling::CompilationDatabase::autoDetectFromDirectory(FileBuf,
+                                                              ErrorMsg)
+    );
+    tooling::CompilationDatabase &_CompDB = *CompDB;
+    std::unique_ptr<_3CInterface> _3CInterfacePtr(
+        _3CInterface::create(CcOptions, CompDB->getAllFiles(),
+                             &(_CompDB)));
+    if (!_3CInterfacePtr) {
+      // _3CInterface::create has already printed an error message. Just exit.
+      return 1;
+    }
 
-  ClangdLSPServer LSPServer(*TransportLayer, TFS, Opts);
+  _3CInterface &_3CInter = *_3CInterfacePtr;
+
+#endif
+  ClangdLSPServer LSPServer(*TransportLayer, TFS,
+#ifdef LSP3C
+                            Opts,_3CInter);
+#else
+                            Opts);
+#endif
   llvm::set_thread_name("clangd.main");
   int ExitCode = LSPServer.run()
                      ? 0

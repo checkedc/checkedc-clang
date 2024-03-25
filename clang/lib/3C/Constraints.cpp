@@ -584,6 +584,12 @@ void Constraints::resetEnvironment() {
   Environment.resetFullSolution(getDefaultSolution());
 }
 
+void Constraints::clear() {
+  TheConstraints.clear();
+  ConstraintsByReason.clear();
+  resetEnvironment();
+}
+
 bool Constraints::checkInitialEnvSanity() {
   return Environment.checkAssignment(getDefaultSolution());
 }

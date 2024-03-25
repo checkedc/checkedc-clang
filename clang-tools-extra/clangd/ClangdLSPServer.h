@@ -13,6 +13,9 @@
 #include "GlobalCompilationDatabase.h"
 #include "LSPBinder.h"
 #include "Protocol.h"
+#ifdef LSP3C
+#include "clang/3C/3C.h"
+#endif
 #include "Transport.h"
 #include "support/Context.h"
 #include "support/MemoryTree.h"
@@ -33,8 +36,16 @@ namespace clangd {
 /// MessageHandler binds the implemented LSP methods (e.g. onInitialize) to
 /// corresponding JSON-RPC methods ("initialize").
 /// The server also supports $/cancelRequest (MessageHandler provides this).
+<<<<<<< HEAD
 class ClangdLSPServer : private ClangdServer::Callbacks,
                         private LSPBinder::RawOutgoing {
+=======
+#ifdef LSP3C
+class ClangdLSPServer : private ClangdServer::Callbacks, public ClangdServer::_3CLSPCallBack {
+#else
+class ClangdLSPServer : private ClangdServer::Callbacks {
+#endif
+>>>>>>> main
 public:
   struct Options : ClangdServer::Options {
     /// Supplies configuration (overrides ClangdServer::ContextProvider).
@@ -63,7 +74,11 @@ public:
   };
 
   ClangdLSPServer(Transport &Transp, const ThreadsafeFS &TFS,
+#ifdef LSP3C
+                  const ClangdLSPServer::Options &Opts,_3CInterface &_3CInterface);
+#else
                   const ClangdLSPServer::Options &Opts);
+#endif
   /// The destructor blocks on any outstanding background tasks.
   ~ClangdLSPServer();
 
@@ -75,7 +90,10 @@ public:
 
   /// Profiles resource-usage.
   void profile(MemoryTree &MT) const;
-
+#ifdef LSP3C
+  void _3CisDone(std::string FileName, bool ClearDiags = false) override;
+  void sendMessage(std::string Msg) override;
+#endif
 private:
   // Implement ClangdServer::Callbacks.
   void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
@@ -166,8 +184,15 @@ private:
                              Callback<SemanticTokensOrDelta>);
   /// This is a clangd extension. Provides a json tree representing memory usage
   /// hierarchy.
+<<<<<<< HEAD
   void onMemoryUsage(const NoParams &, Callback<MemoryTree>);
   void onCommand(const ExecuteCommandParams &, Callback<llvm::json::Value>);
+=======
+  void onMemoryUsage(Callback<MemoryTree>);
+#ifdef LSP3C
+  void onRun3c(Callback<llvm::Optional<_3CStats>>);
+#endif
+>>>>>>> main
 
   /// Implement commands.
   void onCommandApplyEdit(const WorkspaceEdit &, Callback<llvm::json::Value>);
@@ -293,7 +318,14 @@ private:
   // CDB is BaseCDB plus any commands overridden via LSP extensions.
   std::optional<OverlayCDB> CDB;
   // The ClangdServer is created by the "initialize" LSP method.
+<<<<<<< HEAD
   std::optional<ClangdServer> Server;
+=======
+  llvm::Optional<ClangdServer> Server;
+#ifdef LSP3C
+  _3CInterface &_3CInter;
+#endif
+>>>>>>> main
 };
 } // namespace clangd
 } // namespace clang

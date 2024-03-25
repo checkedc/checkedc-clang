@@ -189,7 +189,12 @@ std::string getSourceText(const clang::SourceRange &SR,
 std::string getSourceText(const clang::CharSourceRange &SR,
                           const clang::ASTContext &C);
 
-// Find the longest common subsequence.
+// Find the longest common subsequence of two strings.
+// This is used to find the longest common subsequence of two variable names.
+// @param Str1 The name of the first variable.
+// @param Str2 The name of the second variable.
+// @param Str1Len The length of the first variable name.
+// @param Str2Len The length of the second variable name.
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned long Str1Len, unsigned long Str2Len);
 

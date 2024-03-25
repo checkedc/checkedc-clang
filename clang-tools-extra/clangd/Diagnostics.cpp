@@ -468,8 +468,22 @@ void toLSPDiags(
 
   // Main diagnostic should always refer to a range inside main file. If a
   // diagnostic made it so for, it means either itself or one of its notes is
+<<<<<<< HEAD
   // inside main file. It's also possible that there's a fix in the main file,
   // but we preserve fixes iff primary diagnostic is in the main file.
+=======
+  // inside main file.
+#ifdef LSP3C
+  auto FillBasicFields = [](const DiagBase &D) -> clangd::Diagnostic {
+    clangd::Diagnostic Res;
+    Res.range = D.Range;
+    Res.severity = getSeverity(D.Severity);
+    return Res;
+
+  };
+  Main = FillBasicFields(D);
+#else
+>>>>>>> main
   if (D.InsideMainFile) {
     Main.range = D.Range;
   } else {
@@ -479,12 +493,20 @@ void toLSPDiags(
            "neither the main diagnostic nor notes are inside main file");
     Main.range = It->Range;
   }
-
+#endif
+#ifdef LSP3C
+  Main.code  = D.code;
+#else
   Main.code = D.Name;
+<<<<<<< HEAD
   if (auto URI = getDiagnosticDocURI(D.Source, D.ID, D.Name)) {
     Main.codeDescription.emplace();
     Main.codeDescription->href = std::move(*URI);
   }
+=======
+#endif
+
+>>>>>>> main
   switch (D.Source) {
   case Diag::Clang:
     Main.source = "clang";
@@ -498,6 +520,11 @@ void toLSPDiags(
   case Diag::ClangdConfig:
     Main.source = "clangd-config";
     break;
+#ifdef LSP3C
+  case Diag::Main3C:
+      Main.source = "3C_RealWild";
+      break;
+#endif
   case Diag::Unknown:
     break;
   }

@@ -19,6 +19,10 @@
 #include "SourceCode.h"
 #include "TUScheduler.h"
 #include "URI.h"
+#ifdef LSP3C
+#include "clang/3C/3C.h"
+#include "3CCommands.h"
+#endif
 #include "refactor/Tweak.h"
 #include "support/Cancellation.h"
 #include "support/Context.h"
@@ -606,6 +610,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   // Per LSP, codeActionProvider can be either boolean or CodeActionOptions.
   // CodeActionOptions is only valid if the client supports action literal
   // via textDocument.codeAction.codeActionLiteralSupport.
+<<<<<<< HEAD
   ServerCaps["codeActionProvider"] =
       Params.capabilities.CodeActionStructure
           ? llvm::json::Object{{"codeActionKinds",
@@ -621,7 +626,38 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   llvm::sort(Commands);
   ServerCaps["executeCommandProvider"] =
       llvm::json::Object{{"commands", Commands}};
+=======
+  llvm::json::Value CodeActionProvider = true;
+  if (Params.capabilities.CodeActionStructure)
+    CodeActionProvider = llvm::json::Object{
+        {"codeActionKinds",
+         {CodeAction::QUICKFIX_KIND, CodeAction::REFACTOR_KIND,
+          CodeAction::INFO_KIND}}};
+#ifdef LSP3C
+  llvm::json::Object Result{
+      {{
+          "capabilities",
+          llvm::json::Object{
+            {"textDocumentSync",
+               llvm::json::Object{
+                   {"openClose", true},
+                   {"change", (int)TextDocumentSyncKind::Incremental},
+                   {"save", true},
+               }},
+              {"codeActionProvider", true},
+              {"executeCommandProvider",
+               llvm::json::Object{
+                   {"commands",
+                    {ExecuteCommandParams::_3C_APPLY_FOR_ALL,
+                     ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS}},
+               }},
+>>>>>>> main
 
+
+          }
+      }}
+  };
+#else
   llvm::json::Object Result{
       {{"serverInfo",
         llvm::json::Object{
@@ -631,6 +667,17 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
        {"capabilities", std::move(ServerCaps)}}};
   if (Opts.Encoding)
     Result["offsetEncoding"] = *Opts.Encoding;
+<<<<<<< HEAD
+=======
+  if (Opts.TheiaSemanticHighlighting)
+    Result.getObject("capabilities")
+        ->insert(
+            {"semanticHighlighting",
+             llvm::json::Object{{"scopes", buildHighlightScopeLookupTable()}}});
+  if (Opts.FoldingRanges)
+    Result.getObject("capabilities")->insert({"foldingRangeProvider", true});
+#endif
+>>>>>>> main
   Reply(std::move(Result));
 
   // Apply settings after we're fully initialized.
@@ -658,6 +705,10 @@ void ClangdLSPServer::onSync(const NoParams &, Callback<std::nullptr_t> Reply) {
 
 void ClangdLSPServer::onDocumentDidOpen(
     const DidOpenTextDocumentParams &Params) {
+#ifdef LSP3C
+  PathRef File = Params.textDocument.uri.file();
+  Server->_3COpenDocument(File.str(),this);
+#else
   PathRef File = Params.textDocument.uri.file();
 
   const std::string &Contents = Params.textDocument.text;
@@ -665,10 +716,12 @@ void ClangdLSPServer::onDocumentDidOpen(
   Server->addDocument(File, Contents,
                       encodeVersion(Params.textDocument.version),
                       WantDiagnostics::Yes);
+#endif
 }
 
 void ClangdLSPServer::onDocumentDidChange(
     const DidChangeTextDocumentParams &Params) {
+#ifndef LSP3C
   auto WantDiags = WantDiagnostics::Auto;
   if (Params.wantDiagnostics)
     WantDiags =
@@ -693,8 +746,35 @@ void ClangdLSPServer::onDocumentDidChange(
   }
   Server->addDocument(File, NewCode, encodeVersion(Params.textDocument.version),
                       WantDiags, Params.forceRebuild);
+#endif
+}
+#ifdef LSP3C
+void ClangdLSPServer::_3CisDone(std::string FileName,
+                                      bool ClearDiags) {
+  // Get the diagnostics and update the client.
+  std::vector<Diag> Diagnostics;
+  Diagnostics.clear();
+  if (!ClearDiags) {
+    std::lock_guard<std::mutex> lock(Server->DiagInfofor3C.DiagMutex);
+    auto &allDiags = Server->DiagInfofor3C.GetAllFilesDiagnostics();
+    auto &FileDiag = Server->DiagInfofor3C.Get3CDiagsForThisFile(FileName);
+    Diagnostics.insert(Diagnostics.begin(),
+                       allDiags[FileName].begin(),
+                       allDiags[FileName].end());
+  }
+  this->onDiagnosticsReady(FileName," ",Diagnostics);
 }
 
+void ClangdLSPServer::sendMessage(std::string MsgStr) {
+  // Send message as info to the client.
+  notify("window/showMessage",
+         llvm::json::Object{
+             // Info message.
+             {"type", 3},
+             {"message", std::move(MsgStr)},
+         });
+}
+#endif
 void ClangdLSPServer::onDocumentDidSave(
     const DidSaveTextDocumentParams &Params) {
   Server->reparseOpenFilesIfNeeded([](llvm::StringRef) { return true; });
@@ -714,6 +794,7 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
 
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
+<<<<<<< HEAD
   auto It = Handlers.CommandHandlers.find(Params.command);
   if (It == Handlers.CommandHandlers.end()) {
     return Reply(llvm::make_error<LSPError>(
@@ -787,6 +868,101 @@ void ClangdLSPServer::applyEdit(WorkspaceEdit WE, llvm::json::Value Success,
         }
         return Reply(SuccessMessage);
       });
+=======
+#ifdef LSP3C
+  elog("Command run from LSPServer");
+  if (Is3CCommand(Params)){
+    Server->execute3CFix(_3CInter,Params,this);
+    Reply("3c Background work going on");
+  }
+  else{
+    Reply(llvm::make_error<LSPError>(
+        llvm::formatv("Unsupported command \"{0}\".", Params.command).str(),
+        ErrorCode::InvalidParams));
+  }
+
+#else
+  auto ApplyEdit = [this](WorkspaceEdit WE, std::string SuccessMessage,
+                          decltype(Reply) Reply) {
+    ApplyWorkspaceEditParams Edit;
+    Edit.edit = std::move(WE);
+    call<ApplyWorkspaceEditResponse>(
+        "workspace/applyEdit", std::move(Edit),
+        [Reply = std::move(Reply), SuccessMessage = std::move(SuccessMessage)](
+            llvm::Expected<ApplyWorkspaceEditResponse> Response) mutable {
+          if (!Response)
+            return Reply(Response.takeError());
+          if (!Response->applied) {
+            std::string Reason = Response->failureReason
+                                     ? *Response->failureReason
+                                     : "unknown reason";
+            return Reply(error("edits were not applied: {0}", Reason));
+          }
+          return Reply(SuccessMessage);
+        });
+  };
+
+  if (Params.command == ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND &&
+      Params.workspaceEdit) {
+    // The flow for "apply-fix" :
+    // 1. We publish a diagnostic, including fixits
+    // 2. The user clicks on the diagnostic, the editor asks us for code actions
+    // 3. We send code actions, with the fixit embedded as context
+    // 4. The user selects the fixit, the editor asks us to apply it
+    // 5. We unwrap the changes and send them back to the editor
+    // 6. The editor applies the changes (applyEdit), and sends us a reply
+    // 7. We unwrap the reply and send a reply to the editor.
+    ApplyEdit(*Params.workspaceEdit, "Fix applied.", std::move(Reply));
+  } else if (Params.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK &&
+             Params.tweakArgs) {
+    auto Code = DraftMgr.getDraft(Params.tweakArgs->file.file());
+    if (!Code)
+      return Reply(error("trying to apply a code action for a non-added file"));
+
+    auto Action = [this, ApplyEdit, Reply = std::move(Reply),
+                   File = Params.tweakArgs->file, Code = std::move(*Code)](
+                      llvm::Expected<Tweak::Effect> R) mutable {
+      if (!R)
+        return Reply(R.takeError());
+
+      assert(R->ShowMessage ||
+             (!R->ApplyEdits.empty() && "tweak has no effect"));
+
+      if (R->ShowMessage) {
+        ShowMessageParams Msg;
+        Msg.message = *R->ShowMessage;
+        Msg.type = MessageType::Info;
+        notify("window/showMessage", Msg);
+      }
+      // When no edit is specified, make sure we Reply().
+      if (R->ApplyEdits.empty())
+        return Reply("Tweak applied.");
+
+      if (auto Err = validateEdits(DraftMgr, R->ApplyEdits))
+        return Reply(std::move(Err));
+
+      WorkspaceEdit WE;
+      WE.changes.emplace();
+      for (const auto &It : R->ApplyEdits) {
+        (*WE.changes)[URI::createFile(It.first()).toString()] =
+            It.second.asTextEdits();
+      }
+      // ApplyEdit will take care of calling Reply().
+      return ApplyEdit(std::move(WE), "Tweak applied.", std::move(Reply));
+    };
+    Server->applyTweak(Params.tweakArgs->file.file(),
+                       Params.tweakArgs->selection, Params.tweakArgs->tweakID,
+                       std::move(Action));
+  } else {
+    // We should not get here because ExecuteCommandParams would not have
+    // parsed in the first place and this handler should not be called. But if
+    // more commands are added, this will be here has a safe guard.
+    Reply(llvm::make_error<LSPError>(
+        llvm::formatv("Unsupported command \"{0}\".", Params.command).str(),
+        ErrorCode::InvalidParams));
+  }
+#endif
+>>>>>>> main
 }
 
 void ClangdLSPServer::onWorkspaceSymbol(
@@ -841,8 +1017,14 @@ void ClangdLSPServer::onRename(const RenameParams &Params,
 
 void ClangdLSPServer::onDocumentDidClose(
     const DidCloseTextDocumentParams &Params) {
+#ifdef LSP3C
+  PathRef File = Params.textDocument.uri.file();
+  Server->_3CCloseDocument(File.str(),this);
+  /*sendMessage("Finished writing the file: "+File.str());*/
+#else
   PathRef File = Params.textDocument.uri.file();
   Server->removeDocument(File);
+
 
   {
     std::lock_guard<std::mutex> Lock(FixItsMutex);
@@ -859,7 +1041,12 @@ void ClangdLSPServer::onDocumentDidClose(
   // executed after it returns.
   PublishDiagnosticsParams Notification;
   Notification.uri = URIForFile::canonicalize(File, /*TUPath=*/File);
+<<<<<<< HEAD
   PublishDiagnostics(Notification);
+=======
+  publishDiagnostics(Notification);
+#endif
+>>>>>>> main
 }
 
 void ClangdLSPServer::onDocumentOnTypeFormatting(
@@ -968,6 +1155,17 @@ static std::optional<Command> asCommand(const CodeAction &Action) {
 
 void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
                                    Callback<llvm::json::Value> Reply) {
+
+#ifdef LSP3C
+  URIForFile File = Params.textDocument.uri;
+  std::vector<Command> CCommands;
+  for(const Diagnostic &D: Params.context.diagnostics) {
+    log("This One");
+    AsCCCommands(D,CCommands);
+  }
+  Reply(llvm::json::Array(CCommands));
+
+#else
   URIForFile File = Params.textDocument.uri;
   // Checks whether a particular CodeActionKind is included in the response.
   auto KindAllowed = [Only(Params.context.only)](llvm::StringRef Kind) {
@@ -1035,6 +1233,7 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
         return Opts.TweakFilter(T) && KindAllowed(T.kind());
       },
       std::move(ConsumeActions));
+#endif
 }
 
 void ClangdLSPServer::onCompletion(const CompletionParams &Params,
@@ -1551,9 +1750,33 @@ void ClangdLSPServer::onAST(const ASTParams &Params,
                             Callback<std::optional<ASTNode>> CB) {
   Server->getAST(Params.textDocument.uri.file(), Params.range, std::move(CB));
 }
+#ifdef LSP3C
+void ClangdLSPServer::onRun3c(Callback<llvm::Optional<_3CStats>> Reply) {
+  _3CStats ST;
+  ST.Details="You just ran the 3C command on the Project";
+  Reply(std::move(ST));
+  Server->execute3CCommand(_3CInter, this);
+/*
+  Server->secondrun3C(_3CInter,this);
+*/
+    elog("Done converting successfully now in "
+         "LSP Server part of clangd");
 
+<<<<<<< HEAD
 ClangdLSPServer::ClangdLSPServer(Transport &Transp, const ThreadsafeFS &TFS,
+=======
+
+
+}
+#endif
+ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
+                                 const ThreadsafeFS &TFS,
+#ifdef LSP3C
+                                 const ClangdLSPServer::Options &Opts, _3CInterface &_3CInterface)
+#else
+>>>>>>> main
                                  const ClangdLSPServer::Options &Opts)
+#endif
     : ShouldProfile(/*Period=*/std::chrono::minutes(5),
                     /*Delay=*/std::chrono::minutes(1)),
       ShouldCleanupMemory(/*Period=*/std::chrono::minutes(1),
@@ -1561,7 +1784,11 @@ ClangdLSPServer::ClangdLSPServer(Transport &Transp, const ThreadsafeFS &TFS,
       BackgroundContext(Context::current().clone()), Transp(Transp),
       MsgHandler(new MessageHandler(*this)), TFS(TFS),
       SupportedSymbolKinds(defaultSymbolKinds()),
-      SupportedCompletionItemKinds(defaultCompletionItemKinds()), Opts(Opts) {
+      SupportedCompletionItemKinds(defaultCompletionItemKinds()), Opts(Opts)
+#ifdef LSP3C
+      , _3CInter(_3CInterface)
+#endif
+{
   if (Opts.ConfigProvider) {
     assert(!Opts.ContextProvider &&
            "Only one of ConfigProvider and ContextProvider allowed!");
@@ -1575,6 +1802,7 @@ ClangdLSPServer::ClangdLSPServer(Transport &Transp, const ThreadsafeFS &TFS,
 void ClangdLSPServer::bindMethods(LSPBinder &Bind,
                                   const ClientCapabilities &Caps) {
   // clang-format off
+<<<<<<< HEAD
   Bind.notification("initialized", this, &ClangdLSPServer::onInitialized);
   Bind.method("shutdown", this, &ClangdLSPServer::onShutdown);
   Bind.method("sync", this, &ClangdLSPServer::onSync);
@@ -1633,6 +1861,53 @@ void ClangdLSPServer::bindMethods(LSPBinder &Bind,
   EndWorkDoneProgress = Bind.outgoingNotification("$/progress");
   if(Caps.SemanticTokenRefreshSupport)
     SemanticTokensRefresh = Bind.outgoingMethod("workspace/semanticTokens/refresh");
+=======
+  MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
+  MsgHandler->bind("initialized", &ClangdLSPServer::onInitialized);
+  MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
+  MsgHandler->bind("sync", &ClangdLSPServer::onSync);
+#ifdef LSP3C
+  MsgHandler->bind("textDocument/run3c",&ClangdLSPServer::onRun3c);
+#endif
+  MsgHandler->bind("textDocument/rangeFormatting", &ClangdLSPServer::onDocumentRangeFormatting);
+  MsgHandler->bind("textDocument/onTypeFormatting", &ClangdLSPServer::onDocumentOnTypeFormatting);
+  MsgHandler->bind("textDocument/formatting", &ClangdLSPServer::onDocumentFormatting);
+  MsgHandler->bind("textDocument/codeAction", &ClangdLSPServer::onCodeAction);
+  MsgHandler->bind("textDocument/completion", &ClangdLSPServer::onCompletion);
+  MsgHandler->bind("textDocument/signatureHelp", &ClangdLSPServer::onSignatureHelp);
+  MsgHandler->bind("textDocument/definition", &ClangdLSPServer::onGoToDefinition);
+  MsgHandler->bind("textDocument/declaration", &ClangdLSPServer::onGoToDeclaration);
+  MsgHandler->bind("textDocument/implementation", &ClangdLSPServer::onGoToImplementation);
+  MsgHandler->bind("textDocument/references", &ClangdLSPServer::onReference);
+  MsgHandler->bind("textDocument/switchSourceHeader", &ClangdLSPServer::onSwitchSourceHeader);
+  MsgHandler->bind("textDocument/prepareRename", &ClangdLSPServer::onPrepareRename);
+  MsgHandler->bind("textDocument/rename", &ClangdLSPServer::onRename);
+  MsgHandler->bind("textDocument/hover", &ClangdLSPServer::onHover);
+  MsgHandler->bind("textDocument/documentSymbol", &ClangdLSPServer::onDocumentSymbol);
+  MsgHandler->bind("workspace/executeCommand", &ClangdLSPServer::onCommand);
+  MsgHandler->bind("textDocument/documentHighlight", &ClangdLSPServer::onDocumentHighlight);
+  MsgHandler->bind("workspace/symbol", &ClangdLSPServer::onWorkspaceSymbol);
+  MsgHandler->bind("textDocument/ast", &ClangdLSPServer::onAST);
+  MsgHandler->bind("textDocument/didOpen", &ClangdLSPServer::onDocumentDidOpen);
+  MsgHandler->bind("textDocument/didClose", &ClangdLSPServer::onDocumentDidClose);
+  MsgHandler->bind("textDocument/didChange", &ClangdLSPServer::onDocumentDidChange);
+  MsgHandler->bind("textDocument/didSave", &ClangdLSPServer::onDocumentDidSave);
+  MsgHandler->bind("workspace/didChangeWatchedFiles", &ClangdLSPServer::onFileEvent);
+  MsgHandler->bind("workspace/didChangeConfiguration", &ClangdLSPServer::onChangeConfiguration);
+  MsgHandler->bind("textDocument/symbolInfo", &ClangdLSPServer::onSymbolInfo);
+  MsgHandler->bind("textDocument/typeHierarchy", &ClangdLSPServer::onTypeHierarchy);
+  MsgHandler->bind("typeHierarchy/resolve", &ClangdLSPServer::onResolveTypeHierarchy);
+  MsgHandler->bind("textDocument/prepareCallHierarchy", &ClangdLSPServer::onPrepareCallHierarchy);
+  MsgHandler->bind("callHierarchy/incomingCalls", &ClangdLSPServer::onCallHierarchyIncomingCalls);
+  MsgHandler->bind("callHierarchy/outgoingCalls", &ClangdLSPServer::onCallHierarchyOutgoingCalls);
+  MsgHandler->bind("textDocument/selectionRange", &ClangdLSPServer::onSelectionRange);
+  MsgHandler->bind("textDocument/documentLink", &ClangdLSPServer::onDocumentLink);
+  MsgHandler->bind("textDocument/semanticTokens/full", &ClangdLSPServer::onSemanticTokens);
+  MsgHandler->bind("textDocument/semanticTokens/full/delta", &ClangdLSPServer::onSemanticTokensDelta);
+  MsgHandler->bind("$/memoryUsage", &ClangdLSPServer::onMemoryUsage);
+  if (Opts.FoldingRanges)
+    MsgHandler->bind("textDocument/foldingRange", &ClangdLSPServer::onFoldingRange);
+>>>>>>> main
   // clang-format on
 }
 
@@ -1699,6 +1974,20 @@ bool ClangdLSPServer::shouldRunCompletion(
 
 void ClangdLSPServer::onDiagnosticsReady(PathRef File, llvm::StringRef Version,
                                          std::vector<Diag> Diagnostics) {
+#ifdef LSP3C
+  PublishDiagnosticsParams Notification;
+  Notification.uri = URIForFile::canonicalize(File, /*TUPath=*/File);
+
+  for (auto &Diag : Diagnostics) {
+    toLSPDiags(Diag, Notification.uri, DiagOpts,
+               [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
+                 Notification.diagnostics.push_back(std::move(Diag));
+               });
+  }
+  auto size = Diagnostics.size();
+  log(std::to_string(size).c_str());
+  publishDiagnostics(Notification);
+#else
   PublishDiagnosticsParams Notification;
   Notification.version = decodeVersion(Version);
   Notification.uri = URIForFile::canonicalize(File, /*TUPath=*/File);
@@ -1712,6 +2001,7 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File, llvm::StringRef Version,
                });
   }
 
+
   // Cache FixIts
   {
     std::lock_guard<std::mutex> Lock(FixItsMutex);
@@ -1719,7 +2009,12 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File, llvm::StringRef Version,
   }
 
   // Send a notification to the LSP client.
+<<<<<<< HEAD
   PublishDiagnostics(Notification);
+=======
+  publishDiagnostics(Notification);
+#endif
+>>>>>>> main
 }
 
 void ClangdLSPServer::onBackgroundIndexProgress(
@@ -1817,6 +2112,7 @@ void ClangdLSPServer::onSemanticsMaybeChanged(PathRef File) {
     });
   }
 }
+
 
 } // namespace clangd
 } // namespace clang
