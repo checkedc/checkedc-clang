@@ -1,0 +1,97 @@
+CONFLICT (modify/delete): .github/workflows/main-branch-sync.yml deleted in HEAD and modified in main.  Version main of .github/workflows/main-branch-sync.yml left in tree.
+CONFLICT (content): Merge conflict in README.md
+[DONE] CONFLICT (content): Merge conflict in clang-tools-extra/test/clang-tidy/check_clang_tidy.py
+[DONE] CONFLICT (content): Merge conflict in clang-tools-extra/test/lit.cfg.py
+[DONE] CONFLICT (content): Merge conflict in clang-tools-extra/test/lit.site.cfg.py.in
+[DONE] CONFLICT (content): Merge conflict in clang/cmake/modules/AddClang.cmake
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/ASTContext.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/DeclBase.h  [Double check this one!]
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/RecursiveASTVisitor.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/Stmt.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/Type.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/TypeLoc.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/Builtins.def
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/CodeGenOptions.def
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticGroups.td
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticParseKinds.td
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticSemaKinds.td
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/Specifiers.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/TokenKinds.def
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/TypeNodes.td
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Driver/Options.td
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Parse/Parser.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Sema/DeclSpec.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Initialization.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Scope.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Sema.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/ASTBitCodes.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/ASTRecordWriter.h
+[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/TypeBitCodes.def
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ASTContext.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ASTDiagnostic.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ASTImporter.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/Decl.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/DeclPrinter.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/Expr.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ExprClassification.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ExprConstant.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ItaniumMangle.cpp
+[DONE] ONFLICT (content): Merge conflict in clang/lib/AST/Stmt.cpp [Double check this one!]
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/TextNodeDumper.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/Type.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/TypePrinter.cpp  [Double check this one!]
+[DONE] CONFLICT (content): Merge conflict in clang/lib/Analysis/CMakeLists.txt
+CONFLICT (content): Merge conflict in clang/lib/Basic/IdentifierTable.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/CMakeLists.txt
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGCall.cpp
+[DONE] CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGDebugInfo.h
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGExpr.cpp
+CONFLICT (content): Merge conflict in clang/lib/CodeGen/CodeGenFunction.cpp
+CONFLICT (content): Merge conflict in clang/lib/Driver/ToolChains/Clang.cpp
+CONFLICT (content): Merge conflict in clang/lib/Frontend/CompilerInvocation.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseDeclCXX.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseExpr.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseExprCXX.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseObjc.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParsePragma.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseStmt.cpp
+CONFLICT (content): Merge conflict in clang/lib/Parse/ParseTemplate.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/Sema.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaAttr.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaCast.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaChecking.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaDeclCXX.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaExpr.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaFixItUtils.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaOverload.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaStmt.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplate.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplateDeduction.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplateVariadic.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/SemaType.cpp
+CONFLICT (content): Merge conflict in clang/lib/Sema/TreeTransform.h
+CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTReaderDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTReaderStmt.cpp
+CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTWriterDecl.cpp
+CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTWriterStmt.cpp
+CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-attr.m
+CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-c-attr.c
+CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-expr-json.c
+CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-expr.c
+CONFLICT (content): Merge conflict in clang/test/AST/sourceranges.cpp
+CONFLICT (content): Merge conflict in clang/test/Driver/openmp-offload-gpu.c
+CONFLICT (content): Merge conflict in clang/test/Driver/openmp-offload.c
+[DONE] CONFLICT (content): Merge conflict in clang/test/lit.cfg.py
+[DONE] CONFLICT (content): Merge conflict in clang/test/lit.site.cfg.py.in
+[DONE] CONFLICT (content): Merge conflict in clang/tools/CMakeLists.txt
+[DONE] CONFLICT (content): Merge conflict in clang/unittests/CMakeLists.txt
+[DONE] CONFLICT (content): Merge conflict in llvm/CMakeLists.txt
+[DONE] CONFLICT (modify/delete): llvm/tools/msbuild/install.bat deleted in HEAD and modified in main.  Version main of llvm/tools/msbuild/install.bat left in tree.
+[DONE] CONFLICT (modify/delete): llvm/tools/msbuild/uninstall.bat deleted in HEAD and modified in main.  Version main of llvm/tools/msbuild/uninstall.bat left in tree.
+[DONE] CONFLICT (content): Merge conflict in llvm/utils/lit/lit/TestingConfig.py
+
+TODO:
+Replace makeArrayRef with use of ArrayRef constructor (I think).  makeArrayRef has been deprecated and we get a warning about it.
