@@ -136,34 +136,38 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr,
   // Emit the code to generate the pointer values
   Address Lower = EmitPointerWithAlignment(BoundsRange->getLowerExpr());
 
+    // TODO: Checked C update.  Use new CreateElementBitCast method 
+    // instead of CreateBitCast?
+
   // We don't infer an expression with the correct cast for
   // multidimensional array access, but icmp requires that
   // its operands are of the same type, so we bitcast Lower to
   // match the type of PtrAddr at the LLVM IR Level.
-  if (Lower.getType() != PtrAddr.getType())
-    Lower = Builder.CreateBitCast(Lower, PtrAddr.getType());
-
+  Value *LowerVal = (Lower.getType() != PtrAddr.getType()) ?
+    Builder.CreateBitCast(Lower.getPointer(), PtrAddr.getType()) :
+    Lower.getPointer();
+  
   Address Upper = EmitPointerWithAlignment(BoundsRange->getUpperExpr());
-
   // As above, we may need to bitcast Upper to match the type
   // of PtrAddr at the LLVM IR Level.
-  if (Upper.getType() != PtrAddr.getType())
-    Upper = Builder.CreateBitCast(Upper, PtrAddr.getType());
+  Value *UpperVal = (Upper.getType() != PtrAddr.getType()) ?
+    Builder.CreateBitCast(Upper.getPointer(), PtrAddr.getType()) :
+    Upper.getPointer();
 
   // Make the lower check
   Value *LowerChk = Builder.CreateICmpULE(
-      Lower.getPointer(), PtrAddr.getPointer(), "_Dynamic_check.lower");
+      LowerVal, PtrAddr.getPointer(), "_Dynamic_check.lower");
 
   // Make the upper check
   Value *UpperChk;
   assert(CheckKind != BCK_None);
   if (CheckKind != BCK_NullTermRead)
-    UpperChk = Builder.CreateICmpULT(PtrAddr.getPointer(), Upper.getPointer(),
+    UpperChk = Builder.CreateICmpULT(PtrAddr.getPointer(), UpperVal,
                                      "_Dynamic_check.upper");
   else
     // For reads of null-terminated pointers, we allow the element exactly
     // at the upper bound to be read.
-    UpperChk = Builder.CreateICmpULE(PtrAddr.getPointer(), Upper.getPointer(),
+    UpperChk = Builder.CreateICmpULE(PtrAddr.getPointer(), UpperVal,
                                      "_Dynamic_check.upper");
   llvm::Value *Condition =
     Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range");
@@ -274,29 +278,35 @@ CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
 
   // Emit the code to generate pointers for SubRange, lb and ub
   Address Lower = EmitPointerWithAlignment(SubRange->getLowerExpr());
+  Value *LowerVal = Lower.getPointer();
   Address Upper = EmitPointerWithAlignment(SubRange->getUpperExpr());
+  Value *UpperVal = Upper.getPointer();
 
   // Emit the code to generate pointers for CastRange, castlb and castub
 
+    // TODO: Checked C update.  Use new CreateElementBitCast method 
+    // instead of CreateBitCast?
   Address CastLower = EmitPointerWithAlignment(CastRange->getLowerExpr());
   // We will be comparing CastLower to Lower. Their types may not match,
   // so we're going to bitcast CastLower to match the type of Lower if needed.
-  if (CastLower.getType() != Lower.getType())
-    CastLower = Builder.CreateBitCast(CastLower, Lower.getType());
+  Value *CastLowerVal = (CastLower.getType() != Lower.getType()) ?
+    Builder.CreateBitCast(CastLower.getPointer(), Lower.getType()) :
+    CastLower.getPointer();
 
   Address CastUpper = EmitPointerWithAlignment(CastRange->getUpperExpr());
   // Again we're going to bitcast CastUpper to match the type of Upper
   // if needed.
-  if (CastUpper.getType() != Upper.getType())
-    CastUpper = Builder.CreateBitCast(CastUpper, Upper.getType());
+  Value *CastUpperVal = (CastUpper.getType() != Upper.getType()) ?
+    Builder.CreateBitCast(CastUpper.getPointer(), Upper.getType()) :
+    CastUpper.getPointer();
 
   // Make the lower check (Lower <= CastLower)
   Value *LowerChk = Builder.CreateICmpULE(
-      Lower.getPointer(), CastLower.getPointer(), "_Dynamic_check.lower");
+      LowerVal, CastLowerVal, "_Dynamic_check.lower");
 
   // Make the upper check (CastUpper <= Upper)
   Value *UpperChk = Builder.CreateICmpULE(
-      CastUpper.getPointer(), Upper.getPointer(), "_Dynamic_check.upper");
+      CastUpperVal, UpperVal, "_Dynamic_check.upper");
 
   // Make Both Checks
   Value *CastCond =

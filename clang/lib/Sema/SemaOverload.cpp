@@ -15487,7 +15487,6 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
       TemplateArgs = &TemplateArgsBuffer;
     }
 
-<<<<<<< HEAD
     QualType Type = Fn->getType();
     ExprValueKind ValueKind = getLangOpts().CPlusPlus ? VK_LValue : VK_PRValue;
 
@@ -15502,15 +15501,6 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
     DeclRefExpr *DRE = BuildDeclRefExpr(
         Fn, Type, ValueKind, ULE->getNameInfo(), ULE->getQualifierLoc(),
         Found.getDecl(), ULE->getTemplateKeywordLoc(), TemplateArgs);
-=======
-    ExprResult ER =
-        BuildDeclRefExpr(Fn, Fn->getType(), VK_LValue, ULE->getNameInfo(),
-                         ULE->getQualifierLoc(), Found.getDecl(),
-                         ULE->getTemplateKeywordLoc(), TemplateArgs);
-    if (ER.isInvalid())
-      return nullptr;
-    DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ER.get());
->>>>>>> main
     DRE->setHadMultipleCandidates(ULE->getNumDecls() > 1);
     return DRE;
   }

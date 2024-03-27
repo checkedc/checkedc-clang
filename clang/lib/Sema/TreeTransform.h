@@ -715,21 +715,9 @@ public:
   /// The result vectors should be kept in sync; null entries in the
   /// variables vector are acceptable.
   ///
-<<<<<<< HEAD
   /// LastParamTransformed, if non-null, will be set to the index of the last
   /// parameter on which transfromation was started. In the event of an error,
   /// this will contain the parameter which failed to instantiate.
-=======
-  /// Inputs: Params, ParamTypes, and ParamInfos.
-  ///
-  /// Outputs: PTypes, PVars, and PInfos:
-  /// - The updated parameter types are stored in PTypes.
-  /// - The updated parameter variable declarations are stored in PVars.
-  /// - The updated extend parameter info is stored in PInfos.
-  ///
-  /// For correctness, the inputs and outputs shoudl be disjoint data
-  /// structures.
->>>>>>> main
   ///
   /// Return true on error.
   bool TransformFunctionTypeParams(
@@ -6202,8 +6190,8 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   if (auto NewExtParamInfos =
       ExtParamInfos.getPointerOrNull(ParamTypes.size())) {
     if (!EPI.ExtParameterInfos ||
-        llvm::makeArrayRef(EPI.ExtParameterInfos, TL.getNumParams())
-        != llvm::makeArrayRef(NewExtParamInfos, ParamTypes.size())) {
+        llvm::ArrayRef(EPI.ExtParameterInfos, TL.getNumParams())
+        != llvm::ArrayRef(NewExtParamInfos, ParamTypes.size())) {
       EPIChanged = true;
     }
     EPI.ExtParameterInfos = NewExtParamInfos;
@@ -6333,7 +6321,6 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
                                                   TransformExceptionSpec))
     return QualType();
 
-<<<<<<< HEAD
   // Handle extended parameter information.
   if (auto NewExtParamInfos =
         ExtParamInfos.getPointerOrNull(ParamTypes.size())) {
@@ -6348,8 +6335,6 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
     EPI.ExtParameterInfos = nullptr;
   }
 
-=======
->>>>>>> main
   QualType Result = TL.getType();
   if (getDerived().AlwaysRebuild() || ResultType != T->getReturnType() ||
       T->getParamTypes() != llvm::ArrayRef(ParamTypes) || EPIChanged) {

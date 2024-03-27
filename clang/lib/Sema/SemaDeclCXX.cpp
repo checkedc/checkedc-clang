@@ -14030,7 +14030,7 @@ class RefBuilder: public ExprBuilder {
 
 public:
   Expr *build(Sema &S, SourceLocation Loc) const override {
-    return assertNotNull(S.BuildDeclRefExpr(Var, VarType, VK_LValue, Loc).get());
+    return assertNotNull(S.BuildDeclRefExpr(Var, VarType, VK_LValue, Loc));
   }
 
   RefBuilder(VarDecl *Var, QualType VarType)
@@ -15475,13 +15475,8 @@ void Sema::DefineImplicitLambdaToFunctionPointerConversion(
   }
 
   // Construct the body of the conversion function { return __invoke; }.
-<<<<<<< HEAD
   Expr *FunctionRef = BuildDeclRefExpr(Invoker, Invoker->getType(), VK_LValue,
                                        Conv->getLocation());
-=======
-  Expr *FunctionRef = BuildDeclRefExpr(Invoker, Invoker->getType(),
-                                       VK_LValue, Conv->getLocation()).get();
->>>>>>> main
   assert(FunctionRef && "Can't refer to __invoke function?");
   Stmt *Return = BuildReturnStmt(Conv->getLocation(), FunctionRef).get();
   Conv->setBody(CompoundStmt::Create(Context, Return, FPOptionsOverride(),

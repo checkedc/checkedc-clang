@@ -81,12 +81,9 @@ void ASTStmtWriter::VisitNullStmt(NullStmt *S) {
 void ASTStmtWriter::VisitCompoundStmt(CompoundStmt *S) {
   VisitStmt(S);
   Record.push_back(S->size());
-<<<<<<< HEAD
   Record.push_back(S->hasStoredFPFeatures());
-=======
   Record.push_back(S->getCheckedSpecifier());
   Record.push_back(S->getWrittenCheckedSpecifier());
->>>>>>> main
   for (auto *CS : S->body())
     Record.AddStmt(CS);
   if (S->hasStoredFPFeatures())

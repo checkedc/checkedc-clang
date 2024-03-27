@@ -5144,10 +5144,10 @@ recurse:
     mangleType(USN->getTypeSourceInfo()->getType());
 
     Out << "E";
+  }
   case Expr::PackExprClass:
     llvm_unreachable("Don't know how to mangle pack expressions");
     break;
-  }
   }
 
   if (AsTemplateArg && !IsPrimaryExpr)

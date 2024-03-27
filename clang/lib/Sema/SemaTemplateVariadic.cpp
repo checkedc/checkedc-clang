@@ -867,18 +867,12 @@ bool Sema::containsUnexpandedParameterPacks(Declarator &D) {
   case TST_typename:
   case TST_typeof_unqualType:
   case TST_typeofType:
-<<<<<<< HEAD
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case TST_##Trait:
 #include "clang/Basic/TransformTypeTraits.def"
-  case TST_atomic: {
-=======
-  case TST_underlyingType:
-  case TST_atomic:
   case TST_plainPtr:
   case TST_arrayPtr:
   case TST_ntarrayPtr:
   case TST_exists: {
->>>>>>> main
     QualType T = DS.getRepAsType().get();
     if (!T.isNull() && T->containsUnexpandedParameterPack())
       return true;

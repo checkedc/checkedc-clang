@@ -4621,8 +4621,7 @@ public:
   typedef const BoundsAnnotations *annots_iterator;
 
   ArrayRef<BoundsAnnotations> parameter_annots() const {
-    return llvm::makeArrayRef(param_annots_begin(),
-                              param_annots_end());
+    return ArrayRef(param_annots_begin(), param_annots_end());
   }
 
   annots_iterator param_annots_begin() const {

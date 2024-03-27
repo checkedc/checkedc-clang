@@ -45,6 +45,7 @@
 #include "clang/AST/ExprUtils.h"
 #include "clang/AST/NormalizeUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
 #include "clang/Sema/BoundsUtils.h"
 #include "clang/Sema/BoundsWideningAnalysis.h"
@@ -324,7 +325,7 @@ namespace {
     // rVvalue structs can arise from function returns of struct values.
     ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
       if (FieldDecl *FD = dyn_cast<FieldDecl>(E->getDecl())) {
-        if (Base->isRValue() && !IsArrow)
+        if (Base->isPRValue() && !IsArrow)
           // For now, return an error if we see an rvalue base.
           return ExprError();
         ASTContext &Context = SemaRef.getASTContext();
@@ -332,7 +333,7 @@ namespace {
         if (IsArrow)
           ResultKind = VK_LValue;
         else
-          ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
+          ResultKind = Base->isLValue() ? VK_LValue : VK_PRValue;
         return
           MemberExpr::CreateImplicit(Context, Base, IsArrow, FD,
                                      E->getType(), ResultKind, OK_Ordinary);
@@ -1780,7 +1781,7 @@ namespace {
     // pointer arithmetic to bytewise arithmetic.
     static bool CreateStandardForm(ASTContext &Ctx, Expr *Base, Expr *Offset, llvm::APSInt &ConstantPart, bool &IsOpSigned, Expr *&VariablePart) {
       bool Overflow;
-      uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
+      uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(LangAS::Default);
       if (!Base->getType()->isPointerType())
         return false;
       if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
@@ -2680,7 +2681,7 @@ namespace {
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
-      PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
+      PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(LangAS::Default)),
       Body(Body),
       Cfg(Cfg),
       FunctionDeclaration(FD),
@@ -2708,7 +2709,7 @@ namespace {
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       DumpState(SemaRef.getLangOpts().DumpCheckingState),
       DumpSynthesizedMembers(SemaRef.getLangOpts().DumpSynthesizedMembers),
-      PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
+      PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(LangAS::Default)),
       Body(nullptr),
       Cfg(nullptr),
       FunctionDeclaration(nullptr),
@@ -4453,7 +4454,7 @@ namespace {
       RValueBounds = BoundsUtil::CreateBoundsUnknown(S);
       if (E->isLValue())
         LValueBounds = CheckLValue(E, CSS, State);
-      else if (E->isRValue())
+      else if (E->isPRValue())
         RValueBounds = Check(E, CSS, State);
     }
 
@@ -5775,7 +5776,7 @@ namespace {
     }
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
-      assert(LowerBounds->isRValue());
+      assert(LowerBounds->isPRValue());
       return BoundsUtil::ExpandToRange(S, LowerBounds,
                                        Context.getPrebuiltCountOne());
     }
@@ -5787,7 +5788,7 @@ namespace {
     Expr *CreateAddressOfOperator(Expr *E) {
       QualType Ty = Context.getPointerType(E->getType(), CheckedPointerKind::Array);
       return UnaryOperator::Create(Context, E, UnaryOperatorKind::UO_AddrOf, Ty,
-                                   ExprValueKind::VK_RValue,
+                                   ExprValueKind::VK_PRValue,
                                    ExprObjectKind::OK_Ordinary,
                                    SourceLocation(), false,
                                    FPOptionsOverride());
@@ -5843,7 +5844,7 @@ namespace {
         if (B) {
           B = S.MakeMemberBoundsConcrete(ME->getBase(), ME->isArrow(), B);
           if (!B) {
-            assert(ME->getBase()->isRValue());
+            assert(ME->getBase()->isPRValue());
             // This can happen if the base expression is an rvalue expression.
             // It could be a function call that returns a struct, for example.
             return CreateBoundsNotAllowedYet();
@@ -5870,7 +5871,7 @@ namespace {
         return BoundsUtil::CreateBoundsInferenceError(S);
 
       // If E is an L-value, the ME must be an L-value too.
-      if (ME->isRValue()) {
+      if (ME->isPRValue()) {
         llvm_unreachable("unexpected MemberExpr r-value");
         return BoundsUtil::CreateBoundsInferenceError(S);
       }
@@ -6547,7 +6548,7 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
 }
 
 Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
-  if (!E->isRValue())
+  if (!E->isPRValue())
     return E;
 
   ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
@@ -6572,7 +6573,7 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
       QualType PTy = Context.isPromotableBitField(SE);
       if (!PTy.isNull() && TargetTy == PTy)
         isUsualUnaryConversion = true;
-      else if (Ty->isPromotableIntegerType() &&
+      else if (Context.isPromotableIntegerType(Ty) &&
               TargetTy == Context.getPromotedIntegerType(Ty))
         isUsualUnaryConversion = true;
     }

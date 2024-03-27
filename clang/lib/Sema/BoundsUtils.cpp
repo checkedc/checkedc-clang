@@ -107,7 +107,7 @@ BoundsExpr *BoundsUtil::ExpandBoundsToRange(Sema &S, VarDecl *D, BoundsExpr *B) 
 }
 
 BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B) {
-  assert(Base->isRValue() && "expected rvalue expression");
+  assert(Base->isPRValue() && "expected rvalue expression");
   if (!B)
     return B;
   BoundsExpr::Kind K = B->getKind();
@@ -155,7 +155,7 @@ BoundsExpr *BoundsUtil::ExpandToRange(Sema &S, Expr *Base, BoundsExpr *B) {
         BinaryOperator::Create(S.Context, LowerBound, Count,
                                BinaryOperatorKind::BO_Add,
                                ResultTy,
-                               ExprValueKind::VK_RValue,
+                               ExprValueKind::VK_PRValue,
                                ExprObjectKind::OK_Ordinary,
                                SourceLocation(),
                                FPOptionsOverride());

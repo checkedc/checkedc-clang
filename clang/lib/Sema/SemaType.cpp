@@ -762,15 +762,11 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*NumExceptions=*/0,
       /*NoexceptExpr=*/nullptr,
       /*ExceptionSpecTokens=*/nullptr,
-<<<<<<< HEAD
-      /*DeclsInPrototype=*/std::nullopt, loc, loc, declarator));
-=======
-      /*DeclsInPrototype=*/None, loc, loc,
+      /*DeclsInPrototype=*/std::nullopt, loc, loc,
       /*ReturnAnnotsColon=*/NoLoc,
       /*ReturnInteropTypeExpr=*/nullptr,
       /*ReturnBoundsAnnots=*/nullptr,
       declarator));
->>>>>>> main
 
   // For consistency, make sure the state still has us as processing
   // the decl spec.
@@ -9689,8 +9685,9 @@ QualType Sema::BuiltinEnumUnderlyingType(QualType BaseType,
 
 QualType Sema::BuiltinAddPointer(QualType BaseType, SourceLocation Loc) {
   QualType Pointer = BaseType.isReferenceable() || BaseType->isVoidType()
-                         ? BuildPointerType(BaseType.getNonReferenceType(), Loc,
-                                            DeclarationName())
+                         ? BuildPointerType(BaseType.getNonReferenceType(), 
+                                            CheckedPointerKind::Unchecked,
+                                            Loc, DeclarationName())
                          : BaseType;
 
   return Pointer.isNull() ? QualType() : Pointer;

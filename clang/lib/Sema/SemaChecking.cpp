@@ -2730,7 +2730,6 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_matrix_column_major_store:
     return SemaBuiltinMatrixColumnMajorStore(TheCall, TheCallResult);
 
-<<<<<<< HEAD
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Check = [](CallExpr *TheCall) {
       if (TheCall->getNumArgs() != 1)
@@ -2749,7 +2748,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
            diag::err_hip_invalid_args_builtin_mangled_name);
       return ExprError();
     }
-=======
+  }
   case Builtin::BI_Dynamic_check: {
     // This disables any semantic analysis (in particular, errors or warnings)
     // if Checked C is not enabled
@@ -2764,7 +2763,6 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     WarnDynamicCheckAlwaysFails(Conditional);
 
     break;
->>>>>>> main
   }
   }
 
@@ -9921,13 +9919,9 @@ bool CheckPrintfHandler::HandleAmount(
     if (ArgPassingKind != Sema::FAPK_VAList) {
       unsigned argIndex = Amt.getArgIndex();
       if (argIndex >= NumDataArgs) {
-<<<<<<< HEAD
-        EmitFormatDiagnostic(S.PDiag(diag::warn_printf_asterisk_missing_arg)
-=======
         EmitFormatDiagnostic((S.IsCheckedScope() ?
                               S.PDiag(diag::err_printf_asterisk_missing_arg) :
                               S.PDiag(diag::warn_printf_asterisk_missing_arg))
->>>>>>> main
                                  << k,
                              getLocationOfByte(Amt.getStart()),
                              /*IsStringLocation*/ true,

@@ -1614,22 +1614,15 @@ static Sema::TemplateDeductionResult DeduceTemplateArgumentsByTypeMatch(
     case Type::TemplateTypeParm:
     case Type::SubstTemplateTypeParmPack:
       llvm_unreachable("Type nodes handled above");
-
-<<<<<<< HEAD
+    case Type::TypeVariable:
+      llvm_unreachable("Type Variable cannot be used in templates");
+    case Type::Existential:
+      llvm_unreachable("existential type cannot be used in templates");      
     case Type::Auto:
       // FIXME: Implement deduction in dependent case.
       if (P->isDependentType())
         return Sema::TDK_Success;
       [[fallthrough]];
-=======
-    case Type::TypeVariable:
-      llvm_unreachable("Type Variable cannot be used in templates");
-    case Type::Existential:
-      llvm_unreachable("existential type cannot be used in templates");
-
-    // These types cannot be dependent, so simply check whether the types are
-    // the same.
->>>>>>> main
     case Type::Builtin:
     case Type::VariableArray:
     case Type::Vector:
@@ -6203,13 +6196,9 @@ MarkUsedTemplateParameters(ASTContext &Ctx, QualType T,
   case Type::ObjCObjectPointer:
   case Type::UnresolvedUsing:
   case Type::Pipe:
-<<<<<<< HEAD
   case Type::BitInt:
-=======
-  case Type::ExtInt:
   case Type::TypeVariable:
   case Type::Existential:
->>>>>>> main
 #define TYPE(Class, Base)
 #define ABSTRACT_TYPE(Class, Base)
 #define DEPENDENT_TYPE(Class, Base)

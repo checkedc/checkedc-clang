@@ -190,10 +190,6 @@ Retry:
     Actions.CodeCompleteOrdinaryName(getCurScope(), Sema::PCC_Statement);
     return StmtError();
 
-<<<<<<< HEAD
-  case tok::identifier:
-  ParseIdentifier: {
-=======
   case tok::kw__Checked:
   case tok::kw__Unchecked: {
     // See if this is the start of a checked scope.  Otherwise it may be the
@@ -206,16 +202,15 @@ Retry:
       return ParseCompoundStatement();
     goto FallThrough;
   }
-
+ 
   case tok::kw__Bundled: {
     Token Next = NextToken();
     if (Next.is(tok::l_brace))
       return ParseCompoundStatement();
     goto FallThrough;
   }
-
-  case tok::identifier: {
->>>>>>> main
+  case tok::identifier:
+  ParseIdentifier: {
     Token Next = NextToken();
     if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
       // Both C++11 and GNU attributes preceding the label appertain to the
@@ -253,14 +248,12 @@ Retry:
   }
 
   default: {
-<<<<<<< HEAD
+    FallThrough:    
     bool HaveAttrs = !CXX11Attrs.empty() || !GNUAttrs.empty();
     auto IsStmtAttr = [](ParsedAttr &Attr) { return Attr.isStmtAttr(); };
     bool AllAttrsAreStmtAttrs = llvm::all_of(CXX11Attrs, IsStmtAttr) &&
                                 llvm::all_of(GNUAttrs, IsStmtAttr);
-=======
-    FallThrough:
->>>>>>> main
+
     if ((getLangOpts().CPlusPlus || getLangOpts().MicrosoftExt ||
          (StmtCtx & ParsedStmtContext::AllowDeclarationsInC) !=
              ParsedStmtContext()) &&
@@ -1044,11 +1037,6 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 /// [GNU] label-declaration:
 /// [GNU]   '__label__' identifier-list ';'
 ///
-<<<<<<< HEAD
-StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
-                                          unsigned ScopeFlags) {
-  assert(Tok.is(tok::l_brace) && "Not a compound stmt!");
-=======
 /// [CHECKED C] checked-spec:
 ///            '_Checked'
 ///            '_Checked' '_Bounds_only'
@@ -1056,13 +1044,13 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
 ///
 /// [CHECKED C] bundled-spec:
 ///            '_Bundled'
-StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) {
+StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
+                                          unsigned ScopeFlags) {
   // Checked C - process optional checked scope and bundled block information.
   CheckedScopeSpecifier CSS = CSS_None;
   SourceLocation CSSLoc;
   SourceLocation CSMLoc;
   SourceLocation BNDLoc;
->>>>>>> main
 
   if (Tok.is(tok::kw__Bundled)) {
     BNDLoc = ConsumeToken();
@@ -1219,23 +1207,15 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
   return Actions.ActOnExprStmt(E, /*DiscardedValue=*/!IsStmtExprResult);
 }
 
-<<<<<<< HEAD
 /// ParseCompoundStatementBody - Parse a sequence of statements optionally
 /// followed by a label and invoke the ActOnCompoundStmt action.  This expects
 /// the '{' to be the current token, and consume the '}' at the end of the
 /// block.  It does not manipulate the scope stack.
-StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
-=======
-/// ParseCompoundStatementBody - Parse a sequence of statements and invoke the
-/// ActOnCompoundStmt action.  This expects the '{' to be the current token, and
-/// consume the '}' at the end of the block.  It does not manipulate the scope
-/// stack.
 StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
                                               CheckedScopeSpecifier WrittenCSS,
                                               SourceLocation CSSLoc,
                                               SourceLocation CSMLoc,
                                               SourceLocation BNDLoc) {
->>>>>>> main
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
                                 Tok.getLocation(),
                                 "in compound statement ('{}')");
@@ -2864,24 +2844,6 @@ void Parser::ParseMicrosoftIfExistsStatement(StmtVector &Stmts) {
   }
   Braces.consumeClose();
 }
-<<<<<<< HEAD
-=======
-
-bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
-  MaybeParseGNUAttributes(Attrs);
-
-  if (Attrs.empty())
-    return true;
-
-  if (Attrs.begin()->getKind() != ParsedAttr::AT_OpenCLUnrollHint)
-    return true;
-
-  if (!(Tok.is(tok::kw_for) || Tok.is(tok::kw_while) || Tok.is(tok::kw_do))) {
-    Diag(Tok, diag::err_opencl_unroll_hint_on_non_loop);
-    return false;
-  }
-  return true;
-}
 
 WhereClauseFact *Parser::ParseWhereClauseFact() {
   // TODO: Handle bounds expression surrounded by parentheses, like:
@@ -2905,7 +2867,8 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
     if (BoundsRes.isInvalid())
       return nullptr;
     return Actions.ActOnBoundsDeclFact(VarName, BoundsRes.get(),
-                                       getCurScope(), IdLoc, BoundsLoc);
+                                       getCurScope(),
+                                        IdLoc, BoundsLoc);
   }
 
   // Parse an equality expression.
@@ -2980,4 +2943,3 @@ WhereClause *Parser::ParseWhereClauseHelper() {
 
   return WClause;
 }
->>>>>>> main

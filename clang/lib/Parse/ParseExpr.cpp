@@ -1494,12 +1494,10 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_this:
     Res = ParseCXXThis();
     break;
-<<<<<<< HEAD
   case tok::kw___builtin_sycl_unique_stable_name:
     Res = ParseSYCLUniqueStableNameExpression();
     break;
 
-=======
   case tok::kw__Assume_bounds_cast:
   case tok::kw__Dynamic_bounds_cast:
     Res = ParseBoundsCastExpression();
@@ -1507,7 +1505,6 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw__Return_value:
     Res = ParseReturnValueExpression();
     break;
->>>>>>> main
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
       TypeResult Type = getTypeAnnotation(Tok);
@@ -3080,16 +3077,12 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
     // Parse the type declarator.
     DeclSpec DS(AttrFactory);
     ParseSpecifierQualifierList(DS);
-<<<<<<< HEAD
-    Declarator DeclaratorInfo(DS, ParsedAttributesView::none(),
-                              DeclaratorContext::TypeName);
-=======
 
     // Adjust checked scope properties if _Checked or _Unchecked was
     // specified.
-    Sema::CheckedScopeRAII CheckedScope(Actions, DS);
-    Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
->>>>>>> main
+    Sema::CheckedScopeRAII CheckedScope(Actions, DS);    
+    Declarator DeclaratorInfo(DS, ParsedAttributesView::none(),
+                              DeclaratorContext::TypeName);
     ParseDeclarator(DeclaratorInfo);
     ExitQuantifiedTypeScope(DS);
 
@@ -3750,7 +3743,7 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
            // message and discard the newly-parsed tokens.
            Diag(Tok, diag::err_single_bounds_expr_allowed);
            Error = true;
-           (**DeferredToks).set_size(startPosition);
+           (**DeferredToks).resize(startPosition);
         } else
           parsedDeferredBounds = true;
       } else {
@@ -4517,17 +4510,13 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                      /*NumExceptions=*/0,
                                      /*NoexceptExpr=*/nullptr,
                                      /*ExceptionSpecTokens=*/nullptr,
-<<<<<<< HEAD
                                      /*DeclsInPrototype=*/std::nullopt,
-                                     CaretLoc, CaretLoc, ParamInfo),
-=======
-                                     /*DeclsInPrototype=*/None, CaretLoc,
-                                     CaretLoc,
+                                     CaretLoc, CaretLoc,
                                      /*ReturnAnnotsColon=*/NoLoc,
                                      /*ReturnInteropTypeExpr=*/nullptr,
-                                     /*ReturnBounds=*/nullptr,
+                                     /*ReturnBounds=*/nullptr,                                     
                                      ParamInfo),
->>>>>>> main
+
         CaretLoc);
 
     MaybeParseGNUAttributes(ParamInfo);

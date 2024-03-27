@@ -372,12 +372,12 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     return true;
   }
 
-<<<<<<< HEAD
   if (const auto *EmptyD = dyn_cast<UnresolvedUsingIfExistsDecl>(D)) {
     Diag(Loc, diag::err_use_of_empty_using_if_exists);
     Diag(EmptyD->getLocation(), diag::note_empty_using_if_exists_here);
     return true;
-=======
+  }
+
   // Checked C - check if use of declaration has proper type in checked block.
   // If it is valid declaration, it checks if use of declaration has unchecked
   // type in checked block.
@@ -406,7 +406,6 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
         }
       }
     }
->>>>>>> main
   }
 
   DiagnoseAvailabilityOfDecl(D, Locs, UnknownObjCClass, ObjCPropertyAccess,
@@ -576,7 +575,7 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
     CheckedPointerKind kind = isCheckedScope ?
       CheckedPointerKind::Ptr : CheckedPointerKind::Unchecked;
     E = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
-                          CK_FunctionToPointerDecay, VK_RValue,
+                          CK_FunctionToPointerDecay, VK_PRValue,
                           nullptr, Sema::CCK_ImplicitConversion,
                           isBoundsSafeInterfaceCast).get();
 
@@ -593,13 +592,11 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
     // T" can be converted to an rvalue of type "pointer to T".
     //
     if (getLangOpts().C99 || getLangOpts().CPlusPlus || E->isLValue()) {
-<<<<<<< HEAD
       ExprResult Res = ImpCastExprToType(E, Context.getArrayDecayedType(Ty),
                                          CK_ArrayToPointerDecay);
       if (Res.isInvalid())
         return ExprError();
       E = Res.get();
-=======
       bool isBoundsSafeInterfaceCast = false;
 
       // For Checked C, for uses of arrays with bounds-safe interfaces, we
@@ -614,10 +611,9 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       }      
 
       E = ImpCastExprToType(E, Context.getArrayDecayedType(Ty),
-                            CK_ArrayToPointerDecay, VK_RValue,
+                            CK_ArrayToPointerDecay, VK_PRValue,
                             nullptr, Sema::CCK_ImplicitConversion,
                             isBoundsSafeInterfaceCast).get();
->>>>>>> main
     }
   }
   return E;
@@ -849,7 +845,7 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
     }
 
     Res = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
-                            CK_FunctionToPointerDecay, VK_RValue,
+                            CK_FunctionToPointerDecay, VK_PRValue,
                             nullptr, Sema::CCK_ImplicitConversion,
                             isBoundsSafeInterfaceCast).get();
     if (Res.isInvalid())
@@ -2099,7 +2095,7 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   llvm_unreachable("unexpected literal operator lookup result");
 }
 
-ExprResult
+DeclRefExpr *
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                        SourceLocation Loc,
                        const CXXScopeSpec *SS) {
@@ -2107,7 +2103,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   return BuildDeclRefExpr(D, Ty, VK, NameInfo, SS);
 }
 
-ExprResult
+DeclRefExpr *
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                        const DeclarationNameInfo &NameInfo,
                        const CXXScopeSpec *SS, NamedDecl *FoundD,
@@ -2178,30 +2174,22 @@ NonOdrUseReason Sema::getNonOdrUseReasonInCurrentContext(ValueDecl *D) {
 
 /// BuildDeclRefExpr - Build an expression that references a
 /// declaration that does not require a closure capture.
-ExprResult
+DeclRefExpr *
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                        const DeclarationNameInfo &NameInfo,
                        NestedNameSpecifierLoc NNS, NamedDecl *FoundD,
                        SourceLocation TemplateKWLoc,
                        const TemplateArgumentListInfo *TemplateArgs) {
-<<<<<<< HEAD
-  bool RefersToCapturedVariable = isa<VarDecl, BindingDecl>(D) &&
-                                  NeedToCaptureVariable(D, NameInfo.getLoc());
-=======
-
   // Checked C - no-prototype function is not allowed in checked scope.
   // KNR parameter function has no-prototype function proto type
   if (IsCheckedScope()) {
-    if (Ty->isFunctionNoProtoType()) {
+    if (Ty->isFunctionNoProtoType())
       Diag(NameInfo.getLoc(), diag::err_checked_scope_no_prototype_func);
-      return ExprError();
-    }
   }
 
   bool RefersToCapturedVariable =
       isa<VarDecl>(D) &&
       NeedToCaptureVariable(cast<VarDecl>(D), NameInfo.getLoc());
->>>>>>> main
 
   DeclRefExpr *E = DeclRefExpr::Create(
       Context, NNS, TemplateKWLoc, D, RefersToCapturedVariable, NameInfo, Ty,
@@ -2259,8 +2247,13 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
     if (!DD)
       llvm_unreachable("unexpected DeclRef in checked scope");
-    return ConvertToFullyCheckedType(E, DD->getInteropTypeExpr(),
-                                     isa<ParmVarDecl>(D), VK);
+    ExprResult ER = ConvertToFullyCheckedType(E, DD->getInteropTypeExpr(),
+                                              isa<ParmVarDecl>(D), VK);
+    assert(!ER.isInvalid());
+    if (!ER.isInvalid())
+      return dyn_cast<DeclRefExpr>(ER.get());
+    else
+      return E;
   }
 
   return E;
@@ -2283,7 +2276,7 @@ ExprResult Sema::ConvertToFullyCheckedType(Expr *E,
     return ExprError();
 
   assert(!CheckedTy->isOrContainsUncheckedType());
-  if (VK == ExprValueKind::VK_RValue) {
+  if (VK == ExprValueKind::VK_PRValue) {
     ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK, nullptr,
                                       Sema::CCK_ImplicitConversion, true);
     return ER;
@@ -3548,7 +3541,6 @@ ExprResult Sema::BuildDeclarationNameExpr(
       break;
     }
 
-<<<<<<< HEAD
     // [expr.prim.id.unqual]p2:
     //   If the entity is a template parameter object for a template
     //   parameter of type T, the type of the expression is const T.
@@ -3557,30 +3549,6 @@ ExprResult Sema::BuildDeclarationNameExpr(
     if (type->isRecordType()) {
       type = type.getUnqualifiedType().withConst();
       valueKind = VK_LValue;
-=======
-    // For C++, fields and indirect fields that got here must be for
-    // pointer-to-member expressions.  For Checked C, fields that get here
-    // must be for member bounds expressions.  For C++, we just call them
-    // l-values for internal consistency, because this  subexpression doesn't
-    // really exist in the high-level semantics.  For Checked C, we treat
-    // this as an lvalue.
-    case Decl::Field:
-    case Decl::IndirectField:
-    case Decl::ObjCIvar:
-      if (IsMemberBoundsExpr) {
-        assert(getLangOpts().CheckedC);
-        assert(!isa<IndirectFieldDecl>(VD));
-        valueKind = VK_LValue;
-      } else {
-        assert(getLangOpts().CPlusPlus &&
-               "building reference to field in C?");
-
-        // These can't have reference type in well-formed programs, but
-        // for internal consistency we do this anyway.
-        type = type.getNonReferenceType();
-        valueKind = VK_LValue;
-      }
->>>>>>> main
       break;
     }
 
@@ -3781,13 +3749,8 @@ ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
       ResTy = Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
       ResTy = Context.getConstantArrayType(ResTy, LengthI, nullptr,
                                            ArrayType::Normal,
-<<<<<<< HEAD
-                                           /*IndexTypeQuals*/ 0);
-      SL = StringLiteral::Create(Context, Str, StringLiteral::Ordinary,
-=======
                                            /*IndexTypeQuals*/ 0, ArrayKind);
-      SL = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
->>>>>>> main
+      SL = StringLiteral::Create(Context, Str, StringLiteral::Ordinary,
                                  /*Pascal*/ false, ResTy, Loc);
     }
   }
@@ -4727,19 +4690,15 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
     case Type::ObjCObjectPointer:
     case Type::ObjCTypeParam:
     case Type::Pipe:
-<<<<<<< HEAD
     case Type::BitInt:
       llvm_unreachable("type class is never variably-modified!");
     case Type::Elaborated:
       T = cast<ElaboratedType>(Ty)->getNamedType();
       break;
-=======
-    case Type::ExtInt:
     case Type::TypeVariable:
       llvm_unreachable("type class is never variably-modified!");
     case Type::Existential:
       llvm_unreachable("existential type is never variably-modified!");
->>>>>>> main
     case Type::Adjusted:
       T = cast<AdjustedType>(Ty)->getOriginalType();
       break;
@@ -10746,7 +10705,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
 
   RHSType = S.Context.getPointerType(RHSPointee, LHSPointerType->getKind());
   RHS = S.ImpCastExprToType(RHS.get(), RHSType, CK_ArrayToPointerDecay,
-                            clang::VK_RValue, nullptr,
+                            clang::VK_PRValue, nullptr,
                             Sema::CCK_ImplicitConversion, true);
   return true;
 }
@@ -10866,21 +10825,6 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
     return Compatible;
   }
 
-<<<<<<< HEAD
-=======
-  // This check seems unnatural, however it is necessary to ensure the proper
-  // conversion of functions/arrays. If the conversion were done for all
-  // DeclExpr's (created by ActOnIdExpression), it would mess up the unary
-  // expressions that suppress this implicit conversion (&, sizeof).
-  //
-  // Suppress this for references: C++ 8.5.3p5.
-  if (!LHSType->isReferenceType()) {
-    // FIXME: We potentially allocate here even if ConvertRHS is false.
-    RHS = DefaultFunctionArrayLvalueConversion(RHS.get(), Diagnose);
-    if (RHS.isInvalid())
-      return Incompatible;
-  }
-
   // Checked C: implicitly convert array constants to checked pointer types
   // when the LHS is a checked pointer type, This is done after array-to-pointer
   // conversion to avoid duplicating the type conversion logic there.
@@ -10889,7 +10833,6 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
        return Incompatible;
   }
  
->>>>>>> main
   CastKind Kind;
   Sema::AssignConvertType result =
     CheckAssignmentConstraints(LHSType, RHS, Kind, ConvertRHS);
@@ -10942,7 +10885,7 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
         if (RHS.get()->getType() != LHSInteropType)
           RHS = ImpCastExprToType(RHS.get(), LHSInteropType, Kind);
         // Downgrade checked pointer to unchecked LHSType
-        RHS = ImpCastExprToType(RHS.get(), LHSType, CK_BitCast, VK_RValue,
+        RHS = ImpCastExprToType(RHS.get(), LHSType, CK_BitCast, VK_PRValue,
                                 nullptr, CCK_ImplicitConversion,
                                 /*IsBoundsSafeInterfaceCast=*/true);
       }
@@ -16891,18 +16834,14 @@ ExprResult Sema::ActOnAddrLabel(SourceLocation OpLoc, SourceLocation LabLoc,
                                 LabelDecl *TheDecl) {
   TheDecl->markUsed(Context);
   // Create the AST node.  The address of a label always has type 'void*'.
-<<<<<<< HEAD
   auto *Res = new (Context) AddrLabelExpr(
-      OpLoc, LabLoc, TheDecl, Context.getPointerType(Context.VoidTy));
+      OpLoc, LabLoc, TheDecl, 
+      Context.getPointerType(Context.VoidTy, CheckedPointerKind::Unchecked));
 
   if (getCurFunction())
     getCurFunction()->AddrLabels.push_back(Res);
 
   return Res;
-=======
-  return new (Context) AddrLabelExpr(OpLoc, LabLoc, TheDecl,
-                                     Context.getPointerType(Context.VoidTy, CheckedPointerKind::Unchecked));
->>>>>>> main
 }
 
 void Sema::ActOnStartStmtExpr() {
@@ -21283,12 +21222,11 @@ bool Sema::DiagIfReachable(SourceLocation Loc, ArrayRef<const Stmt *> Stmts,
 /// during overload resolution or within sizeof/alignof/typeof/typeid.
 bool Sema::DiagRuntimeBehavior(SourceLocation Loc, ArrayRef<const Stmt*> Stmts,
                                const PartialDiagnostic &PD) {
-<<<<<<< HEAD
-
-  if (ExprEvalContexts.back().isDiscardedStatementContext())
-=======
-  if (DisableSubstitionDiagnostics)
->>>>>>> main
+  // TODO: Checked C: reconcile our DisableSubstitution diagnostics
+  // with the isDiscardedStatementContext, which was added by clang
+  // later.  They seem to do the same thing.
+  if (ExprEvalContexts.back().isDiscardedStatementContext() ||
+      DisableSubstitionDiagnostics)
     return false;
 
   switch (ExprEvalContexts.back().Context) {

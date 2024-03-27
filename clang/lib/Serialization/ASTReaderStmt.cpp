@@ -153,13 +153,10 @@ void ASTStmtReader::VisitCompoundStmt(CompoundStmt *S) {
   VisitStmt(S);
   SmallVector<Stmt *, 16> Stmts;
   unsigned NumStmts = Record.readInt();
-<<<<<<< HEAD
   unsigned HasFPFeatures = Record.readInt();
   assert(S->hasStoredFPFeatures() == HasFPFeatures);
-=======
   S->setCheckedSpecifiers(static_cast<CheckedScopeSpecifier>(Record.readInt()));
   S->setWrittenCheckedSpecifiers(static_cast<CheckedScopeSpecifier>(Record.readInt()));
->>>>>>> main
   while (NumStmts--)
     Stmts.push_back(Record.readSubStmt());
   S->setStmts(Stmts);

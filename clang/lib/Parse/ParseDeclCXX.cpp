@@ -1817,10 +1817,6 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
-<<<<<<< HEAD
-  if (isDefiningTypeSpecifierContext(DSC, getLangOpts().CPlusPlus) ==
-          AllowDefiningTypeSpec::No ||
-=======
 
   // Checked C - handle generic structs.
   if (Tok.is(tok::kw__For_any)) {
@@ -1856,8 +1852,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
    ConsumeToken();
   }
 
-  if (isDefiningTypeSpecifierContext(DSC) == AllowDefiningTypeSpec::No ||
->>>>>>> main
+  if (isDefiningTypeSpecifierContext(DSC, getLangOpts().CPlusPlus) ==
+          AllowDefiningTypeSpec::No ||
       (getLangOpts().OpenMP && OpenMPDirectiveParsing))
     TUK = Sema::TUK_Reference;
   else if (Tok.is(tok::l_brace) ||
@@ -2133,10 +2129,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
         DSC == DeclSpecContext::DSC_type_specifier,
         DSC == DeclSpecContext::DSC_template_param ||
             DSC == DeclSpecContext::DSC_template_type_arg,
-<<<<<<< HEAD
-        OffsetOfState, FoundUsing, &SkipBody);
-=======
-        &SkipBody,
+        OffsetOfState, FoundUsing, &SkipBody,
         GenericKind,
         DS.typeVariables());
 
@@ -2168,7 +2161,6 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
         }
       }
     }
->>>>>>> main
 
     // If ActOnTag said the type was dependent, try again with the
     // less common call.

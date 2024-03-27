@@ -3173,7 +3173,6 @@ void CastOperation::CheckCStyleCast(bool IsCheckedScope) {
     }
   }
 
-<<<<<<< HEAD
   if (unsigned DiagID = checkCastFunctionType(Self, SrcExpr, DestType))
     Self.Diag(OpRange.getBegin(), DiagID) << SrcType << DestType << OpRange;
 
@@ -3192,7 +3191,8 @@ void CastOperation::CheckCStyleCast(bool IsCheckedScope) {
       SrcExpr = ExprError();
       return;
     }
-=======
+  }
+
   // Checked C - No C-style casts to unchecked pointer/array type or variadic
   // type in a checked block.
   if (IsCheckedScope) {
@@ -3220,8 +3220,6 @@ void CastOperation::CheckCStyleCast(bool IsCheckedScope) {
           return;
         }
     }
-
->>>>>>> main
   }
 
   DiagnoseCastOfObjCSEL(Self, SrcExpr, DestType);

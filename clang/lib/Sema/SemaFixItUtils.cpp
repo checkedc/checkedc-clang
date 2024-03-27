@@ -134,11 +134,7 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
 
   // Check if the pointer to the argument needs to be passed:
   //   (type -> type *) or (type & -> type *).
-<<<<<<< HEAD
   if (const auto *ToPtrTy = dyn_cast<PointerType>(ToQTy)) {
-=======
-  if (const PointerType *ToPtrTy = dyn_cast<PointerType>(ToQTy)) {
->>>>>>> main
     bool CanConvert = false;
     OverloadFixItKind FixKind = OFIK_TakeAddress;
 

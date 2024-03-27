@@ -4929,15 +4929,10 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
     }
 
     LValue LV = EmitLValue(E->getSubExpr());
-<<<<<<< HEAD
     Address V = Builder.CreateElementBitCast(
         LV.getAddress(*this),
-        ConvertTypeForMem(CE->getTypeAsWritten()->getPointeeType()));
+        ConvertTypeForMem(AddrType->getPointeeType()));
 
-=======
-    Address V = Builder.CreateBitCast(LV.getAddress(*this),
-                                      ConvertType(AddrType));
->>>>>>> main
     if (SanOpts.has(SanitizerKind::CFIUnrelatedCast))
       EmitVTablePtrCheckForCast(E->getType(), V,
                                 /*MayBeNull=*/false, CFITCK_UnrelatedCast,
@@ -5732,7 +5727,8 @@ llvm::Value *CodeGenFunction::EmitBoundsCast(CastExpr *CE) {
   if (E->getType()->isPointerType()) {
     Addr = EmitPointerWithAlignment(E);
     // explicit type casting for destination type
-    Addr = Builder.CreateBitCast(Addr, ConvertType(DestTy));
+    // TODO: Checked C update.  Use new CreateElementBitCast method.
+    Addr = Builder.CreateBitCast(Addr.getPointer(), ConvertType(DestTy));
   } else {
     // CK_IntegralToPointer (IntToPtr) casts integer to pointer type
     llvm::Value *Src = EmitScalarExpr(const_cast<Expr *>(E));

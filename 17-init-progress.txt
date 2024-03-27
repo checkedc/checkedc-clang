@@ -1,97 +1,122 @@
 CONFLICT (modify/delete): .github/workflows/main-branch-sync.yml deleted in HEAD and modified in main.  Version main of .github/workflows/main-branch-sync.yml left in tree.
 CONFLICT (content): Merge conflict in README.md
-[DONE] CONFLICT (content): Merge conflict in clang-tools-extra/test/clang-tidy/check_clang_tidy.py
-[DONE] CONFLICT (content): Merge conflict in clang-tools-extra/test/lit.cfg.py
-[DONE] CONFLICT (content): Merge conflict in clang-tools-extra/test/lit.site.cfg.py.in
-[DONE] CONFLICT (content): Merge conflict in clang/cmake/modules/AddClang.cmake
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/ASTContext.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/DeclBase.h  [Double check this one!]
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/RecursiveASTVisitor.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/Stmt.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/Type.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/AST/TypeLoc.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/Builtins.def
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/CodeGenOptions.def
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticGroups.td
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticParseKinds.td
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticSemaKinds.td
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/Specifiers.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/TokenKinds.def
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Basic/TypeNodes.td
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Driver/Options.td
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Parse/Parser.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Sema/DeclSpec.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Initialization.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Scope.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Sema.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/ASTBitCodes.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/ASTRecordWriter.h
-[DONE] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/TypeBitCodes.def
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ASTContext.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ASTDiagnostic.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ASTImporter.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/Decl.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/DeclPrinter.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/Expr.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ExprClassification.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ExprConstant.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/ItaniumMangle.cpp
-[DONE] ONFLICT (content): Merge conflict in clang/lib/AST/Stmt.cpp [Double check this one!]
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/TextNodeDumper.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/Type.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/AST/TypePrinter.cpp  [Double check this one!]
-[DONE] CONFLICT (content): Merge conflict in clang/lib/Analysis/CMakeLists.txt
-CONFLICT (content): Merge conflict in clang/lib/Basic/IdentifierTable.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/CMakeLists.txt
-CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGCall.cpp
-[DONE] CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGDebugInfo.h
-CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGDecl.cpp
-CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGExpr.cpp
-CONFLICT (content): Merge conflict in clang/lib/CodeGen/CodeGenFunction.cpp
-CONFLICT (content): Merge conflict in clang/lib/Driver/ToolChains/Clang.cpp
-CONFLICT (content): Merge conflict in clang/lib/Frontend/CompilerInvocation.cpp
-CONFLICT (content): Merge conflict in clang/lib/Parse/ParseDecl.cpp
-CONFLICT (content): Merge conflict in clang/lib/Parse/ParseDeclCXX.cpp
-CONFLICT (content): Merge conflict in clang/lib/Parse/ParseExpr.cpp
-CONFLICT (content): Merge conflict in clang/lib/Parse/ParseExprCXX.cpp
-CONFLICT (content): Merge conflict in clang/lib/Parse/ParseObjc.cpp
-CONFLICT (content): Merge conflict in clang/lib/Parse/ParsePragma.cpp
-CONFLICT (content): Merge conflict in clang/lib/Parse/ParseStmt.cpp
-CONFLICT (content): Merge conflict in clang/lib/Parse/ParseTemplate.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/Sema.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaAttr.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaCast.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaChecking.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaDecl.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaDeclCXX.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaExpr.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaFixItUtils.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaOverload.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaStmt.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplate.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplateDeduction.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplateVariadic.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/SemaType.cpp
-CONFLICT (content): Merge conflict in clang/lib/Sema/TreeTransform.h
-CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTReaderDecl.cpp
-CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTReaderStmt.cpp
-CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTWriterDecl.cpp
-CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTWriterStmt.cpp
-CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-attr.m
-CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-c-attr.c
-CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-expr-json.c
-CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-expr.c
-CONFLICT (content): Merge conflict in clang/test/AST/sourceranges.cpp
-CONFLICT (content): Merge conflict in clang/test/Driver/openmp-offload-gpu.c
-CONFLICT (content): Merge conflict in clang/test/Driver/openmp-offload.c
-[DONE] CONFLICT (content): Merge conflict in clang/test/lit.cfg.py
-[DONE] CONFLICT (content): Merge conflict in clang/test/lit.site.cfg.py.in
-[DONE] CONFLICT (content): Merge conflict in clang/tools/CMakeLists.txt
-[DONE] CONFLICT (content): Merge conflict in clang/unittests/CMakeLists.txt
-[DONE] CONFLICT (content): Merge conflict in llvm/CMakeLists.txt
+[BUILDS] CONFLICT (content): Merge conflict in clang-tools-extra/test/clang-tidy/check_clang_tidy.py
+[BUILDS] CONFLICT (content): Merge conflict in clang-tools-extra/test/lit.cfg.py
+[BUILDS] CONFLICT (content): Merge conflict in clang-tools-extra/test/lit.site.cfg.py.in
+[BUILDS] CONFLICT (content): Merge conflict in clang/cmake/modules/AddClang.cmake
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/AST/ASTContext.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/AST/DeclBase.h  [Double check this one!]
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/AST/RecursiveASTVisitor.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/AST/Stmt.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/AST/Type.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/AST/TypeLoc.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Basic/Builtins.def
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Basic/CodeGenOptions.def
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticGroups.td
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticParseKinds.td
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Basic/DiagnosticSemaKinds.td
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Basic/Specifiers.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Basic/TokenKinds.def
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Basic/TypeNodes.td
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Driver/Options.td
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Parse/Parser.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Sema/DeclSpec.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Initialization.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Scope.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Sema/Sema.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/ASTBitCodes.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/ASTRecordWriter.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/include/clang/Serialization/TypeBitCodes.def
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/ASTContext.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/ASTDiagnostic.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/ASTImporter.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/Decl.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/DeclPrinter.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/Expr.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/ExprClassification.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/ExprConstant.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/ItaniumMangle.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/Stmt.cpp [Double check this one!]
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/TextNodeDumper.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/Type.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/AST/TypePrinter.cpp  [Double check this one!]
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Analysis/CMakeLists.txt
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Basic/IdentifierTable.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/CMakeLists.txTt
+[COMPILES] (content): Merge conflict in clang/lib/CodeGen/CGCall.cpp [TODO: Remove comment if this doesn't fail testing]
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGDebugInfo.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGDecl.cpp
+[IN=PROGRESS] CONFLICT (content): Merge conflict in clang/lib/CodeGen/CGExpr.cpp (compilation failure)
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/CodeGen/CodeGenFunction.cpp
+[IN-PROGRESS] CONFLICT (content): Merge conflict in clang/lib/Driver/ToolChains/Clang.cpp
+[IN-PROGRESS]  (content): Merge conflict in clang/lib/Frontend/CompilerInvocation.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Parse/ParseDecl.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Parse/ParseDeclCXX.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Parse/ParseExpr.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Parse/ParseExprCXX.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Parse/ParseObjc.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Parse/ParsePragma.cpp [Double check this one!]
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Parse/ParseStmt.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Parse/ParseTemplate.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/Sema.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaAttr.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaCast.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaChecking.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaDecl.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaDeclCXX.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaExpr.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaFixItUtils.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaOverload.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaStmt.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplate.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplateDeduction.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaTemplateVariadic.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/SemaType.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Sema/TreeTransform.h
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTReaderDecl.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTReaderStmt.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTWriterDecl.cpp
+[COMPILES] CONFLICT (content): Merge conflict in clang/lib/Serialization/ASTWriterStmt.cpp
+[TODO] CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-attr.m
+[TODO] CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-c-attr.c
+[TODO] CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-expr-json.c
+[TODO] CONFLICT (content): Merge conflict in clang/test/AST/ast-dump-expr.c
+[TODO] CONFLICT (content): Merge conflict in clang/test/AST/sourceranges.cpp
+[TODO] CONFLICT (content): Merge conflict in clang/test/Driver/openmp-offload-gpu.c
+[TODO] CONFLICT (content): Merge conflict in clang/test/Driver/openmp-offload.c
+[BUILDS] CONFLICT (content): Merge conflict in clang/test/lit.cfg.py
+[BUILDS] CONFLICT (content): Merge conflict in clang/test/lit.site.cfg.py.in
+[BUILDS] CONFLICT (content): Merge conflict in clang/tools/CMakeLists.txt
+[BUILDS] CONFLICT (content): Merge conflict in clang/unittests/CMakeLists.txt
+[BUILDS] CONFLICT (content): Merge conflict in llvm/CMakeLists.txt
 [DONE] CONFLICT (modify/delete): llvm/tools/msbuild/install.bat deleted in HEAD and modified in main.  Version main of llvm/tools/msbuild/install.bat left in tree.
 [DONE] CONFLICT (modify/delete): llvm/tools/msbuild/uninstall.bat deleted in HEAD and modified in main.  Version main of llvm/tools/msbuild/uninstall.bat left in tree.
-[DONE] CONFLICT (content): Merge conflict in llvm/utils/lit/lit/TestingConfig.py
+[BUILDS] CONFLICT (content): Merge conflict in llvm/utils/lit/lit/TestingConfig.py
+[TODO] clangd\ClangdLSPServer.cpp
+[TODO] clangd\ClangdLSPServer.h
+[TODO] clangd\ClangdServer.h
+[TODO] clangd\Diagnostics.cpp
+[TODO] clangd\Diagnostics.h
+[TODO] clangd\Protocol.cpp
+[TODO] clangd\Protocol.h
+[TODO] clangd\tool\ClangdMain.cpp
+
+Files that did not have merge conflicts that have with compile-time errors:
+[TODO] clang/include/clang/Serialization/TypeBitCodes.def
+[COMPILES} clang/lib/CodeGen/CGDynamicCheck.cpp [TODO: review whether we need to use CreateElementBitCast]
+[TODO] Various 3C files
 
 TODO:
-Replace makeArrayRef with use of ArrayRef constructor (I think).  makeArrayRef has been deprecated and we get a warning about it.
+1. Replace makeArrayRef with use of ArrayRef constructor (I think).  makeArrayRef has been deprecated and we get a warning about it.
+2. Review whether whether merge changes in  clang/lib/CodeGen/CGDynamicCheck.cpp need to use CreateElementBitCast instead
+   of CreateBitCast.
+
+See:
+commit f208644ed3618fb1db195adbd35ae0acf2819f23
+Author: Nikita Popov <npopov@redhat.com>
+Date:   Mon Feb 14 14:18:04 2022 +0100
+
+    [CGBuilder] Remove CreateBitCast() method
+
+    Use CreateElementBitCast() instead, or don't work on Address
+    where not necessary.

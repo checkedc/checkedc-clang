@@ -197,18 +197,11 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       VtorDispStack(LangOpts.getVtorDispMode()),
       AlignPackStack(AlignPackInfo(getLangOpts().XLPragmaPack)),
       DataSegStack(nullptr), BSSSegStack(nullptr), ConstSegStack(nullptr),
-<<<<<<< HEAD
       CodeSegStack(nullptr), StrictGuardStackCheckStack(false),
       FpPragmaStack(FPOptionsOverride()), CurInitSeg(nullptr),
       VisContext(nullptr), PragmaAttributeCurrentTargetDecl(nullptr),
       IsBuildingRecoveryCallExpr(false), LateTemplateParser(nullptr),
-=======
-      CodeSegStack(nullptr), FpPragmaStack(FPOptionsOverride()),
-      CurInitSeg(nullptr), VisContext(nullptr),
-      PragmaAttributeCurrentTargetDecl(nullptr),
-      IsBuildingRecoveryCallExpr(false), Cleanup{}, IsMemberBoundsExpr(false),
-      LateTemplateParser(nullptr),
->>>>>>> main
+      IsMemberBoundsExpr(false),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
       StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
@@ -1184,11 +1177,8 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   DiagnoseUnterminatedPragmaAlignPack();
   DiagnoseUnterminatedPragmaAttribute();
-<<<<<<< HEAD
   DiagnoseUnterminatedOpenMPDeclareTarget();
-=======
   DiagnoseUnterminatedCheckedScope();
->>>>>>> main
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.

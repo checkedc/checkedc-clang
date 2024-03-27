@@ -311,7 +311,7 @@ public:
   static InitializedEntity InitializeResult(SourceLocation ReturnLoc,
                                             QualType Type, 
                          const BoundsAnnotations Annots = BoundsAnnotations()) {
-    return InitializedEntity(EK_Result, ReturnLoc, Type, Annots);
+    return InitializedEntity(EK_Result, ReturnLoc, Type, false, Annots);
   }
 
   static InitializedEntity InitializeStmtExprResult(SourceLocation ReturnLoc,

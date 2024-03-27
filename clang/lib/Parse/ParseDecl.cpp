@@ -1887,12 +1887,8 @@ Parser::DeclGroupPtrTy Parser::ParseSimpleDeclaration(
   // C99 6.7.2.3p6: Handle "struct-or-union identifier;", "enum { X };"
   // declaration-specifiers init-declarator-list[opt] ';'
   if (Tok.is(tok::semi)) {
-<<<<<<< HEAD
-    ProhibitAttributes(DeclAttrs);
-=======
     ExitQuantifiedTypeScope(DS);
-    ProhibitAttributes(Attrs);
->>>>>>> main
+    ProhibitAttributes(DeclAttrs);
     DeclEnd = Tok.getLocation();
     if (RequireSemi) ConsumeToken();
     RecordDecl *AnonRecord = nullptr;
@@ -2778,7 +2774,6 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 ///          type-qualifier specifier-qualifier-list[opt]
 /// [GNU]    attributes     specifier-qualifier-list[opt]
 ///
-<<<<<<< HEAD
 void Parser::ParseSpecifierQualifierList(
     DeclSpec &DS, ImplicitTypenameContext AllowImplicitTypename,
     AccessSpecifier AS, DeclSpecContext DSC) {
@@ -2787,13 +2782,6 @@ void Parser::ParseSpecifierQualifierList(
   /// TODO: diagnose attribute-specifiers and alignment-specifiers.
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC, nullptr,
                              AllowImplicitTypename);
-=======
-void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS, DeclSpecContext DSC) {
-  /// specifier-qualifier-list is a subset of declaration-specifiers.  Just
-  /// parse declaration-specifiers and complain about extra stuff.
-  /// TODO: diagnose attribute-specifiers and alignment-specifiers.
-  ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC, nullptr /* LateAttrs */);
->>>>>>> main
 
   // Validate declspec for type-name.
   unsigned Specs = DS.getParsedSpecifiers();
@@ -3386,12 +3374,6 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 /// [OpenCL] '__kernel'
 ///       'friend': [C++ dcl.friend]
 ///       'constexpr': [C++0x dcl.constexpr]
-<<<<<<< HEAD
-void Parser::ParseDeclarationSpecifiers(
-    DeclSpec &DS, const ParsedTemplateInfo &TemplateInfo, AccessSpecifier AS,
-    DeclSpecContext DSContext, LateParsedAttrList *LateAttrs,
-    ImplicitTypenameContext AllowImplicitTypename) {
-=======
 ///       for-any-specifier: [CheckedC]
 /// [CheckedC] '_For_any'
 /// [CheckedC] '_Itype_for_any'
@@ -3399,12 +3381,10 @@ void Parser::ParseDeclarationSpecifiers(
 /// [CheckedC] '_Unpack' '(' type-variables ')'
 ///            Where type-variables stands for one or more comma-separated
 ///            type variables.
-void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
-                                        const ParsedTemplateInfo &TemplateInfo,
-                                        AccessSpecifier AS,
-                                        DeclSpecContext DSContext,
-                                        LateParsedAttrList *LateAttrs) {
->>>>>>> main
+void Parser::ParseDeclarationSpecifiers(
+    DeclSpec &DS, const ParsedTemplateInfo &TemplateInfo, AccessSpecifier AS,
+    DeclSpecContext DSContext, LateParsedAttrList *LateAttrs,
+    ImplicitTypenameContext AllowImplicitTypename) {
   if (DS.getSourceRange().isInvalid()) {
     // Start the range at the current token but make the end of the range
     // invalid.  This will make the entire range invalid unless we successfully
@@ -4745,15 +4725,12 @@ void Parser::ParseStructDeclaration(
   // If there are no declarators, this is a free-standing declaration
   // specifier. Let the actions module cope with it.
   if (Tok.is(tok::semi)) {
-<<<<<<< HEAD
     // C2x 6.7.2.1p9 : "The optional attribute specifier sequence in a
     // member declaration appertains to each of the members declared by the
     // member declarator list; it shall not appear if the optional member
     // declarator list is omitted."
     ProhibitAttributes(Attrs);
-=======
     ExitQuantifiedTypeScope(DS);
->>>>>>> main
     RecordDecl *AnonRecord = nullptr;
     Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(
         getCurScope(), AS_none, DS, ParsedAttributesView::none(), AnonRecord);
@@ -5006,7 +4983,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
                       T.getOpenLocation(), T.getCloseLocation(), attrs);
   // Parse the deferred bounds expressions
   ParsingDeclSpec DS(*this);
-  ParsingFieldDeclarator DeclaratorsInfo(*this,DS);
+  ParsingFieldDeclarator DeclaratorsInfo(*this,DS, attrs);
   for (auto &Pair : deferredBoundsExpressions) {
     EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
     FieldDecl *FieldDecl = Pair.first;
@@ -5831,14 +5808,11 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw___read_write:
   case tok::kw___write_only:
 
-<<<<<<< HEAD
   case tok::kw_groupshared:
-=======
   // Checked C pointer types
   case tok::kw__Ptr:
   case tok::kw__Array_ptr:
   case tok::kw__Nt_array_ptr:
->>>>>>> main
     return true;
 
   case tok::kw_private:
@@ -7711,7 +7685,6 @@ void Parser::ParseParameterDeclarationClause(
     return;
   }
 
-<<<<<<< HEAD
   // C++2a [temp.res]p5
   // A qualified-id is assumed to name a type if
   //   - [...]
@@ -7729,7 +7702,6 @@ void Parser::ParseParameterDeclarationClause(
     AllowImplicitTypename = ImplicitTypenameContext::Yes;
   }
 
-=======
   // Delay parsing/semantic checking of bounds expressions until after the
   // parameter list is parsed. For each variable with a bounds declaration,
   // keep a list of tokens for the bounds expression.   Parsing/checking
@@ -7741,7 +7713,6 @@ void Parser::ParseParameterDeclarationClause(
   // We are guessing that most functions take 4 or fewer parameters with
   // bounds expressions on them.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
->>>>>>> main
   do {
     // FIXME: Issue a diagnostic if we parsed an attribute-specifier-seq
     // before deciding this was a parameter-declaration-clause.
@@ -7771,24 +7742,13 @@ void Parser::ParseParameterDeclarationClause(
 
     SourceLocation DSStart = Tok.getLocation();
 
-<<<<<<< HEAD
     ParseDeclarationSpecifiers(DS, /*TemplateInfo=*/ParsedTemplateInfo(),
                                AS_none, DeclSpecContext::DSC_normal,
                                /*LateAttrs=*/nullptr, AllowImplicitTypename);
     DS.takeAttributesFrom(ArgDeclSpecAttrs);
-=======
-    // If the caller parsed attributes for the first argument, add them now.
-    // Take them so that we only apply the attributes to the first parameter.
-    // FIXME: If we can leave the attributes in the token stream somehow, we can
-    // get rid of a parameter (FirstArgAttrs) and this statement. It might be
-    // too much hassle.
-    DS.takeAttributesFrom(FirstArgAttrs);
-
-    ParseDeclarationSpecifiers(DS);
 
     // Checked C - mark the current scope as checked or unchecked if necessary.
     Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
->>>>>>> main
 
     // Parse the declarator.  This is "PrototypeContext" or
     // "LambdaExprParameterContext", because we must accept either
@@ -7865,24 +7825,14 @@ void Parser::ParseParameterDeclarationClause(
       //
       // We care about case 1) where the declarator type should be known, and
       // the identifier should be null.
-<<<<<<< HEAD
       if (!ParmDeclarator.isInvalidType() && !ParmDeclarator.hasName() &&
           Tok.isNot(tok::raw_identifier) && !Tok.isAnnotation() &&
           Tok.getIdentifierInfo() &&
-          Tok.getIdentifierInfo()->isKeyword(getLangOpts())) {
+          Tok.getIdentifierInfo()->isKeyword(getLangOpts()) &&
+          !isMacroCheckedCKeyword(Tok.getKind())) {
         Diag(Tok, diag::err_keyword_as_parameter) << PP.getSpelling(Tok);
         // Consume the keyword.
         ConsumeToken();
-=======
-      if (!ParmDeclarator.isInvalidType() && !ParmDeclarator.hasName()) {
-        if (Tok.getIdentifierInfo() &&
-            Tok.getIdentifierInfo()->isKeyword(getLangOpts())
-            && !isMacroCheckedCKeyword(Tok.getKind())) {
-          Diag(Tok, diag::err_keyword_as_parameter) << PP.getSpelling(Tok);
-          // Consume the keyword.
-          ConsumeToken();
-        }
->>>>>>> main
       }
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.

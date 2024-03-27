@@ -1500,10 +1500,6 @@ void Sema::ActOnExitFunctionContext() {
   assert(CurContext && "Popped translation unit!");
 }
 
-<<<<<<< HEAD
-/// Determine whether overloading is allowed for a new function
-/// declaration considering prior declarations of the same name.
-=======
 // Add parameters back to current scope.  This is used for delay parsing
 // return bounds.
 void Sema::ActOnSetupParametersAgain(Scope* S, ArrayRef<ParmVarDecl *> Params) {
@@ -1516,9 +1512,8 @@ void Sema::ActOnSetupParametersAgain(Scope* S, ArrayRef<ParmVarDecl *> Params) {
   }
 }
 
-/// Determine whether we allow overloading of the function
-/// PrevDecl with another declaration.
->>>>>>> main
+/// Determine whether overloading is allowed for a new function
+/// declaration considering prior declarations of the same name.
 ///
 /// This routine determines whether overloading is possible, not
 /// whether a new declaration actually overloads a previous one.
@@ -10073,7 +10068,6 @@ static Scope *getTagInjectionScope(Scope *S, const LangOptions &LangOpts) {
   return S;
 }
 
-<<<<<<< HEAD
 /// Determine whether a declaration matches a known function in namespace std.
 static bool isStdBuiltin(ASTContext &Ctx, FunctionDecl *FD,
                          unsigned BuiltinID) {
@@ -10098,7 +10092,8 @@ static bool isStdBuiltin(ASTContext &Ctx, FunctionDecl *FD,
   default:
     return false;
   }
-=======
+}
+
 /// Is this a K&R old-style function declaration without a
 /// preceding prototype?
 static bool isKNRDeclarationOnly(FunctionDecl *Decl) {
@@ -10107,7 +10102,6 @@ static bool isKNRDeclarationOnly(FunctionDecl *Decl) {
     return (!Previous || !Previous->getType()->isFunctionProtoType());
   }
   return false;
->>>>>>> main
 }
 
 NamedDecl*
@@ -14906,8 +14900,6 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
       }
   }
 
-<<<<<<< HEAD
-=======
   if (getLangOpts().CheckedC && !getLangOpts()._3C)
     CheckTopLevelBoundsDecls(var);
 
@@ -14919,7 +14911,6 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
       Context.addModuleInitializer(ModuleScopes.back().Module, var);
     return;
   }
->>>>>>> main
 
   QualType type = var->getType();
 
@@ -16771,18 +16762,12 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     // This is meant to pop the context added in ActOnStartOfFunctionDef().
     ExitFunctionBodyRAII ExitRAII(*this, isLambdaCallOperator(FD));
 
-<<<<<<< HEAD
+    if (getLangOpts().CheckedC && !getLangOpts()._3C)
+      CheckFunctionBodyBoundsDecls(FD, Body);
+
     if (FD) {
       FD->setBody(Body);
       FD->setWillHaveBody(false);
-=======
-  if (getLangOpts().CheckedC && !getLangOpts()._3C)
-    CheckFunctionBodyBoundsDecls(FD, Body);
-
-  if (FD) {
-    FD->setBody(Body);
-    FD->setWillHaveBody(false);
->>>>>>> main
 
       if (getLangOpts().CPlusPlus14) {
         if (!FD->isInvalidDecl() && Body && !FD->isDependentContext() &&
@@ -17311,17 +17296,12 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
                                              /*NumExceptions=*/0,
                                              /*NoexceptExpr=*/nullptr,
                                              /*ExceptionSpecTokens=*/nullptr,
-<<<<<<< HEAD
                                              /*DeclsInPrototype=*/std::nullopt,
-                                             Loc, Loc, D),
-=======
-                                             /*DeclsInPrototype=*/None, Loc,
-                                             Loc,
+                                             Loc, Loc,
                                              /*ReturnAnnotsColonLoc=*/NoLoc,
                                              /*ReturnInteropTypeExpr=*/nullptr,
                                              /*ReturnBounds=*/nullptr,
                                              D),
->>>>>>> main
                 std::move(DS.getAttributes()), SourceLocation());
   D.SetIdentifier(&II, Loc);
 
@@ -17963,7 +17943,6 @@ static bool isAcceptableTagRedeclContext(Sema &S, DeclContext *OldDC,
 ///
 /// \param SkipBody If non-null, will be set to indicate if the caller should
 /// skip the definition of this tag and treat it as if it were a declaration.
-<<<<<<< HEAD
 DeclResult
 Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
                CXXScopeSpec &SS, IdentifierInfo *Name, SourceLocation NameLoc,
@@ -17974,23 +17953,10 @@ Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
                bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
                bool IsTypeSpecifier, bool IsTemplateParamOrArg,
                OffsetOfKind OOK, UsingShadowDecl *&FoundUsingShadow,
-               SkipBodyInfo *SkipBody) {
-=======
-Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
-                     SourceLocation KWLoc, CXXScopeSpec &SS,
-                     IdentifierInfo *Name, SourceLocation NameLoc,
-                     const ParsedAttributesView &Attrs, AccessSpecifier AS,
-                     SourceLocation ModulePrivateLoc,
-                     MultiTemplateParamsArg TemplateParameterLists,
-                     bool &OwnedDecl, bool &IsDependent,
-                     SourceLocation ScopedEnumKWLoc,
-                     bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
-                     bool IsTypeSpecifier, bool IsTemplateParamOrArg,
-                     SkipBodyInfo *SkipBody,
-                     RecordDecl::Genericity GenericKind,
-                     ArrayRef<TypedefDecl *> TypeParams) {
+               SkipBodyInfo *SkipBody,
+               RecordDecl::Genericity GenericKind,
+               ArrayRef<TypedefDecl *> TypeParams) {
 
->>>>>>> main
   // If this is not a definition, it must have a name.
   IdentifierInfo *OrigName = Name;
   assert((Name != nullptr || TUK == TUK_Definition) &&

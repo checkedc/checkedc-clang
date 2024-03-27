@@ -513,15 +513,12 @@ void Parser::initializePragmaHandlers() {
   MaxTokensTotalPragmaHandler = std::make_unique<PragmaMaxTokensTotalHandler>();
   PP.AddPragmaHandler("clang", MaxTokensTotalPragmaHandler.get());
 
-<<<<<<< HEAD
   if (getTargetInfo().getTriple().isRISCV()) {
     RISCVPragmaHandler = std::make_unique<PragmaRISCVHandler>(Actions);
     PP.AddPragmaHandler("clang", RISCVPragmaHandler.get());
   }
-=======
   CheckedScopeHandler.reset(new PragmaCheckedScopeHandler());
   PP.AddPragmaHandler(CheckedScopeHandler.get());
->>>>>>> main
 }
 
 void Parser::resetPragmaHandlers() {
@@ -649,15 +646,12 @@ void Parser::resetPragmaHandlers() {
   PP.RemovePragmaHandler("clang", MaxTokensTotalPragmaHandler.get());
   MaxTokensTotalPragmaHandler.reset();
 
-<<<<<<< HEAD
   if (getTargetInfo().getTriple().isRISCV()) {
     PP.RemovePragmaHandler("clang", RISCVPragmaHandler.get());
     RISCVPragmaHandler.reset();
   }
-=======
   PP.RemovePragmaHandler(CheckedScopeHandler.get());
   CheckedScopeHandler.reset();
->>>>>>> main
 }
 
 /// Handle the annotation token produced for #pragma unused(...)
@@ -4029,7 +4023,6 @@ void PragmaMaxTokensTotalHandler::HandlePragma(Preprocessor &PP,
   PP.overrideMaxTokens(MaxTokens, Loc);
 }
 
-<<<<<<< HEAD
 // Handle '#pragma clang riscv intrinsic vector'.
 void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
                                       PragmaIntroducer Introducer,
@@ -4041,7 +4034,27 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
   if (!II || !II->isStr("intrinsic")) {
     PP.Diag(Tok.getLocation(), diag::warn_pragma_invalid_argument)
         << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true << "'intrinsic'";
-=======
+    return;
+  }
+
+  PP.Lex(Tok);
+  II = Tok.getIdentifierInfo();
+  if (!II || !II->isStr("vector")) {
+    PP.Diag(Tok.getLocation(), diag::warn_pragma_invalid_argument)
+        << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true << "'vector'";
+    return;
+  }
+
+  PP.Lex(Tok);
+  if (Tok.isNot(tok::eod)) {
+    PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
+        << "clang riscv intrinsic";
+    return;
+  }
+
+  Actions.DeclareRISCVVBuiltins = true;
+}
+
 // Handle the checked-c top level scope checked property.
 // #pragma CHECKED_SCOPE [OFF|ON|off|on|push|pop]
 // To handle precise scope property, annotation token is better
@@ -4075,28 +4088,7 @@ void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
   else {
     PP.Diag(Tok, diag::err_pragma_checked_scope_invalid_argument)
       << PP.getSpelling(Tok);
->>>>>>> main
-    return;
   }
-
-  PP.Lex(Tok);
-<<<<<<< HEAD
-  II = Tok.getIdentifierInfo();
-  if (!II || !II->isStr("vector")) {
-    PP.Diag(Tok.getLocation(), diag::warn_pragma_invalid_argument)
-        << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true << "'vector'";
-    return;
-  }
-
-  PP.Lex(Tok);
-  if (Tok.isNot(tok::eod)) {
-    PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
-        << "clang riscv intrinsic";
-    return;
-  }
-
-  Actions.DeclareRISCVVBuiltins = true;
-=======
   // Verify that this is followed by EOD.
   if (Tok.isNot(tok::eod))
     PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
@@ -4111,5 +4103,4 @@ void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
   Toks[0].setAnnotationValue(
       reinterpret_cast<void *>(static_cast<uintptr_t>(Kind)));
   PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/true, /*IsReinject=*/false);
->>>>>>> main
-}
+} 

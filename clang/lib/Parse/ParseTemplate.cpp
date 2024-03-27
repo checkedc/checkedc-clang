@@ -269,14 +269,11 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
   SuppressAccessChecks SAC(*this, IsTemplateSpecOrInst);
 
   ParseDeclarator(DeclaratorInfo);
-<<<<<<< HEAD
 
   if (IsTemplateSpecOrInst)
     SAC.done();
 
-=======
   ExitQuantifiedTypeScope(DS);
->>>>>>> main
   // Error parsing the declarator?
   if (!DeclaratorInfo.hasName()) {
     // If so, skip until the semi-colon or a }.

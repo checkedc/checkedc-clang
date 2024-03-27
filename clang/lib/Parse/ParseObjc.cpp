@@ -2017,16 +2017,13 @@ void Parser::ParseObjCClassInstanceVariables(ObjCContainerDecl *interfaceDecl,
     }
 
     auto ObjCIvarCallback = [&](ParsingFieldDeclarator &FD) {
-<<<<<<< HEAD
       assert(getObjCDeclContext() == interfaceDecl &&
              "Ivar should have interfaceDecl as its decl context");
-=======
       // BoundsExprTokens and InteropType are used only for Checked C.
       // They should be null here.
       assert(FD.BoundsExprTokens == nullptr);
       assert(FD.InteropType == nullptr);
       Actions.ActOnObjCContainerStartDefinition(interfaceDecl);
->>>>>>> main
       // Install the declarator into the interface decl.
       FD.D.setObjCIvar(true);
       Decl *Field = Actions.ActOnIvar(

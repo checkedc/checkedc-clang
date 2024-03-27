@@ -446,7 +446,6 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
-<<<<<<< HEAD
   // Calculate difference between FP options in this compound statement and in
   // the enclosing one. If this is a function body, take the difference against
   // default options. In this case the difference will indicate options that are
@@ -456,8 +455,6 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
                       : getCurCompoundScope().InitialFPFeatures;
   FPOptionsOverride FPDiff = getCurFPFeatures().getChangesFrom(FPO);
 
-  return CompoundStmt::Create(Context, Elts, FPDiff, L, R);
-=======
   // Get the inferred checked scope specifier for this compound statement.
   CheckedScopeSpecifier InferredCSS = GetCheckedScopeInfo();
 
@@ -518,9 +515,8 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
     }
   }
 
-  return CompoundStmt::Create(Context, Elts, L, R, WrittenCSS,
+  return CompoundStmt::Create(Context, Elts, FPDiff, L, R, WrittenCSS,
                               InferredCSS, CSSLoc, CSMLoc, BNDLoc);
->>>>>>> main
 }
 
 ExprResult
@@ -3989,7 +3985,6 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
   if (RetValExp && DiagnoseUnexpandedParameterPack(RetValExp))
     return StmtError();
 
-<<<<<<< HEAD
   // HACK: We suppress simpler implicit move here in msvc compatibility mode
   // just as a temporary work around, as the MSVC STL has issues with
   // this change.
@@ -4000,16 +3995,11 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
                                              : SimplerImplicitMoveMode::Normal);
 
   if (isa<CapturingScopeInfo>(getCurFunction()))
-    return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp, NRInfo,
-                                   SupressSimplerImplicitMoves);
-=======
-  if (isa<CapturingScopeInfo>(getCurFunction())) {
     // In Checked C, there is no way to write the return bounds for clang
     // extensions to C that capture variables such as __Block, so it is OK
-    // to call this.  There is nothing to check.
-    return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp);
-  }
->>>>>>> main
+    // to call this.  There is nothing to check.  
+    return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp, NRInfo,
+                                   SupressSimplerImplicitMoves);
 
   QualType FnRetType;
   BoundsAnnotations FnRetBounds;
@@ -4234,22 +4224,13 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
     // the C version of which boils down to CheckSingleAssignmentConstraints.
     if (!HasDependentReturnType && !RetValExp->isTypeDependent()) {
       // we have a non-void function with an expression, continue checking
-<<<<<<< HEAD
       InitializedEntity Entity =
-          InitializedEntity::InitializeResult(ReturnLoc, RetType);
+          InitializedEntity::InitializeResult(ReturnLoc, RetType, FnRetBounds);
       ExprResult Res = PerformMoveOrCopyInitialization(
           Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
       if (Res.isInvalid() && AllowRecovery)
         Res = CreateRecoveryExpr(RetValExp->getBeginLoc(),
                                  RetValExp->getEndLoc(), RetValExp, RetType);
-=======
-      InitializedEntity Entity = InitializedEntity::InitializeResult(ReturnLoc,
-                                                                     RetType,
-                                                      NRVOCandidate != nullptr,
-                                                                     FnRetBounds);
-      ExprResult Res = PerformMoveOrCopyInitialization(Entity, NRVOCandidate,
-                                                       RetType, RetValExp);
->>>>>>> main
       if (Res.isInvalid()) {
         // FIXME: Clean up temporaries here anyway?
         return StmtError();
