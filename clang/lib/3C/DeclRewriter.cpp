@@ -635,7 +635,7 @@ void DeclRewriter::emitSupplementaryDeclarations(
 SourceLocation DeclRewriter::getNextCommaOrSemicolon(SourceLocation L) {
   SourceManager &SM = A.getSourceManager();
   auto Tok = Lexer::findNextToken(L, SM, A.getLangOpts());
-  while (Tok.hasValue() && !Tok->is(clang::tok::eof)) {
+  while (Tok.has_value() && !Tok->is(clang::tok::eof)) {
     if (Tok->is(clang::tok::comma) || Tok->is(clang::tok::semi))
       return Tok->getLocation();
     Tok = Lexer::findNextToken(Tok->getEndLoc(), A.getSourceManager(),

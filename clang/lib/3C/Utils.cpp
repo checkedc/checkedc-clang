@@ -547,7 +547,8 @@ public:
       : DataStartIdx(DataStartIdx), StringArgIndices(StringArgIndices) {}
   bool HandlePrintfSpecifier(const analyze_printf::PrintfSpecifier &FS,
                              const char *StartSpecifier,
-                             unsigned SpecifierLen) override {
+                             unsigned SpecifierLen,
+                             const TargetInfo &) override {
     if (FS.consumesDataArgument() &&
         FS.getConversionSpecifier().getKind() ==
             analyze_printf::PrintfConversionSpecifier::sArg)

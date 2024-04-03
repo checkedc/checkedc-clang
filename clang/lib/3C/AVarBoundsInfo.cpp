@@ -968,7 +968,7 @@ bool AVarBoundsInfo::tryGetVariable(clang::Expr *E, const ASTContext &C,
     // Get the BoundsKey for the constant value if the expression is a constant
     // integer expression.
     Optional<llvm::APSInt> OptConsVal = E->getIntegerConstantExpr(C);
-    if (E->getType()->isArithmeticType() && OptConsVal.hasValue()) {
+    if (E->getType()->isArithmeticType() && OptConsVal.has_value()) {
       Res = getVarKey(*OptConsVal);
       return true;
     }

@@ -206,7 +206,7 @@ static void emit(Rewriter &R, ASTContext &C, bool &StdoutModeEmittedMainFile) {
   // Iterate over each modified rewrite buffer.
   for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
     if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
-      assert(FE->isValid());
+      // assert(FE->isValid()); // isValid is no longer available in Clang 17.
       // Used for diagnostics related to the file.
       SourceLocation BeginningOfFileSourceLoc =
           SM.translateFileLineCol(FE, 1, 1);
@@ -360,7 +360,7 @@ static void emit(Rewriter &R, ASTContext &C, bool &StdoutModeEmittedMainFile) {
         }
       }
 
-      raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
+      raw_fd_ostream Out(NFile, EC, sys::fs::OF_None);
 
       if (!EC) {
         if (_3COpts.Verbose)

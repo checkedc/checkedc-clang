@@ -228,8 +228,8 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
 
   // 4. Solve the SMT formula for a bad input using Z3
   Optional<bool> IsSat = Solver->check();
-  if (IsSat.hasValue()) {
-    if (!IsSat.getValue())
+  if (IsSat.has_value()) {
+    if (!IsSat.value())
       return;
       // If the formula is UNSAT, there is no input value
       // that makes the index go out-of-bounds
