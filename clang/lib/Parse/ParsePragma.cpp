@@ -4088,7 +4088,10 @@ void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
   else {
     PP.Diag(Tok, diag::err_pragma_checked_scope_invalid_argument)
       << PP.getSpelling(Tok);
+    return;
   }
+
+  PP.Lex(Tok);
   // Verify that this is followed by EOD.
   if (Tok.isNot(tok::eod))
     PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)

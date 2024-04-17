@@ -5727,8 +5727,7 @@ llvm::Value *CodeGenFunction::EmitBoundsCast(CastExpr *CE) {
   if (E->getType()->isPointerType()) {
     Addr = EmitPointerWithAlignment(E);
     // explicit type casting for destination type
-    // TODO: Checked C update.  Use new CreateElementBitCast method.
-    Addr = Builder.CreateBitCast(Addr.getPointer(), ConvertType(DestTy));
+    Addr = Address(Builder.CreateElementBitCast(Addr, ConvertType(DestTy)));
   } else {
     // CK_IntegralToPointer (IntToPtr) casts integer to pointer type
     llvm::Value *Src = EmitScalarExpr(const_cast<Expr *>(E));
@@ -5739,7 +5738,7 @@ llvm::Value *CodeGenFunction::EmitBoundsCast(CastExpr *CE) {
       Builder.CreateIntCast(Src, MiddleTy, InputSigned, "conv");
     llvm::Value *Result = Builder.CreateIntToPtr(IntResult, DestLLVMTy);
     CharUnits Align = getContext().getTypeAlignInChars(DestTy);
-    Addr = Address(Result, Align);
+    Addr = Address(Result, DestLLVMTy, Align);
   }
   if (Kind == CK_DynamicPtrBounds) {
     BoundsCastExpr *BCE = cast<BoundsCastExpr>(CE);

@@ -195,6 +195,7 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
     return nullptr;
   }
   else {
+    // TODO: dyn_cast from Expr to BoundsExpr is failing here.
     Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
     assert(Result && "unexpected dyn_cast failure");
     return Result;

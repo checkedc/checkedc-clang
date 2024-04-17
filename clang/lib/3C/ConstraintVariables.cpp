@@ -397,7 +397,7 @@ PointerVariableConstraint::PointerVariableConstraint(
       // TODO this will need to change to properly account for typedefs
       bool Boiling = true;
       while (Boiling) {
-        if (const TypedefType *TydTy = dyn_cast<TypedefType>(Ty)) {
+        if (const TypedefType *TydTy = Ty->getAs<TypedefType>()) {
           QTy = TydTy->desugar();
           Ty = QTy.getTypePtr();
           if (!TLoc.isNull()) {
@@ -405,7 +405,7 @@ PointerVariableConstraint::PointerVariableConstraint(
             if (!TDefTLoc.isNull())
               TLoc = TDefTLoc.getNextTypeLoc();
           }
-        } else if (const ParenType *ParenTy = dyn_cast<ParenType>(Ty)) {
+        } else if (const ParenType *ParenTy = Ty->getAs<ParenType>()) {
           QTy = ParenTy->desugar();
           Ty = QTy.getTypePtr();
           if (!TLoc.isNull()) {
