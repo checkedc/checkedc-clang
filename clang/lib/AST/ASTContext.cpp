@@ -4551,8 +4551,9 @@ QualType ASTContext::getFunctionTypeInternal(
       FunctionType::FunctionTypeExtraBitfields,
       FunctionType::ExceptionType, Expr *, FunctionDecl *,
       FunctionProtoType::ExtParameterInfo, Qualifiers>(
-      NumArgs, EPI.Variadic, EPI.requiresFunctionProtoTypeExtraBitfields(),
+      NumArgs, EPI.Variadic, 
       EPI.ParamAnnots ? NumArgs : 0,
+      EPI.requiresFunctionProtoTypeExtraBitfields(),
       ESH.NumExceptionType, ESH.NumExprPtr, ESH.NumFunctionDeclPtr,
       EPI.ExtParameterInfos ? NumArgs : 0,
       EPI.TypeQuals.hasNonFastQualifiers() ? 1 : 0);

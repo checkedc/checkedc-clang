@@ -4,6 +4,7 @@
 # - Set config.name to 'checked'
 # - Set checkedc_obj_root
 # - Set the test_exec_root to be the checkedc_obj_root.
+# - Add settings for running tests on other architectures using a similator
 
 import os
 import platform
@@ -30,13 +31,14 @@ config.name = 'checkedc'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp', '.cppm', '.m', '.mm', '.cu',
-                   '.ll', '.cl', '.s', '.S', '.modulemap', '.test', '.rs']
+config.suffixes = ['.c', '.cpp', '.i', '.cppm', '.m', '.mm', '.cu', '.hip', '.hlsl',
+                   '.ll', '.cl', '.clcpp', '.s', '.S', '.modulemap', '.test', '.rs', '.ifs', '.rc']
 
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
-# directories. 
-config.excludes = ['samples', 'spec', 'Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
+# directories.
+config.excludes = ['samples', 'spec' 'Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt',
+                    'debuginfo-tests']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -54,10 +56,10 @@ llvm_config.use_clang()
 config.substitutions.append(
     ('%src_include_dir', config.clang_src_dir + '/include'))
 
+config.substitutions.append(
+    ('%target_triple', config.target_triple))
 
-# Propagate path to symbolizer for ASan/MSan.
-llvm_config.with_system_environment(
-    ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH'])
+config.substitutions.append(('%PATH%', config.environment['PATH']))
 
 
 # For each occurrence of a clang tool name, replace it with the full path to
@@ -67,41 +69,110 @@ llvm_config.with_system_environment(
 tool_dirs = [config.clang_tools_dir, config.llvm_tools_dir]
 
 tools = [
-    'clang-tblgen', 'opt',
+    'apinotes-test', 'c-index-test', 'clang-diff', 'clang-format', 'clang-repl', 'clang-offload-packager',
+    'clang-tblgen', 'clang-scan-deps', 'opt', 'llvm-ifs', 'yaml2obj', 'clang-linker-wrapper',
     ToolSubst('%clang_extdef_map', command=FindTool(
         'clang-extdef-mapping'), unresolved='ignore'),
 ]
 
 if config.clang_examples:
     config.available_features.add('examples')
-    tools.append('clang-interpreter')
+
+def have_host_jit_feature_support(feature_name):
+    clang_repl_exe = lit.util.which('clang-repl', config.clang_tools_dir)
+
+    if not clang_repl_exe:
+        return False
+
+    try:
+        clang_repl_cmd = subprocess.Popen(
+            [clang_repl_exe, '--host-supports-' + feature_name], stdout=subprocess.PIPE)
+    except OSError:
+        print('could not exec clang-repl')
+        return False
+
+    clang_repl_out = clang_repl_cmd.stdout.read().decode('ascii')
+    clang_repl_cmd.wait()
+
+    return 'true' in clang_repl_out
+
+if have_host_jit_feature_support('jit'):
+    config.available_features.add('host-supports-jit')
+
+if config.clang_staticanalyzer:
+    config.available_features.add('staticanalyzer')
+    tools.append('clang-check')
+
+    if config.clang_staticanalyzer_z3:
+        config.available_features.add('z3')
+    else:
+        config.available_features.add('no-z3')
+
+    check_analyzer_fixit_path = os.path.join(
+        config.test_source_root, "Analysis", "check-analyzer-fixit.py")
+    config.substitutions.append(
+        ('%check_analyzer_fixit',
+         '"%s" %s' % (config.python_executable, check_analyzer_fixit_path)))
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 config.substitutions.append(
     ('%hmaptool', "'%s' %s" % (config.python_executable,
-                             os.path.join(config.clang_tools_dir, 'hmaptool'))))
+                             os.path.join(config.clang_src_dir, 'utils', 'hmaptool', 'hmaptool'))))
+
+config.substitutions.append(
+    ('%deps-to-rsp',
+     '"%s" %s' % (config.python_executable, os.path.join(config.clang_src_dir, 'utils',
+                                                         'module-deps-to-rsp.py'))))
+
+config.substitutions.append(('%host_cc', config.host_cc))
+config.substitutions.append(('%host_cxx', config.host_cxx))
+
 
 # Plugins (loadable modules)
-# TODO: This should be supplied by Makefile or autoconf.
-if sys.platform in ['win32', 'cygwin']:
-    has_plugins = config.enable_shared
-else:
-    has_plugins = True
-
-if has_plugins and config.llvm_plugin_ext:
+if config.has_plugins and config.llvm_plugin_ext:
     config.available_features.add('plugins')
+
+if config.clang_default_pie_on_linux:
+    config.available_features.add('default-pie-on-linux')
+
+# These variables are needed to enable running lit tests on non-native targets
+# like ARM, etc.
+# checkedc_arm_sysroot is the path to the top of the ARM sysroot. This is
+# specified by the user with the CMake flag CHECKEDC_ARM_SYSROOT.
+config.substitutions.append(
+    ('%checkedc_arm_sysroot', config.checkedc_arm_sysroot))
+# checkedc_arm_rununder is the device on which ARM lit tests would be run. This
+# is specified by the user with the CMake flag CHECKEDC_ARM_RUNUNDER.
+config.substitutions.append(
+    ('%checkedc_arm_rununder', config.checkedc_arm_rununder))
+# checkedc_target_flags are the target-specific flags appended to each
+# compilation RUN line of lit.
+config.substitutions.append(
+    ('%checkedc_target_flags', config.checkedc_target_flags))
+# checkedc_rununder is the target-specific device prepended to each execution
+# RUN line of lit.
+config.substitutions.append(
+    ('%checkedc_rununder', config.checkedc_rununder))
 
 # Set available features we allow tests to conditionalize on.
 #
 if config.clang_default_cxx_stdlib != '':
-    config.available_features.add('default-cxx-stdlib-set')
+    config.available_features.add('default-cxx-stdlib={}'.format(config.clang_default_cxx_stdlib))
 
 # Enabled/disabled features
 if config.clang_staticanalyzer:
-   config.available_features.add('staticanalyzer')
-   if config.clang_staticanalyzer_z3 == '1':
-       config.available_features.add('z3')
+    config.available_features.add('staticanalyzer')
+
+    if config.clang_staticanalyzer_z3 == '1':
+        config.available_features.add('z3')
+
+def is_there(name):
+    from distutils.spawn import find_executable
+    return find_executable(name) is not None
+
+if is_there("seahorn"):
+    config.available_features.add('seahorn')
 
 # As of 2011.08, crash-recovery tests still do not pass on FreeBSD.
 if platform.system() not in ['FreeBSD']:
@@ -144,26 +215,28 @@ if is_filesystem_case_insensitive():
 if os.path.exists('/dev/fd/0') and sys.platform not in ['cygwin']:
     config.available_features.add('dev-fd-fs')
 
-# Not set on native MS environment.
-if not re.match(r'.*-(windows-msvc)$', config.target_triple):
-    config.available_features.add('non-ms-sdk')
-
-# Not set on native PS4 environment.
-if not re.match(r'.*-scei-ps4', config.target_triple):
-    config.available_features.add('non-ps4-sdk')
+# Set on native MS environment.
+if re.match(r'.*-(windows-msvc)$', config.target_triple):
+    config.available_features.add('ms-sdk')
 
 # [PR8833] LLP64-incompatible tests
-if not re.match(r'^x86_64.*-(windows-msvc|windows-gnu)$', config.target_triple):
+if not re.match(r'^(aarch64|x86_64).*-(windows-msvc|windows-gnu)$', config.target_triple):
     config.available_features.add('LP64')
 
-# [PR12920] "clang-driver" -- set if gcc driver is not used.
-if not re.match(r'.*-(cygwin)$', config.target_triple):
-    config.available_features.add('clang-driver')
+# Tests that are specific to the Apple Silicon macOS.
+if re.match(r'^arm64(e)?-apple-(macos|darwin)', config.target_triple):
+    config.available_features.add('apple-silicon-mac')
 
 # [PR18856] Depends to remove opened file. On win32, a file could be removed
 # only if all handles were closed.
 if platform.system() not in ['Windows']:
     config.available_features.add('can-remove-opened-file')
+
+# Features
+known_arches = ["x86_64", "mips64", "ppc64", "aarch64"]
+if (any(config.target_triple.startswith(x) for x in known_arches)):
+  config.available_features.add("clang-target-64-bits")
+
 
 
 def calculate_arch_features(arch_string):
@@ -176,7 +249,7 @@ def calculate_arch_features(arch_string):
 llvm_config.feature_config(
     [('--assertion-mode', {'ON': 'asserts'}),
      ('--cxxflags', {r'-D_GLIBCXX_DEBUG\b': 'libstdcxx-safe-mode'}),
-        ('--targets-built', calculate_arch_features)
+     ('--targets-built', calculate_arch_features),
      ])
 
 if lit.util.which('xmllint'):
@@ -184,6 +257,9 @@ if lit.util.which('xmllint'):
 
 if config.enable_backtrace:
     config.available_features.add('backtrace')
+
+if config.enable_threads:
+    config.available_features.add('thread_support')
 
 # Check if we should allow outputs to console.
 run_console_tests = int(lit_config.params.get('enable_console', '0'))
@@ -193,26 +269,70 @@ if run_console_tests != 0:
 lit.util.usePlatformSdkOnDarwin(config, lit_config)
 macOSSDKVersion = lit.util.findPlatformSdkVersionOnMacOS(config, lit_config)
 if macOSSDKVersion is not None:
-    config.available_features.add('macos-sdk-' + macOSSDKVersion)
+    config.available_features.add('macos-sdk-' + str(macOSSDKVersion))
 
 if os.path.exists('/etc/gentoo-release'):
     config.available_features.add('gentoo')
 
-# These variables are needed to enable running lit tests on non-native targets
-# like ARM, etc.
-# checkedc_arm_sysroot is the path to the top of the ARM sysroot. This is
-# specified by the user with the CMake flag CHECKEDC_ARM_SYSROOT.
-config.substitutions.append(
-    ('%checkedc_arm_sysroot', config.checkedc_arm_sysroot))
-# checkedc_arm_rununder is the device on which ARM lit tests would be run. This
-# is specified by the user with the CMake flag CHECKEDC_ARM_RUNUNDER.
-config.substitutions.append(
-    ('%checkedc_arm_rununder', config.checkedc_arm_rununder))
-# checkedc_target_flags are the target-specific flags appended to each
-# compilation RUN line of lit.
-config.substitutions.append(
-    ('%checkedc_target_flags', config.checkedc_target_flags))
-# checkedc_rununder is the target-specific device prepended to each execution
-# RUN line of lit.
-config.substitutions.append(
-    ('%checkedc_rununder', config.checkedc_rununder))
+if config.enable_shared:
+    config.available_features.add("enable_shared")
+
+# Add a vendor-specific feature.
+if config.clang_vendor_uti:
+    config.available_features.add('clang-vendor=' + config.clang_vendor_uti)
+
+if config.have_llvm_driver:
+  config.available_features.add('llvm-driver')
+
+def exclude_unsupported_files_for_aix(dirname):
+    for filename in os.listdir(dirname):
+        source_path = os.path.join( dirname, filename)
+        if os.path.isdir(source_path):
+            continue
+        f = open(source_path, 'r', encoding='ISO-8859-1')
+        try:
+           data = f.read()
+           # 64-bit object files are not supported on AIX, so exclude the tests.
+           if (any(option in data for option in ('-emit-obj', '-fmodule-format=obj', '-fintegrated-as')) and
+              '64' in config.target_triple):
+               config.excludes += [ filename ]
+        finally:
+           f.close()
+
+if 'aix' in config.target_triple:
+    for directory in ('/CodeGenCXX', '/Misc', '/Modules', '/PCH', '/Driver',
+                      '/ASTMerge/anonymous-fields', '/ASTMerge/injected-class-name-decl'):
+        exclude_unsupported_files_for_aix(config.test_source_root + directory)
+
+# Some tests perform deep recursion, which requires a larger pthread stack size
+# than the relatively low default of 192 KiB for 64-bit processes on AIX. The
+# `AIXTHREAD_STK` environment variable provides a non-intrusive way to request
+# a larger pthread stack size for the tests. Various applications and runtime
+# libraries on AIX use a default pthread stack size of 4 MiB, so we will use
+# that as a default value here.
+if 'AIXTHREAD_STK' in os.environ:
+    config.environment['AIXTHREAD_STK'] = os.environ['AIXTHREAD_STK']
+elif platform.system() == 'AIX':
+    config.environment['AIXTHREAD_STK'] = '4194304'
+
+# The llvm-nm tool supports an environment variable "OBJECT_MODE" on AIX OS, which
+# controls the kind of objects they will support. If there is no "OBJECT_MODE"
+# environment variable specified, the default behaviour is to support 32-bit
+# objects only. In order to not affect most test cases, which expect to support
+# 32-bit and 64-bit objects by default, set the environment variable
+# "OBJECT_MODE" to 'any' for llvm-nm on AIX OS.
+
+if 'system-aix' in config.available_features:
+        config.substitutions.append(('llvm-nm', 'env OBJECT_MODE=any llvm-nm'))
+
+# It is not realistically possible to account for all options that could
+# possibly be present in system and user configuration files, so disable
+# default configs for the test runs.
+config.environment["CLANG_NO_DEFAULT_CONFIG"] = "1"
+# Substitutions for Seahorn verifier
+# some of the arguments clashed with buitin substitutions
+# so we define these new substitutions
+config.substitutions.append(('%sea_pp', config.sea_pp))
+config.substitutions.append(('%sea_ms', config.sea_ms))
+config.substitutions.append(('%sea_opt', config.sea_opt))
+config.substitutions.append(('%sea_horn', config.sea_horn))

@@ -138,7 +138,7 @@ protected:
     /// floating-point features.
     unsigned HasFPFeatures : 1;
 
-    unsigned NumStmts;
+    unsigned NumStmts: 32 - NumStmtBits - 1;
   };
 
   class LabelStmtBitfields {

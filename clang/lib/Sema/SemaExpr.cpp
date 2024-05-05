@@ -3524,12 +3524,18 @@ ExprResult Sema::BuildDeclarationNameExpr(
   case Decl::Field:
   case Decl::IndirectField:
   case Decl::ObjCIvar:
-    assert(getLangOpts().CPlusPlus && "building reference to field in C?");
+    if (IsMemberBoundsExpr) {
+      assert(getLangOpts().CheckedC);
+      assert(!isa<IndirectFieldDecl>(VD));
+      valueKind = VK_LValue;
+    } else {
+        assert(getLangOpts().CPlusPlus && "building reference to field in C?");
 
-    // These can't have reference type in well-formed programs, but
-    // for internal consistency we do this anyway.
-    type = type.getNonReferenceType();
-    valueKind = VK_LValue;
+        // These can't have reference type in well-formed programs, but
+        // for internal consistency we do this anyway.
+        type = type.getNonReferenceType();
+        valueKind = VK_LValue;
+    }
     break;
 
   // Non-type template parameters are either l-values or r-values
