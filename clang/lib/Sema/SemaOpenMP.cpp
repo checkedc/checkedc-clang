@@ -5614,7 +5614,7 @@ static CapturedStmt *buildDistanceFunc(Sema &Actions, QualType LogicalTy,
 
     // Get the LValue expression for the result.
     ImplicitParamDecl *DistParam = CS->getParam(0);
-    DeclRefExpr *DistRef = Actions.BuildDeclRefExpr(
+    Expr *DistRef = Actions.BuildDeclRefExpr(
         DistParam, LogicalTy, VK_LValue, {}, nullptr, nullptr, {}, nullptr);
 
     SmallVector<Stmt *, 4> BodyStmts;
@@ -5768,10 +5768,10 @@ static CapturedStmt *buildLoopVarFunc(Sema &Actions, QualType LoopVarTy,
     auto *CS = cast<CapturedDecl>(Actions.CurContext);
 
     ImplicitParamDecl *TargetParam = CS->getParam(0);
-    DeclRefExpr *TargetRef = Actions.BuildDeclRefExpr(
+    Expr *TargetRef = Actions.BuildDeclRefExpr(
         TargetParam, LoopVarTy, VK_LValue, {}, nullptr, nullptr, {}, nullptr);
     ImplicitParamDecl *IndvarParam = CS->getParam(1);
-    DeclRefExpr *LogicalRef = Actions.BuildDeclRefExpr(
+    Expr *LogicalRef = Actions.BuildDeclRefExpr(
         IndvarParam, LogicalTy, VK_LValue, {}, nullptr, nullptr, {}, nullptr);
 
     // Capture the Start expression.
@@ -5943,8 +5943,11 @@ StmtResult Sema::ActOnOpenMPCanonicalLoop(Stmt *AStmt) {
       buildDistanceFunc(*this, LogicalTy, CondRel, LHS, RHS, Step);
   CapturedStmt *LoopVarFunc = buildLoopVarFunc(
       *this, LVTy, LogicalTy, CounterRef, Step, isa<CXXForRangeStmt>(AStmt));
-  DeclRefExpr *LVRef = BuildDeclRefExpr(LUVDecl, LUVDecl->getType(), VK_LValue,
-                                        {}, nullptr, nullptr, {}, nullptr);
+  Expr *LVRefExpr = BuildDeclRefExpr(LUVDecl, LUVDecl->getType(), VK_LValue,
+                                     {}, nullptr, nullptr, {}, nullptr);
+  DeclRefExpr *LVRef = dyn_cast<DeclRefExpr>(LVRefExpr);
+  assert(LVRef != nullptr && "Checked C bounds-safe interface cast? "
+                             "OpenMP combined with that is not supported");
   return OMPCanonicalLoop::create(getASTContext(), AStmt, DistanceFunc,
                                   LoopVarFunc, LVRef);
 }

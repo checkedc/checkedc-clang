@@ -15498,9 +15498,12 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
       }
     }
 
-    DeclRefExpr *DRE = BuildDeclRefExpr(
+    Expr *E = BuildDeclRefExpr(
         Fn, Type, ValueKind, ULE->getNameInfo(), ULE->getQualifierLoc(),
         Found.getDecl(), ULE->getTemplateKeywordLoc(), TemplateArgs);
+    DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E);
+    assert(DRE != nullptr && "Checked C bounds-safe interface cast? "
+                             "Not supported for C++ overload resolution.");
     DRE->setHadMultipleCandidates(ULE->getNumDecls() > 1);
     return DRE;
   }

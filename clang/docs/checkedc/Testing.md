@@ -44,19 +44,13 @@ don't try to follow those directions.
 
 - The build creates a llvm-lit.py script that you can use to run regression
   tests by hand. It is placed in the same directory as your newly built clang
-executable.
-
-  On Windows, the clang executable resides in:
-    `<BUILD_DIR>\llvm\Debug\bin` for Debug builds
-    `<BUILD_DIR>\llvm\Release\bin` for Release builds
-
-  On Linux, the clang executable resides in:
+executable.  On Linux and Windows, the clang executable resides in
     `<BUILD_DIR>\llvm\bin`
 
 - You can point the llvm-lit script at a directory to run all tests or an
   individual test. For example:
 
-    `llvm-lit <BUILD_DIR>\llvm\tools\clang\test`
+    `llvm-lit <BUILD_DIR>\tools\clang\test`
 
 ### Running lit tests for ARM
 By default, the lit tests are built and run for the native X86 target. But you

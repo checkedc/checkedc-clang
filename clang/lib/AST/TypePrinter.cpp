@@ -578,12 +578,12 @@ void TypePrinter::printConstantArrayAfter(const ConstantArrayType *T,
 void TypePrinter::printArrayAfter(const ArrayType *T, Qualifiers Quals, raw_ostream &OS,
                                   bool checkedOuterDimension) {
   if (T->isExactlyChecked() && !checkedOuterDimension)
-    OS << "_Checked";
+    OS << " _Checked";
   else if (T->isNtChecked())
-      OS << "_Nt_checked";
+      OS << " _Nt_checked";
   else if (checkedOuterDimension && !T->isChecked()) {
     // This case is never supposed to happen, but print an accurate type name if it does.
-    OS << "_Unchecked";
+    OS << " _Unchecked";
   }
   switch (T->getTypeClass()) {
     case Type::IncompleteArray:

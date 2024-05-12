@@ -2095,7 +2095,7 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   llvm_unreachable("unexpected literal operator lookup result");
 }
 
-DeclRefExpr *
+Expr *
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                        SourceLocation Loc,
                        const CXXScopeSpec *SS) {
@@ -2103,7 +2103,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   return BuildDeclRefExpr(D, Ty, VK, NameInfo, SS);
 }
 
-DeclRefExpr *
+Expr *
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                        const DeclarationNameInfo &NameInfo,
                        const CXXScopeSpec *SS, NamedDecl *FoundD,
@@ -2174,7 +2174,7 @@ NonOdrUseReason Sema::getNonOdrUseReasonInCurrentContext(ValueDecl *D) {
 
 /// BuildDeclRefExpr - Build an expression that references a
 /// declaration that does not require a closure capture.
-DeclRefExpr *
+Expr *
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                        const DeclarationNameInfo &NameInfo,
                        NestedNameSpecifierLoc NNS, NamedDecl *FoundD,
@@ -2249,11 +2249,10 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
       llvm_unreachable("unexpected DeclRef in checked scope");
     ExprResult ER = ConvertToFullyCheckedType(E, DD->getInteropTypeExpr(),
                                               isa<ParmVarDecl>(D), VK);
-    assert(!ER.isInvalid());
     if (!ER.isInvalid())
-      return dyn_cast<DeclRefExpr>(ER.get());
+      return ER.get();
     else
-      return E;
+      llvm_unreachable("unexpected failure in ConvertToFullyCheckedType");
   }
 
   return E;
