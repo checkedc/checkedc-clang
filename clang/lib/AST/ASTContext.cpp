@@ -10199,7 +10199,8 @@ bool ASTContext::typesAreCompatible(QualType LHS, QualType RHS,
     return hasSameType(LHS, RHS);
 
   return !mergeTypes(LHS, RHS, false, CompareUnqualified, 
-                     /*BlockReturnType=*/false, IgnoreBounds).isNull();
+                     /*BlockReturnType=*/false, /*IsConditionalOperator*/=false,
+                     IgnoreBounds).isNull();
 }
 
 bool ASTContext::propertyTypesAreCompatible(QualType LHS, QualType RHS) {
