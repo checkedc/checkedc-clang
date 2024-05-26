@@ -10199,7 +10199,7 @@ bool ASTContext::typesAreCompatible(QualType LHS, QualType RHS,
     return hasSameType(LHS, RHS);
 
   return !mergeTypes(LHS, RHS, false, CompareUnqualified, 
-                     /*BlockReturnType=*/false, /*IsConditionalOperator*/=false,
+                     /*BlockReturnType=*/false, /*IsConditionalOperator=*/false,
                      IgnoreBounds).isNull();
 }
 
@@ -10290,7 +10290,8 @@ QualType ASTContext::mergeTransparentUnionType(QualType T, QualType SubType,
       for (const auto *I : UD->fields()) {
         QualType ET = I->getType().getUnqualifiedType();
         QualType MT = mergeTypes(ET, SubType, OfBlockPointer, Unqualified,
-                                 /*BlockReturnType=*/false, IgnoreBounds);
+                                 /*BlockReturnType=*/false, /*IsConditionalOperator=*/false,
+                                  IgnoreBounds);
         if (!MT.isNull())
           return MT;
       }
@@ -10320,7 +10321,8 @@ QualType ASTContext::mergeFunctionParameterTypes(QualType lhs, QualType rhs,
     return rmerge;
 
   return mergeTypes(lhs, rhs, OfBlockPointer, Unqualified,
-                    /*BlockReturnType=*/false, IgnoreBounds);
+                    /*BlockReturnType=*/false, /*IsConditionalOperator=*/false,
+                    IgnoreBounds);
 }
 
 QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
@@ -10343,11 +10345,11 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     bool UnqualifiedResult = Unqualified;
     if (!UnqualifiedResult)
       UnqualifiedResult = (!RHS.hasQualifiers() && LHS.hasQualifiers());
-    retType = mergeTypes(LHS, RHS, true, UnqualifiedResult, true, IgnoreBounds);
+    retType = mergeTypes(LHS, RHS, true, UnqualifiedResult, true, false, IgnoreBounds);
   }
   else
     retType = mergeTypes(lbase->getReturnType(), rbase->getReturnType(), false,
-                         Unqualified, IgnoreBounds);
+                         Unqualified, false, false, IgnoreBounds);
   if (retType.isNull())
     return {};
 
@@ -10811,7 +10813,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
       RHSPointee = RHSPointee.getUnqualifiedType();
     }
     QualType ResultType = mergeTypes(LHSPointee, RHSPointee, false,
-                                     Unqualified, false, IgnoreBounds);
+                                     Unqualified, false, false, IgnoreBounds);
     if (ResultType.isNull())
       return {};
     if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
@@ -10844,7 +10846,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
           QualType(RHSPointee.getTypePtr(), RHSPteeQual.getAsOpaqueValue());
     }
     QualType ResultType = mergeTypes(LHSPointee, RHSPointee, OfBlockPointer,
-                                     Unqualified, false, IgnoreBounds);
+                                     Unqualified, false, false, IgnoreBounds);
     if (ResultType.isNull())
       return {};
     if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
@@ -10863,7 +10865,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
       RHSValue = RHSValue.getUnqualifiedType();
     }
     QualType ResultType = mergeTypes(LHSValue, RHSValue, false,
-                                     Unqualified, false, IgnoreBounds);
+                                     Unqualified, false, false, IgnoreBounds);
     if (ResultType.isNull())
       return {};
     if (getCanonicalType(LHSValue) == getCanonicalType(ResultType))
@@ -10893,7 +10895,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
       RHSElem = RHSElem.getUnqualifiedType();
     }
 
-    QualType ResultType = mergeTypes(LHSElem, RHSElem, false, Unqualified, false, IgnoreBounds);
+    QualType ResultType = mergeTypes(LHSElem, RHSElem, false, Unqualified, false, false, IgnoreBounds);
     if (ResultType.isNull())
       return {};
 

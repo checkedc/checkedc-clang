@@ -4122,10 +4122,21 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
     // we need to cover here is that the number of arguments agree as the
     // default argument promotion rules were already checked by
     // ASTContext::typesAreCompatible().
+
     if (Old->hasPrototype() && !New->hasWrittenPrototype() && NewDeclIsDefn &&
         Old->getNumParams() != New->getNumParams() && !Old->isImplicit()) {
+
       if (Old->hasInheritedPrototype())
         Old = Old->getCanonicalDecl();
+
+      // For Checked C, we've implemented specialized diagnostic messages
+      // for extensions to types, such as bounds declartion.  If we are in
+      // Checked C mode, see if those apply before issuing a generic message
+      // about conflicting types.
+
+      if (getLangOpts().CheckedC && DiagnoseCheckedCFunctionCompatibility(New, Old))
+        return true;
+
       Diag(New->getLocation(), diag::err_conflicting_types) << New;
       Diag(Old->getLocation(), PrevDiag) << Old << Old->getType();
       return true;
