@@ -4111,7 +4111,12 @@ Parser::ParseRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       isError = true;
     } else {
-      ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get(),
+      // If the constant expression is value-dependent, don't try to check
+      // it right now. C and Checked C don't have value-dependent expressions,
+      // but clang uses value-dependence to indicate an error occurred in
+      // an expression and suppress subsequence diagnostic messages.
+      if (!ConstExpr.get()->isValueDependent())
+         ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get(),
                                           Sema::AllowFoldKind::AllowFold);
       if (!ConstExpr.isInvalid())
         RelativeClause = Actions.ActOnRelativeConstExprClause(
