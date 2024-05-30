@@ -4742,6 +4742,8 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
     QualType innerType = MakeCheckedArrayType(PT->getInnerType(), Diagnose,
                                               Loc);
     return this->Context.getParenType(innerType);
+  } else if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(T)) {
+    return MakeCheckedArrayType(ET->desugar(), Diagnose, Loc);
   } else {
      // Make sure that we're not missing some wrapper type for an array type.
      // This checks that the canonical type for T is not an array type.

@@ -4725,6 +4725,11 @@ namespace {
                               const EquivExprSets EquivExprs,
                               const EqualExprTy RetSameValue,
                               CheckedScopeSpecifier CSS) {
+      // If there was an error in RetExpr, it may be marked as value dependent,
+      // even though value-dependence is a C++ feature.  Don't check it if so.
+      if (RetExpr->isValueDependent())
+        return;
+
       // In an unchecked scope, if the enclosing function has a bounds-safe
       // interface, and the return value has not been implicitly converted
       // to an unchecked pointer, we skip checking the return value bounds.

@@ -2238,12 +2238,13 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
 
   // For Checked C, if we are in a checked scope, cast uses of declarations
   // with unchecked types to checked types based on their bounds-safe
-  // interfaces.
+  // interfaces, provided that the declaration is valid to start with.
   //
   // We skip declarations with function and array types here.  They are
   // handled later as part of function-to-pointer and array-to-pointer decay.
   if (IsCheckedScope() && !Ty->isFunctionType() &&
-      !Ty->isArrayType() && Ty->isOrContainsUncheckedType()) {
+      !Ty->isArrayType() && Ty->isOrContainsUncheckedType() &&
+      !D->isInvalidDecl()) {
     DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
     if (!DD)
       llvm_unreachable("unexpected DeclRef in checked scope");

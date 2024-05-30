@@ -4135,7 +4135,7 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       // about conflicting types.
 
       if (getLangOpts().CheckedC && DiagnoseCheckedCFunctionCompatibility(New, Old))
-        return true;
+         return true;
 
       Diag(New->getLocation(), diag::err_conflicting_types) << New;
       Diag(Old->getLocation(), PrevDiag) << Old << Old->getType();
