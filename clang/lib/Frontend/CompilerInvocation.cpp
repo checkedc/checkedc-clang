@@ -3796,6 +3796,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Args.hasFlag(OPT_ftrigraphs, OPT_fno_trigraphs, Opts.Trigraphs);
 
   if (Args.hasArg(OPT_fcheckedc_extension)) {
+    llvm::outs() << "Seeing checked c extension";
     std::string disallowed;
     if (Opts.CUDA)
       disallowed = "CUDA";
@@ -3814,15 +3815,11 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (disallowed.size() > 0) {
       Diags.Report(diag::warn_drv_checkedc_extension_notsupported) <<
         "-fcheckedc-extension" << disallowed;
-    } else
-      Opts.CheckedC = true;
+    }
   }
 
   if (Args.hasArg(OPT_f3c_tool))
     Opts._3C = true;
-
-  if (Args.hasArg(OPT_fno_checkedc_extension))
-    Opts.CheckedC = false;
 
   if (Args.hasArg(OPT_fdump_inferred_bounds))
     Opts.DumpInferredBounds = true;
