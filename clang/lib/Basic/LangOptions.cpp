@@ -192,7 +192,7 @@ void LangOptions::setLangDefaults(LangOptions &Opts, Language Lang,
 
   Opts.RenderScript = Lang == Language::RenderScript;
 
-  Opts.CheckedC = (Lang == Language::C);  
+  Opts.CheckedC = (Lang == Language::C);
 
   // OpenCL, C++ and C2x have bool, true, false keywords.
   Opts.Bool = Opts.OpenCL || Opts.CPlusPlus || Opts.C2x;

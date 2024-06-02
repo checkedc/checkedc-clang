@@ -6628,8 +6628,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.addOptInFlag(CmdArgs, options::OPT_fborland_extensions,
                     options::OPT_fno_borland_extensions);
-  Args.addOptOutFlag(CmdArgs, options::OPT_fcheckedc_extension,
-                     options::OPT_fno_checkedc_extension);
+  Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_extension);
+  Args.AddLastArg(CmdArgs, options::OPT_fno_checkedc_extension);
   Args.AddLastArg(CmdArgs, options::OPT_fdump_inferred_bounds);
   Args.AddLastArg(CmdArgs, options::OPT_f3c_tool);
   Args.AddLastArg(CmdArgs, options::OPT_finject_verifier_calls);

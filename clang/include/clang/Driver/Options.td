@@ -1410,10 +1410,10 @@ def fbuiltin_module_map : Flag <["-"], "fbuiltin-module-map">, Group<f_Group>,
 defm caret_diagnostics : BoolFOption<"caret-diagnostics",
   DiagnosticOpts<"ShowCarets">, DefaultTrue,
   NegFlag<SetFalse, [CC1Option]>, PosFlag<SetTrue>>;
-defm checkedc_extension : BoolFOption<"checkedc-extension",
-   LangOpts<"CheckedC">, Default<c99.KeyPath>,
-   PosFlag<SetTrue, [CC1Option], "Accept Checked C extension">,
-   NegFlag<SetFalse, [CC1Option], "Do not accept Checked C extension">>;
+def fcheckedc_extension : Flag<["-"], "fcheckedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
+   HelpText<"Accept Checked C extension for C (default)">;
+def fno_checkedc_extension : Flag<["-"], "fno-checkedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
+   HelpText<"Do not accept Checked C extension for C">;
 def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump extracted comparison facts">;
 def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, Flags<[CC1Option]>,

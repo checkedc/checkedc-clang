@@ -3417,6 +3417,9 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
       GenerateArg(Args, OPT_ftrigraphs, SA);
   }
 
+  if (!Opts.CheckedC)
+    GenerateArg(Args, OPT_fno_checkedc_extension, SA);
+
   if (Opts.Blocks && !(Opts.OpenCL && Opts.OpenCLVersion == 200))
     GenerateArg(Args, OPT_fblocks, SA);
 
@@ -3796,7 +3799,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Args.hasFlag(OPT_ftrigraphs, OPT_fno_trigraphs, Opts.Trigraphs);
 
   if (Args.hasArg(OPT_fcheckedc_extension)) {
-    llvm::outs() << "Seeing checked c extension";
+    // This is the default for C, so we don't need to do anything
+    // there. For other languages, warn that it is ignored.
     std::string disallowed;
     if (Opts.CUDA)
       disallowed = "CUDA";
@@ -3817,6 +3821,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
         "-fcheckedc-extension" << disallowed;
     }
   }
+
+  if (Args.hasArg(OPT_fno_checkedc_extension))
+    Opts.CheckedC = false;
 
   if (Args.hasArg(OPT_f3c_tool))
     Opts._3C = true;
