@@ -367,7 +367,7 @@ CompoundStmt::CompoundStmt(ArrayRef<Stmt*> Stmts,  FPOptionsOverride FPFeatures,
                            CheckedScopeSpecifier WrittenCSS,
                            CheckedScopeSpecifier CSS, SourceLocation CSSLoc,
                            SourceLocation CSMLoc, SourceLocation BNDLoc)
-  : Stmt(CompoundStmtClass), RBraceLoc(RB), WrittenCSS(WrittenCSS),
+  : Stmt(CompoundStmtClass), LBraceLoc(LB), RBraceLoc(RB), WrittenCSS(WrittenCSS),
     CSS(CSS), CSSLoc(CSSLoc), CSMLoc(CSMLoc), BNDLoc(BNDLoc) {
   CompoundStmtBits.NumStmts = Stmts.size();
   CompoundStmtBits.HasFPFeatures = FPFeatures.requiresTrailingStorage();
@@ -386,7 +386,7 @@ void CompoundStmt::setStmts(ArrayRef<Stmt *> Stmts) {
 CompoundStmt *CompoundStmt::Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
                                    FPOptionsOverride FPFeatures,
                                    SourceLocation LB, SourceLocation RB,
-                                   CheckedScopeSpecifier WrittenCSS,                                   
+                                   CheckedScopeSpecifier WrittenCSS,
                                    CheckedScopeSpecifier CSS,
                                    SourceLocation CSSLoc,
                                    SourceLocation CSMLoc,

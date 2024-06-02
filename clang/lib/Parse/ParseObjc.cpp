@@ -2023,7 +2023,6 @@ void Parser::ParseObjCClassInstanceVariables(ObjCContainerDecl *interfaceDecl,
       // They should be null here.
       assert(FD.BoundsExprTokens == nullptr);
       assert(FD.InteropType == nullptr);
-      Actions.ActOnObjCContainerStartDefinition(interfaceDecl);
       // Install the declarator into the interface decl.
       FD.D.setObjCIvar(true);
       Decl *Field = Actions.ActOnIvar(

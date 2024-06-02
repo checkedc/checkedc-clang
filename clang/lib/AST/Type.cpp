@@ -4374,6 +4374,8 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::ObjCInterface:
   case Type::Atomic:
   case Type::Pipe:
+  case Type::BitInt:
+  case Type::DependentBitInt:
   case Type::TypeVariable:
   case Type::Existential:
     return false;
