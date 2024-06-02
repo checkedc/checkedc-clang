@@ -4982,8 +4982,18 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   Actions.ActOnFields(getCurScope(), RecordLoc, TagDecl, FieldDecls,
                       T.getOpenLocation(), T.getCloseLocation(), attrs);
   // Parse the deferred bounds expressions
+  // TODO: Checked C: Currently to parse a bounds expression
+  // we need the declarator for the enclosing scope for
+  // identifier lookup.  We are recreating the declarator
+  // here. It would be good to stop doing this. Maybe we
+  // could retain the original declarator.
+  //
+  // The recreation of the declarator triggered an assert based on
+  // legacy attributes being present here. To avoid this, we
+  // create a dummy empty list of attributes.
   ParsingDeclSpec DS(*this);
-  ParsingFieldDeclarator DeclaratorsInfo(*this,DS, attrs);
+  ParsedAttributes dummyAttrs(AttrFactory);
+  ParsingFieldDeclarator DeclaratorsInfo(*this,DS, dummyAttrs);
   for (auto &Pair : deferredBoundsExpressions) {
     EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
     FieldDecl *FieldDecl = Pair.first;
