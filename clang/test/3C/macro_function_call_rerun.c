@@ -1,6 +1,6 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -alltypes -addcr -rerun %s -- -Xclang -verify | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr -rerun %s -- -Xclang -verify | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -alltypes -addcr -rerun %s -- -Xclang -verify | FileCheck -match-full-lines -check-prefixes="CHECK" %s
+// RUN: 3c -base-dir=%S -addcr -rerun %s -- -Xclang -verify | FileCheck -match-full-lines -check-prefixes="CHECK" %s
 // RUN: 3c -base-dir=%S -alltypes -addcr -rerun %s -- -Xclang -verify | %clang -c -fcheckedc-extension -x c -o /dev/null -
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked -rerun %s -- -Xclang -verify
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/macro_function_call_rerun.c -rerun -- -Xclang -verify | diff %t.checked/macro_function_call_rerun.c -

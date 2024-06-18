@@ -2,7 +2,7 @@
 // Manually passing fortify source to avoid issues surrounding the way compiler
 // builtins are handled. (See issue #630)
 // RUN: 3c -base-dir=%S -addcr -alltypes %s -- -D_FORTIFY_SOURCE=0 | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- -D_FORTIFY_SOURCE=0 | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -D_FORTIFY_SOURCE=0 | FileCheck -match-full-lines -check-prefixes="CHECK" %s
 // RUN: 3c -base-dir=%S -addcr %s -- -D_FORTIFY_SOURCE=0 | %clang -c -fcheckedc-extension -x c -o %t1.unused -
 
 // General demonstration

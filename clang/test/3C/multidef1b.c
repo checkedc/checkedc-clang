@@ -2,8 +2,8 @@
 // RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/multidef1a.c --
 // RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/multidef1a.c --
 // RUN: %clang -working-directory=%t.checkedNOALL -c multidef1a.c multidef1b.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/multidef1b.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/multidef1b.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %t.checkedNOALL/multidef1b.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %t.checkedALL/multidef1b.c %s
 
 #include <string.h>
 

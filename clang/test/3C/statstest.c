@@ -34,7 +34,7 @@ void h() {
 
 void i(int *x) {
 //CHECK: void i(int *x : itype(_Ptr<int>)) {
-  x = 1;
+  x = (int *)1;
 }
 
 void j() {
