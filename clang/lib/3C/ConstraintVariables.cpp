@@ -312,10 +312,13 @@ PointerVariableConstraint::PointerVariableConstraint(
     // TODO: Enhance TypedefLevelFinder to get this info.
     if (Ty->isPointerType()) {
       auto *PtrTy = Ty->getPointeeType().getTypePtr();
-      if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy)) {
-        const auto *Tv = dyn_cast<TypeVariableType>(TypdefTy->desugar());
-        if (Tv)
-          SourceGenericIndex = Tv->GetIndex();
+      if (auto *EType = dyn_cast_or_null<ElaboratedType>(PtrTy)) {
+        QualType TypdefTy = EType->desugar();
+        if (auto *TypdefTyPtr = dyn_cast<TypedefType>(TypdefTy.getTypePtr())) {
+          const auto *Tv = dyn_cast<TypeVariableType>(TypdefTyPtr->desugar());
+          if (Tv)
+            SourceGenericIndex = Tv->GetIndex();
+        }
       }
     }
   }
