@@ -1,9 +1,9 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S -itypes-for-extern -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -output-dir=%t.checked %s --
-// RUN: 3c -base-dir=%t.checked -itypes-for-extern -alltypes %t.checked/itypes_for_extern.c -- | diff %t.checked/itypes_for_extern.c -
+// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -itypes-for-extern -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -addcr %s -- -Wno-error=int-conversion | %clang -c -Wno-error=int-conversion -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -output-dir=%t.checked %s -- -Wno-error=int-conversion
+// RUN: 3c -base-dir=%t.checked -itypes-for-extern -alltypes %t.checked/itypes_for_extern.c -- -Wno-error=int-conversion | diff %t.checked/itypes_for_extern.c -
 
 // Simplest test case: a would normally get a checked type, but is given an
 // itype because of the flag.

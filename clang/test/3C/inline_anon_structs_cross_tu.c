@@ -32,20 +32,20 @@
 //
 // RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL_AB %S/inline_anon_structs.c %s --
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_AB" --input-file %t.checkedALL_AB/inline_anon_structs.c %S/inline_anon_structs.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_AB" --input-file %t.checkedALL_AB/inline_anon_structs_cross_tu.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_AB" --input-file %t.checkedALL_AB/inline_anon_structs_cross_tu.c %s
 // RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL_AB %S/inline_anon_structs.c %s --
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK_AB" --input-file %t.checkedNOALL_AB/inline_anon_structs.c %S/inline_anon_structs.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK_AB" --input-file %t.checkedNOALL_AB/inline_anon_structs_cross_tu.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_AB" --input-file %t.checkedNOALL_AB/inline_anon_structs_cross_tu.c %s
 
 // Tests of the "inline_anon_structs_cross_tu.c, inline_anon_structs.c" order
 // (called "BA").
 //
 // RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL_BA  %s %S/inline_anon_structs.c --
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_BA" --input-file %t.checkedALL_BA/inline_anon_structs.c %S/inline_anon_structs.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_BA" --input-file %t.checkedALL_BA/inline_anon_structs_cross_tu.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_BA" --input-file %t.checkedALL_BA/inline_anon_structs_cross_tu.c %s
 // RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL_BA %s %S/inline_anon_structs.c --
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK_BA" --input-file %t.checkedNOALL_BA/inline_anon_structs.c %S/inline_anon_structs.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK_BA" --input-file %t.checkedNOALL_BA/inline_anon_structs_cross_tu.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_BA" --input-file %t.checkedNOALL_BA/inline_anon_structs_cross_tu.c %s
 
 void second_tu_fn(void) {
   // In the AB order, the global `cross_tu_numbering_test` variable in

@@ -698,7 +698,11 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     // implicit declaration uses a typedef, it will be missed. That's fine
     // since an implicit declaration can't be rewritten anyways.
     // There might be other ways it can be null that I'm not aware of.
-    DeclIsTypedef = isa<TypedefType>(TS->getType());
+    QualType QT = TS->getType();
+    if (auto *EType = dyn_cast_or_null<ElaboratedType>(QT)) {
+      QualType TypedefTy = EType->desugar();
+      DeclIsTypedef = isa<TypedefType>(TypedefTy);
+    }
   }
 
   // If we've made this generic we need add "_For_any" or "_Itype_for_any"

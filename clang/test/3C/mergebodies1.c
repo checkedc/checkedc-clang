@@ -1,8 +1,8 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s %S/mergebodies2.c --
-// RUN: %clang -working-directory=%t.checked -c mergebodies1.c mergebodies2.c
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s %S/mergebodies2.c -- -Wno-error=int-conversion
+// RUN: %clang -working-directory=%t.checked -c mergebodies1.c mergebodies2.c -Wno-error=int-conversion
 // RUN: FileCheck -match-full-lines --input-file %t.checked/mergebodies1.c %s
-// RUN: 3c -base-dir=%t.checked -output-dir=%t.convert_again %t.checked/mergebodies1.c %t.checked/mergebodies2.c --
+// RUN: 3c -base-dir=%t.checked -output-dir=%t.convert_again %t.checked/mergebodies1.c %t.checked/mergebodies2.c -- -Wno-error=int-conversion
 // RUN: test ! -f %t.convert_again/mergebodies1.c
 
 // This test and its counterpart check for merging functions with bodies,
@@ -35,13 +35,13 @@ int *fnPtrParamUnsafe(int (*)(int,int), int(*)(int*));
 int *fnPtrParamSafe(int (*)(int,int));
 // CHECK: int *fnPtrParamSafe(_Ptr<int (int, int)> fn) : itype(_Ptr<int>);
 
-void main(int a, char **b);
-// CHECK: void main(int a, _Ptr<_Ptr<char>> b);
-
 void main() {
 // CHECK: void main(int a, _Ptr<_Ptr<char>> b) {
   int f = safeBody(1,(int *)2);
 }
+
+void main(int a, char **b);
+// CHECK: void main(int a, _Ptr<_Ptr<char>> b);
 
 int *noParams() {
   return 0;

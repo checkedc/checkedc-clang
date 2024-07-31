@@ -3420,6 +3420,9 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   if (!Opts.CheckedC)
     GenerateArg(Args, OPT_fno_checkedc_extension, SA);
 
+  if (Opts._3C)
+    GenerateArg(Args, OPT_f3c_tool, SA);
+
   if (Opts.Blocks && !(Opts.OpenCL && Opts.OpenCLVersion == 200))
     GenerateArg(Args, OPT_fblocks, SA);
 

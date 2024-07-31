@@ -1,6 +1,6 @@
 // RUN: rm -rf %t*
 // RUN: cd %S
-// RUN: 3c -alltypes -addcr -output-dir=%t.checked/base_subdir %s --
+// RUN: 3c -alltypes -addcr -output-dir=%t.checked/base_subdir %s -- -Wno-error=int-conversion
 
 // The functions called from this file would normally have bounds inferred if
 // they were declared in a writable file. The file is not writable, so the new

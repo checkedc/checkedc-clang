@@ -1,11 +1,11 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL2 %S/unsafefptrargbothmulti1.c %s --
-// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL2 %S/unsafefptrargbothmulti1.c %s --
-// RUN: %clang -working-directory=%t.checkedNOALL2 -c unsafefptrargbothmulti1.c unsafefptrargbothmulti2.c
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL2 %S/unsafefptrargbothmulti1.c %s -- -Wno-error=incompatible-function-pointer-types
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL2 %S/unsafefptrargbothmulti1.c %s -- -Wno-error=incompatible-function-pointer-types
+// RUN: %clang -working-directory=%t.checkedNOALL2 -c -Wno-error=incompatible-function-pointer-types unsafefptrargbothmulti1.c unsafefptrargbothmulti2.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL2/unsafefptrargbothmulti2.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL2/unsafefptrargbothmulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/unsafefptrargbothmulti1.c %s --
-// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/unsafefptrargbothmulti1.c %t.checked/unsafefptrargbothmulti2.c --
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/unsafefptrargbothmulti1.c %s -- -Wno-error=incompatible-function-pointer-types
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/unsafefptrargbothmulti1.c %t.checked/unsafefptrargbothmulti2.c -- -Wno-error=incompatible-function-pointer-types
 // RUN: test ! -f %t.convert_again/unsafefptrargbothmulti1.c
 // RUN: test ! -f %t.convert_again/unsafefptrargbothmulti2.c
 

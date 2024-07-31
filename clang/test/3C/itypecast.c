@@ -3,11 +3,11 @@
 // Checks cast insertion while passing arguments to itype parameters.
 //
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -output-dir=%t.checked %s --
-// RUN: 3c -base-dir=%t.checked %t.checked/itypecast.c -- | diff -w %t.checked/itypecast.c -
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion | %clang -c -Wno-error=int-conversion -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -output-dir=%t.checked %s -- -Wno-error=int-conversion
+// RUN: 3c -base-dir=%t.checked %t.checked/itypecast.c -- -Wno-error=int-conversion | diff -w %t.checked/itypecast.c -
 
 int foo(int **p : itype(_Ptr<_Ptr<int>>));
 int bar(int **p : itype(_Ptr<int *>));

@@ -1,9 +1,9 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -alltypes -addcr %s -- -w | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- -w | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- -w | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s -- -w
-// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/fptr_array.c -- -w | diff %t.checked/fptr_array.c -
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- -Wno-error=int-conversion -w | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion -w | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion -w | %clang -c -Wno-error=int-conversion -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s -- -Wno-error=int-conversion -w
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/fptr_array.c -- -Wno-error=int-conversion -w | diff %t.checked/fptr_array.c -
 
 // Test function pointers as elements of fixed size arrays.
 

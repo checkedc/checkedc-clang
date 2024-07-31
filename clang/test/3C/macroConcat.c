@@ -1,9 +1,9 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
-// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/macroConcat.c -- | diff %t.checked/macroConcat.c -
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- -Wno-error=implicit-int | FileCheck -match-full-lines -check-prefixes="CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=implicit-int | FileCheck -match-full-lines -check-prefixes="CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=implicit-int | %clang -c -Wno-error=implicit-int -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s -- -Wno-error=implicit-int
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/macroConcat.c -- -Wno-error=implicit-int | diff %t.checked/macroConcat.c -
 
 // I suspect the original source locations might have been an important aspect
 // of this test, so we shouldn't let clang-format change them. ~ Matt 2021-03-10

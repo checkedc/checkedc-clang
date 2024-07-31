@@ -1,9 +1,9 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
-// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/partial_checked.c -- | diff %t.checked/partial_checked.c -
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion | %clang -c -Wno-error=int-conversion -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s -- -Wno-error=int-conversion
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/partial_checked.c -- -Wno-error=int-conversion | diff %t.checked/partial_checked.c -
 
 void test0(_Ptr<int *> a) {}
 // CHECK: void test0(_Ptr<_Ptr<int>> a) _Checked {}

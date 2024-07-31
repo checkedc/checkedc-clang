@@ -6,17 +6,17 @@
 
 // RUN: rm -rf %t*
 
-// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
-// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/multivardecls_complex_types.c -- | diff %t.checked/multivardecls_complex_types.c -
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion | %clang -c -Wno-error=int-conversion -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s -- -Wno-error=int-conversion
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/multivardecls_complex_types.c -- -Wno-error=int-conversion | diff %t.checked/multivardecls_complex_types.c -
 
-// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ITE_ALL","CHECK_ITE" %s
-// RUN: 3c -base-dir=%S -itypes-for-extern -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ITE_NOALL","CHECK_ITE" %s
-// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -output-dir=%t.checked_ITE %s --
-// RUN: 3c -base-dir=%t.checked_ITE -itypes-for-extern -alltypes %t.checked_ITE/multivardecls_complex_types.c -- | diff %t.checked_ITE/multivardecls_complex_types.c -
+// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK_ITE_ALL","CHECK_ITE" %s
+// RUN: 3c -base-dir=%S -itypes-for-extern -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK_ITE_NOALL","CHECK_ITE" %s
+// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -addcr %s -- -Wno-error=int-conversion | %clang -c -Wno-error=int-conversion -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -itypes-for-extern -alltypes -output-dir=%t.checked_ITE %s -- -Wno-error=int-conversion
+// RUN: 3c -base-dir=%t.checked_ITE -itypes-for-extern -alltypes %t.checked_ITE/multivardecls_complex_types.c -- -Wno-error=int-conversion | diff %t.checked_ITE/multivardecls_complex_types.c -
 
 // A multi-decl with a mix of pointers and arrays, including an "unchecked
 // pointer to constant size array" member that would trigger a known bug in

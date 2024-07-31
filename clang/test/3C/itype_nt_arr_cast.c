@@ -1,8 +1,8 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
-// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/itype_nt_arr_cast.c -- | diff %t.checked/itype_nt_arr_cast.c -
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- -Wno-error=int-conversion | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s -- -Wno-error=int-conversion
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/itype_nt_arr_cast.c -- -Wno-error=int-conversion | diff %t.checked/itype_nt_arr_cast.c -
 
 char *fn1() {
 //CHECK_ALL: char *fn1(void) : itype(_Nt_array_ptr<char>) {

@@ -1,8 +1,8 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
-// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/generalize.c -- | diff %t.checked/generalize.c -
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- -Wno-error=int-conversion -Wno-error=implicit-int -Wno-error=incompatible-function-pointer-types | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- -Wno-error=int-conversion -Wno-error=implicit-int -Wno-error=incompatible-function-pointer-types | %clang -c -Wno-error=int-conversion -Wno-error=implicit-int -Wno-error=incompatible-function-pointer-types -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s -- -Wno-error=int-conversion -Wno-error=implicit-int -Wno-error=incompatible-function-pointer-types
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/generalize.c -- -Wno-error=int-conversion -Wno-error=implicit-int -Wno-error=incompatible-function-pointer-types | diff %t.checked/generalize.c -
 
 // Test the code that adds generics to replace void*
 

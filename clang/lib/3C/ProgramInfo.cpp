@@ -742,15 +742,18 @@ void ProgramInfo::ensureNtCorrect(const QualType &QT,
 
 void ProgramInfo::unifyIfTypedef(const QualType &QT, ASTContext &Context,
                                  PVConstraint *P, ConsAction CA) {
-  if (const auto *TDT = dyn_cast<TypedefType>(QT.getTypePtr())) {
-    auto *TDecl = TDT->getDecl();
-    auto PSL = PersistentSourceLoc::mkPSL(TDecl, Context);
-    auto O = lookupTypedef(PSL);
-    auto Rsn = ReasonLoc("typedef", PSL);
-    if (O.hasValue()) {
-      auto *Bounds = &O.getValue();
-      P->setTypedef(Bounds, TDecl->getNameAsString());
-      constrainConsVarGeq(P, Bounds, CS, Rsn, CA, false, this);
+  if (auto *EType = dyn_cast_or_null<ElaboratedType>(QT)) {
+    QualType TypdefTy = EType->desugar();
+    if (const auto *TDT = dyn_cast<TypedefType>(TypdefTy.getTypePtr())) {
+      auto *TDecl = TDT->getDecl();
+      auto PSL = PersistentSourceLoc::mkPSL(TDecl, Context);
+      auto O = lookupTypedef(PSL);
+      auto Rsn = ReasonLoc("typedef", PSL);
+      if (O.hasValue()) {
+        auto *Bounds = &O.getValue();
+        P->setTypedef(Bounds, TDecl->getNameAsString());
+        constrainConsVarGeq(P, Bounds, CS, Rsn, CA, false, this);
+      }
     }
   }
 }

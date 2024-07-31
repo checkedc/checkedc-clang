@@ -1,11 +1,11 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/fptrunsafecallermulti2.c --
-// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/fptrunsafecallermulti2.c --
-// RUN: %clang -working-directory=%t.checkedNOALL -c fptrunsafecallermulti1.c fptrunsafecallermulti2.c
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/fptrunsafecallermulti2.c -- -Wno-error=incompatible-function-pointer-types
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/fptrunsafecallermulti2.c -- -Wno-error=incompatible-function-pointer-types
+// RUN: %clang -working-directory=%t.checkedNOALL -c -Wno-error=incompatible-function-pointer-types fptrunsafecallermulti1.c fptrunsafecallermulti2.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/fptrunsafecallermulti1.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/fptrunsafecallermulti1.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrunsafecallermulti2.c %s --
-// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrunsafecallermulti1.c %t.checked/fptrunsafecallermulti2.c --
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrunsafecallermulti2.c %s -- -Wno-error=incompatible-function-pointer-types
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrunsafecallermulti1.c %t.checked/fptrunsafecallermulti2.c -- -Wno-error=incompatible-function-pointer-types
 // RUN: test ! -f %t.convert_again/fptrunsafecallermulti1.c
 // RUN: test ! -f %t.convert_again/fptrunsafecallermulti2.c
 

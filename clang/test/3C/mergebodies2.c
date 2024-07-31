@@ -1,8 +1,8 @@
 // RUN: rm -rf %t*
-// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s %S/mergebodies1.c --
-// RUN: %clang -working-directory=%t.checked -c mergebodies2.c mergebodies1.c
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s %S/mergebodies1.c -- -Wno-error=int-conversion
+// RUN: %clang -working-directory=%t.checked -c mergebodies2.c mergebodies1.c -Wno-error=int-conversion
 // RUN: FileCheck -match-full-lines --input-file %t.checked/mergebodies2.c %s
-// RUN: 3c -base-dir=%t.checked -output-dir=%t.convert_again %t.checked/mergebodies2.c %t.checked/mergebodies1.c --
+// RUN: 3c -base-dir=%t.checked -output-dir=%t.convert_again %t.checked/mergebodies2.c %t.checked/mergebodies1.c -- -Wno-error=int-conversion
 // RUN: test ! -f %t.convert_again/mergebodies2.c
 
 // This test and its counterpart check for merging functions with bodies,

@@ -164,7 +164,13 @@ public:
     // This is so we can see if the type _contains_ a typedef.
     if (const auto *TDT = dyn_cast<TypedefType>(QT))
       ToSearch = TDT->desugar();
-    else
+    else if (const auto *EType = dyn_cast<ElaboratedType>(QT)) {
+      // If the type is an elaborated type, desugar that and
+      // check if it is a typedef.
+      QualType TypdefTy = EType->desugar();
+      if (const auto *TypdefTyPtr = dyn_cast<TypedefType>(TypdefTy.getTypePtr()))
+        ToSearch = TypdefTyPtr->desugar();
+    } else
       ToSearch = QT;
     TLF.TraverseType(ToSearch);
     // If we found a typedef then we need to have filled out the name field.
