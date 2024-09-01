@@ -22,58 +22,6 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include <mutex>
 
-// Options used to initialize 3C tool.
-//
-// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
-// NOLINTNEXTLINE(readability-identifier-naming)
-struct _3COptions {
-  bool DumpIntermediate;
-
-  bool Verbose;
-
-  std::string OutputPostfix;
-  std::string OutputDir;
-
-  std::string ConstraintOutputJson;
-
-  bool DumpStats;
-
-  std::string StatsOutputJson;
-
-  std::string WildPtrInfoJson;
-
-  std::string PerPtrInfoJson;
-
-  std::vector<std::string> AllocatorFunctions;
-
-  bool HandleVARARGS;
-
-  bool EnablePropThruIType;
-
-  std::string BaseDir;
-  bool AllowSourcesOutsideBaseDir;
-
-  bool EnableAllTypes;
-
-  bool AddCheckedRegions;
-
-  bool EnableCCTypeChecker;
-
-  bool WarnRootCause;
-
-  bool WarnAllRootCause;
-
-#ifdef FIVE_C
-  bool RemoveItypes;
-  bool ForceItypes;
-#endif
-
-  bool DumpUnwritableChanges;
-  bool AllowUnwritableChanges;
-
-  bool AllowRewriteFailures;
-};
-
 // The main interface exposed by the 3C to interact with the tool.
 //
 // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
@@ -81,9 +29,11 @@ struct _3COptions {
 class _3CInterface {
 
 public:
-  ProgramInfo GlobalProgramInfo;
+  ProgramInfo * GlobalProgramInfo;
   // Mutex for this interface.
   std::mutex InterfaceMutex;
+
+  bool CStateisclear = true;
 
   // If the parameters are invalid, this function prints an error message to
   // stderr and returns null.
@@ -129,6 +79,8 @@ public:
   // as well.
   bool invalidateWildReasonGlobally(ConstraintKey PtrKey);
 
+  void resetInterface();
+
   // Rewriting.
 
   // Write all converted versions of the files in the source file list
@@ -163,6 +115,7 @@ private:
 
   // Are constraints already built?
   bool ConstraintsBuilt;
+  // Remove all constraints sharing the same reason as ConstraintToRemove.
   void invalidateAllConstraintsWithReason(Constraint *ConstraintToRemove);
 };
 

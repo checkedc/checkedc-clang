@@ -33,6 +33,7 @@ typedef struct _A {
   int a;
   int b;
 } A, *PA;
+//CHECK: typedef _Ptr<struct _A> PA;
 
 void mut_pa(PA p) {
   p->a = 0;

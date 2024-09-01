@@ -28,6 +28,7 @@ endif()
 add_clang_library(clang3C
   ABounds.cpp
   AVarBoundsInfo.cpp
+  AVarBoundsConflictResolver.cpp
   AVarGraph.cpp
   ArrayBoundsInferenceConsumer.cpp
   CastPlacement.cpp
@@ -43,7 +44,9 @@ add_clang_library(clang3C
   CtxSensAVarBounds.cpp
   DeclRewriter.cpp
   IntermediateToolHook.cpp
+  LowerBoundAssignment.cpp
   MappingVisitor.cpp
+  MultiDecls.cpp
   PersistentSourceLoc.cpp
   ProgramInfo.cpp
   ProgramVar.cpp

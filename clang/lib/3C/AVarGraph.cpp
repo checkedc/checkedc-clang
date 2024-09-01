@@ -62,7 +62,9 @@ llvm::DOTGraphTraits<AVarGraph>::getNodeLabel(const DataNode<BoundsKey> *Node,
   BoundsKey BK = Node->getData();
   ProgramVar *Tmp = ABInfo->getProgramVar(BK);
   std::string LblStr = "Temp";
-  if (Tmp != nullptr)
+  if (BK == 0)
+    LblStr = "Invalid";
+  else if (Tmp != nullptr)
     LblStr = Tmp->verboseStr();
   bool IsArrPtr =
       ABInfo->ArrPointerBoundsKey.find(BK) != ABInfo->ArrPointerBoundsKey.end();

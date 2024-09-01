@@ -130,7 +130,22 @@ int *d, e, **f;
 // CHECK: int e;
 // CHECK: _Ptr<_Ptr<int>> f = ((void *)0);
 
+// Simple test that storage and type qualifiers are preserved on both global and
+// function-scope variables.
+
+static const int *sd, se, **sf;
+// CHECK: static _Ptr<const int> sd = ((void *)0);
+// CHECK: static const int se;
+// CHECK: static _Ptr<_Ptr<const int>> sf = ((void *)0);
+
 void test5() {
+  static const int *fsd, fse, **fsf;
+  // CHECK: static _Ptr<const int> fsd = ((void *)0);
+  // CHECK: static const int fse;
+  // CHECK: static _Ptr<_Ptr<const int>> fsf = ((void *)0);
+}
+
+void test6() {
   int *a, *b;
   int *c, *e;
   struct foo {
@@ -148,3 +163,54 @@ void test5() {
 // CHECK: _Ptr<int> c;
 // CHECK: _Ptr<int> d;
 // CHECK: };
+
+void test7() {
+  // Test that variables that require struct initialization honor base type
+  // renames the same way as global variables.
+  struct { int *x; } s7;
+  //CHECK: struct s7_struct_1 { _Ptr<int> x; };
+  //CHECK: struct s7_struct_1 s7 = {};
+}
+
+// Test that getNextComma doesn't falsely trigger on commas inside a bounds
+// annotation. The scan shouldn't start until after the declaration source
+// range, which should include the bounds annotation, and it's unlikely that a
+// change to 3C could break that without also breaking other tests, but it
+// doesn't hurt to have a specific test for commas too. The extra nested comma
+// expression `(0, lo)` was needed to trigger the bug in older versions of 3C:
+// the lexer didn't seem to report the comma that is part of the `bounds`
+// construct to getNextComma as a comma token.
+//
+// `p3` is needed to trigger the multi-decl to be broken up at all.
+_Array_ptr<int> lo, hi;
+_Array_ptr<int> p1 : bounds((0, lo), hi), p2 : bounds(lo, (0, hi)), *p3;
+//CHECK: _Array_ptr<int> p1 : bounds((0, lo), hi);
+// The extra space after `0` seems to be because Decl::print treats the comma
+// operator like any other binary operator such as `+` and adds spaces both
+// before and after it. (TODO: Research whether this has already been discussed
+// in upstream Clang and if not, file a bug there?)
+//CHECK: _Array_ptr<int> p2 : bounds(lo, (0 , hi));
+//CHECK: _Ptr<_Array_ptr<int>> p3 = ((void *)0);
+
+// Simple tests of typedef multi-decls from
+// https://github.com/correctcomputation/checkedc-clang/issues/651.
+// inline_anon_structs.c has a few additional tests of typedef multi-decls
+// involving inline structs.
+
+typedef int *A, *B;
+// CHECK: typedef _Ptr<int> A;
+// CHECK: typedef _Ptr<int> B;
+
+void foo(void) {
+  A a;
+  B b;
+}
+
+typedef int *C, *D;
+// CHECK: typedef _Ptr<int> C;
+// CHECK: typedef int *D;
+
+void bar(void) {
+  C c;
+  D d = (D)1;
+}

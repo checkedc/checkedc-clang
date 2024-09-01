@@ -66,20 +66,20 @@ public:
   void dump() const { print(llvm::errs()); }
 
   static PersistentSourceLoc mkPSL(const clang::Decl *D,
-                                   clang::ASTContext &Context);
+                                   const clang::ASTContext &Context);
 
   static PersistentSourceLoc mkPSL(const clang::Stmt *S,
-                                   clang::ASTContext &Context);
+                                   const clang::ASTContext &Context);
 
   static PersistentSourceLoc mkPSL(const clang::Expr *E,
-                                   clang::ASTContext &Context);
+                                   const clang::ASTContext &Context);
 
 private:
   // Create a PersistentSourceLoc based on absolute file path
   // from the given SourceRange and SourceLocation.
   static PersistentSourceLoc mkPSL(clang::SourceRange SR,
                                    clang::SourceLocation SL,
-                                   clang::ASTContext &Context);
+                                   const clang::ASTContext &Context);
   // The source file name.
   std::string FileName;
   // Starting line number.

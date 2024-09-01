@@ -17,7 +17,6 @@ void invalid_cases_nullstmt(_Nt_array_ptr<char> p, int a, int b) {
   _Where p : ; // expected-error {{expected bounds expression}}
   _Where p : count(x); // expected-error {{use of undeclared identifier 'x'}}
   _Where q : count(0); // expected-error {{use of undeclared identifier q}}
-  _Where (); // expected-error {{expected bounds declaration or equality expression in where clause}}
   _Where a = 0; // expected-error {{expected comparison operator in equality expression}}
   _Where a == 1 _And a; // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}}
   _Where a _And a == 1; // expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}}

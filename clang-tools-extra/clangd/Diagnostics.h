@@ -59,6 +59,9 @@ struct DiagBase {
   std::string File;
   // Absolute path to containing file, if available.
   llvm::Optional<std::string> AbsFile;
+#ifdef LSP3C
+  std::string code;
+#endif
 
   clangd::Range Range;
   DiagnosticsEngine::Level Severity = DiagnosticsEngine::Note;
@@ -92,6 +95,9 @@ struct Diag : DiagBase {
     Clang,
     ClangTidy,
     ClangdConfig,
+#ifdef LSP3C
+    Main3C,
+#endif
   } Source = Unknown;
   /// Elaborate on the problem, usually pointing to a related piece of code.
   std::vector<Note> Notes;

@@ -5264,11 +5264,9 @@ namespace {
       if (!Val)
         return;
 
-      // StmtExprs should not be included in SameValue.  When StmtExprs are
-      // lexicographically compared, there is an assertion failure since
-      // the children of StmtExprs are Stmts and not Exprs, so StmtExprs
-      // should not be included in any sets that involve comparisons,
-      // such as CheckingState.SameValue or CheckingState.EquivExprs.
+      // StmtExprs should not be included in SameValue. Lexicographic
+      // comparison for StmtExprs is not implemented.  It just compares
+      // compares pointer values.
       if (isa<StmtExpr>(Val))
         return;
 

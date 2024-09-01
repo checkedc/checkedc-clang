@@ -554,8 +554,18 @@ void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr* E) {
 }
 
 /// ImpCastExprToType - If Expr is not of type 'Type', insert an implicit cast.
-/// If there is already an implicit cast, merge into the existing one.
+/// If Expr is already an implicit cast, combine the adjacent implicit casts
+/// into one, generating a new implicit cast operation (don't modify Expr).
 /// The result is of the given category.
+///
+/// Note: we changed how this function works for Checked C when Expr is
+/// already an implicit cast. The mainline clang code side-effects Expr to
+/// merge the two casts. We generate a new merged cast instead. The side-effect
+/// to Expr led to bugs when TreeTransform was used for expression
+/// substitution. WWhen some expression E1 was substituted for another
+/// expression E2, TreeTranform called semantic actions, which eventually
+/// called this function, which sometimes modified E1. This is wrong if E1 is
+/// already in use.
 ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
                                    CastKind Kind, ExprValueKind VK,
                                    const CXXCastPath *BasePath,
@@ -612,17 +622,19 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
       E = new (Context) CHKCBindTemporaryExpr(E);
   }
 
+  // If E is an implicit cast expression also, combine the two casts
+  // one one new cast.
+  Expr *Child = E;
   if (ImplicitCastExpr *ImpCast = dyn_cast<ImplicitCastExpr>(E)) {
     if (ImpCast->getCastKind() == Kind && (!BasePath || BasePath->empty())) {
-      ImpCast->setType(Ty);
-      ImpCast->setValueKind(VK);
-      ImpCast->setBoundsSafeInterface(isBoundsSafeInterfaceCast ||
-                                      ImpCast->isBoundsSafeInterface());
-      return E;
+      Child = ImpCast->getSubExpr();
+      isBoundsSafeInterfaceCast =
+        isBoundsSafeInterfaceCast || ImpCast->isBoundsSafeInterface();
     }
   }
 
-  ImplicitCastExpr *ICE = ImplicitCastExpr::Create(Context, Ty, Kind, E, BasePath, VK,
+  ImplicitCastExpr *ICE = ImplicitCastExpr::Create(Context, Ty, Kind, Child,
+                                                   BasePath, VK,
                                                    CurFPFeatureOverrides());
   ICE->setBoundsSafeInterface(isBoundsSafeInterfaceCast);
   return ICE;

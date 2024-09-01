@@ -11,10 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/3C/3C.h"
+#include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ArrayBoundsInferenceConsumer.h"
 #include "clang/3C/ConstraintBuilder.h"
 #include "clang/3C/IntermediateToolHook.h"
 #include "clang/3C/RewriteUtils.h"
+#include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/VerifyDiagnosticConsumer.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "llvm/Support/TargetSelect.h"
@@ -30,40 +32,9 @@ using namespace llvm;
 #define BEFORE_SOLVING_SUFFIX "_before_solving_"
 #define AFTER_SUBTYPING_SUFFIX "_after_subtyping_"
 
-cl::OptionCategory ArrBoundsInferCat("Array bounds inference options");
-static cl::opt<bool>
-    DebugArrSolver("debug-arr-solver",
-                   cl::desc("Dump array bounds inference graph"),
-                   cl::init(false), cl::cat(ArrBoundsInferCat));
-
-bool DumpIntermediate;
-bool Verbose;
-std::string OutputPostfix;
-std::string OutputDir;
-std::string ConstraintOutputJson;
-std::vector<std::string> AllocatorFunctions;
-bool DumpStats;
-bool HandleVARARGS;
-bool EnablePropThruIType;
-bool ConsiderAllocUnsafe;
-std::string StatsOutputJson;
-std::string WildPtrInfoJson;
-std::string PerWildPtrInfoJson;
-bool AllTypes;
-std::string BaseDir;
-bool AddCheckedRegions;
-bool EnableCCTypeChecker;
-bool WarnRootCause;
-bool WarnAllRootCause;
 std::set<std::string> FilePaths;
-bool DumpUnwritableChanges;
-bool AllowUnwritableChanges;
-bool AllowRewriteFailures;
 
-#ifdef FIVE_C
-bool RemoveItypes;
-bool ForceItypes;
-#endif
+struct _3COptions _3COpts;
 
 static CompilationDatabase *CurrCompDB = nullptr;
 static tooling::CommandLineArguments SourceFiles;
@@ -159,7 +130,7 @@ public:
     return UnderlyingConsumer->getNumErrors() == 0;
   }
 
-  ~_3CDiagnosticConsumer() {
+  ~_3CDiagnosticConsumer() override {
     // We considered asserting that the state is S_Done here, but if
     // ASTUnit::LoadFromCompilerInvocation fails and returns null, the
     // _3CDiagnosticConsumer may be destructed without reaching S_Done. However,
@@ -193,7 +164,7 @@ public:
     // a LibTooling ArgumentsAdjuster, but we access the options in their parsed
     // data structure rather than as strings, so it is much more robust.
 
-    if (!EnableCCTypeChecker)
+    if (!_3COpts.EnableCCTypeChecker)
       // Corresponds to the -f3c-tool compiler option.
       Invocation->LangOpts->_3C = true;
 
@@ -275,15 +246,63 @@ public:
     if (!AST)
       return false;
 
+    handleExtraProgramAction(Invocation->getFrontendOpts(),
+                             AST->getASTContext());
+
     ASTs.push_back(std::move(AST));
     return true;
+  }
+
+private:
+  void handleExtraProgramAction(FrontendOptions &Opts,
+                                ASTContext &C) {
+    // The Opts.ProgramAction field is normally used only by `clang -cc1` to
+    // select a FrontendAction (see CreateFrontendBaseAction in
+    // ExecuteCompilerInvocation.cpp) and is ignored by LibTooling tools, which
+    // perform a custom FrontendAction. But we want to support at least AST
+    // dumping (as an addition to 3C's normal workflow) since it's useful for
+    // debugging 3C, and we prefer to honor the standard `-Xclang -ast-dump`
+    // option rather than define our own tool-level option like clang-check
+    // does. We could add support for more `-ast-*` options here if desired.
+    switch (Opts.ProgramAction) {
+    case frontend::ParseSyntaxOnly:
+      // Nothing extra to do.
+      break;
+    case frontend::ASTDump: {
+      // Code copied from ASTDumpAction::CreateASTConsumer since we don't have a
+      // good way to actually use ASTDumpAction from here. :/
+      //
+      // XXX: Maybe we'd prefer to output this somewhere other than stdout to
+      // separate it from the updated main file written to stdout? This doesn't
+      // look trivial because ASTPrinter requires ownership of the output
+      // stream, and it probably isn't important for the intended debugging use
+      // case.
+      std::unique_ptr<ASTConsumer> Dumper =
+          CreateASTDumper(nullptr /*Dump to stdout.*/, Opts.ASTDumpFilter,
+                          Opts.ASTDumpDecls, Opts.ASTDumpAll,
+                          Opts.ASTDumpLookups, Opts.ASTDumpDeclTypes,
+                          Opts.ASTDumpFormat);
+      // In principle, we should call all the ASTConsumer methods the same way
+      // the normal AST parsing process would, but there isn't an obvious way to
+      // do that when using ASTUnit. Instead, we rely on the assumption
+      // (apparently valid as of this writing) that the only ASTConsumer method
+      // that has a nonempty implementation in ASTPrinter is
+      // HandleTranslationUnit, and we just call HandleTranslationUnit manually.
+      Dumper->HandleTranslationUnit(C);
+      break;
+    }
+    default:
+      llvm::errs() << "Warning: The requested ProgramAction is not implemented "
+                      "by 3C and will be ignored.\n";
+      break;
+    }
   }
 };
 
 void dumpConstraintOutputJson(const std::string &PostfixStr,
                               ProgramInfo &Info) {
-  if (DumpIntermediate) {
-    std::string FilePath = ConstraintOutputJson + PostfixStr + ".json";
+  if (_3COpts.DumpIntermediate) {
+    std::string FilePath = _3COpts.ConstraintOutputJson + PostfixStr + ".json";
     errs() << "Writing json output to:" << FilePath << "\n";
     std::error_code Ec;
     llvm::raw_fd_ostream OutputJson(FilePath, Ec);
@@ -299,7 +318,7 @@ void dumpConstraintOutputJson(const std::string &PostfixStr,
 void runSolver(ProgramInfo &Info, std::set<std::string> &SourceFiles) {
   Constraints &CS = Info.getConstraints();
 
-  if (Verbose) {
+  if (_3COpts.Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
 
@@ -310,7 +329,7 @@ void runSolver(ProgramInfo &Info, std::set<std::string> &SourceFiles) {
 
   clock_t StartTime = clock();
   CS.solve();
-  if (Verbose) {
+  if (_3COpts.Verbose) {
     errs() << "Solver time:" << getTimeSpentInSeconds(StartTime) << "\n";
   }
 }
@@ -333,47 +352,26 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
                            const std::vector<std::string> &SourceFileList,
                            CompilationDatabase *CompDB) {
 
-  DumpIntermediate = CCopt.DumpIntermediate;
-  Verbose = CCopt.Verbose;
-  OutputPostfix = CCopt.OutputPostfix;
-  OutputDir = CCopt.OutputDir;
-  ConstraintOutputJson = CCopt.ConstraintOutputJson;
-  StatsOutputJson = CCopt.StatsOutputJson;
-  WildPtrInfoJson = CCopt.WildPtrInfoJson;
-  PerWildPtrInfoJson = CCopt.PerPtrInfoJson;
-  DumpStats = CCopt.DumpStats;
-  HandleVARARGS = CCopt.HandleVARARGS;
-  EnablePropThruIType = CCopt.EnablePropThruIType;
-  BaseDir = CCopt.BaseDir;
-  AllTypes = CCopt.EnableAllTypes;
-  AddCheckedRegions = CCopt.AddCheckedRegions;
-  EnableCCTypeChecker = CCopt.EnableCCTypeChecker;
-  AllocatorFunctions = CCopt.AllocatorFunctions;
-  WarnRootCause = CCopt.WarnRootCause || CCopt.WarnAllRootCause;
-  WarnAllRootCause = CCopt.WarnAllRootCause;
-  DumpUnwritableChanges = CCopt.DumpUnwritableChanges;
-  AllowUnwritableChanges = CCopt.AllowUnwritableChanges;
-  AllowRewriteFailures = CCopt.AllowRewriteFailures;
-
-#ifdef FIVE_C
-  RemoveItypes = CCopt.RemoveItypes;
-  ForceItypes = CCopt.ForceItypes;
-#endif
+  _3COpts = CCopt;
+  _3COpts.WarnRootCause |= _3COpts.WarnAllRootCause;
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
 
+  GlobalProgramInfo = new ProgramInfo();
+
   ConstraintsBuilt = false;
 
-  if (OutputPostfix != "-" && !OutputDir.empty()) {
+  if (_3COpts.OutputPostfix != "-" && !_3COpts.OutputDir.empty()) {
     errs() << "3C initialization error: Cannot use both -output-postfix and "
               "-output-dir\n";
     ConstructionFailed = true;
     return;
   }
-  if (OutputPostfix == "-" && OutputDir.empty() && SourceFileList.size() > 1) {
+  if (_3COpts.OutputPostfix == "-" && _3COpts.OutputDir.empty() &&
+      SourceFileList.size() > 1) {
     errs() << "3C initialization error: Cannot specify more than one input "
               "file when output is to stdout\n";
     ConstructionFailed = true;
@@ -383,40 +381,41 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   std::string TmpPath;
   std::error_code EC;
 
-  if (BaseDir.empty()) {
-    BaseDir = ".";
+  if (_3COpts.BaseDir.empty()) {
+    _3COpts.BaseDir = ".";
   }
 
   // Get the canonical path of the base directory.
-  TmpPath = BaseDir;
-  EC = tryGetCanonicalFilePath(BaseDir, TmpPath);
+  TmpPath = _3COpts.BaseDir;
+  EC = tryGetCanonicalFilePath(_3COpts.BaseDir, TmpPath);
   if (EC) {
     errs() << "3C initialization error: Failed to canonicalize base directory "
-           << "\"" << BaseDir << "\": " << EC.message() << "\n";
+           << "\"" << _3COpts.BaseDir << "\": " << EC.message() << "\n";
     ConstructionFailed = true;
     return;
   }
-  BaseDir = TmpPath;
+  _3COpts.BaseDir = TmpPath;
 
-  if (!OutputDir.empty()) {
+  if (!_3COpts.OutputDir.empty()) {
     // tryGetCanonicalFilePath will fail if the output dir doesn't exist yet, so
     // create it first.
-    EC = llvm::sys::fs::create_directories(OutputDir);
+    EC = llvm::sys::fs::create_directories(_3COpts.OutputDir);
     if (EC) {
       errs() << "3C initialization error: Failed to create output directory \""
-             << OutputDir << "\": " << EC.message() << "\n";
+             << _3COpts.OutputDir << "\": " << EC.message() << "\n";
       ConstructionFailed = true;
       return;
     }
-    TmpPath = OutputDir;
-    EC = tryGetCanonicalFilePath(OutputDir, TmpPath);
+    TmpPath = _3COpts.OutputDir;
+    EC = tryGetCanonicalFilePath(_3COpts.OutputDir, TmpPath);
     if (EC) {
       errs() << "3C initialization error: Failed to canonicalize output "
-             << "directory \"" << OutputDir << "\": " << EC.message() << "\n";
+             << "directory \"" << _3COpts.OutputDir << "\": " << EC.message()
+             << "\n";
       ConstructionFailed = true;
       return;
     }
-    OutputDir = TmpPath;
+    _3COpts.OutputDir = TmpPath;
   }
 
   SourceFiles = SourceFileList;
@@ -432,25 +431,26 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
       continue;
     }
     FilePaths.insert(AbsPath);
-    if (!filePathStartsWith(AbsPath, BaseDir)) {
+    if (!filePathStartsWith(AbsPath, _3COpts.BaseDir)) {
       errs()
           << "3C initialization "
-          << (OutputDir != "" || !CCopt.AllowSourcesOutsideBaseDir ? "error"
-                                                                   : "warning")
+          << (_3COpts.OutputDir != "" || !_3COpts.AllowSourcesOutsideBaseDir
+                  ? "error"
+                  : "warning")
           << ": File \"" << AbsPath
           << "\" specified on the command line is outside the base directory\n";
       SawInputOutsideBaseDir = true;
     }
   }
   if (SawInputOutsideBaseDir) {
-    errs() << "The base directory is currently \"" << BaseDir
+    errs() << "The base directory is currently \"" << _3COpts.BaseDir
            << "\" and can be changed with the -base-dir option.\n";
-    if (OutputDir != "") {
+    if (_3COpts.OutputDir != "") {
       ConstructionFailed = true;
       errs() << "When using -output-dir, input files outside the base "
                 "directory cannot be handled because there is no way to "
                 "compute their output paths.\n";
-    } else if (!CCopt.AllowSourcesOutsideBaseDir) {
+    } else if (!_3COpts.AllowSourcesOutsideBaseDir) {
       ConstructionFailed = true;
       errs() << "You can use the -allow-sources-outside-base-dir option to "
                 "temporarily downgrade this error to a warning.\n";
@@ -459,10 +459,12 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
 
   CurrCompDB = CompDB;
 
-  GlobalProgramInfo.getPerfStats().startTotalTime();
+  GlobalProgramInfo->getPerfStats().startTotalTime();
 }
 
 _3CInterface::~_3CInterface() {
+  if(GlobalProgramInfo)
+    delete (GlobalProgramInfo);
   assert(ConstructionFailed || DeterminedExitCode);
 }
 
@@ -509,6 +511,8 @@ bool _3CInterface::parseASTs() {
   int ToolExitStatus = Tool->run(&Action);
   HadNonDiagnosticError |= (ToolExitStatus != 0);
 
+  GlobalProgramInfo->registerTranslationUnits(ASTs);
+
   return isSuccessfulSoFar();
 }
 
@@ -516,8 +520,20 @@ bool _3CInterface::addVariables() {
 
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
+  // Find multi-decls and assign names to unnamed inline TagDecls now so that
+  // the assigned type names are available when we construct ConstraintVariables
+  // for the multi-decl members in the "Add Variables" step below.
+  for (auto &TU : ASTs)
+    GlobalProgramInfo->TheMultiDeclsInfo.findUsedTagNames(TU->getASTContext());
+  if (!isSuccessfulSoFar())
+    return false;
+  for (auto &TU : ASTs)
+    GlobalProgramInfo->TheMultiDeclsInfo.findMultiDecls(TU->getASTContext());
+  if (!isSuccessfulSoFar())
+    return false;
+
   // 1. Add Variables.
-  VariableAdderConsumer VA = VariableAdderConsumer(GlobalProgramInfo, nullptr);
+  VariableAdderConsumer VA = VariableAdderConsumer(*GlobalProgramInfo, nullptr);
   for (auto &TU : ASTs)
     VA.HandleTranslationUnit(TU->getASTContext());
 
@@ -528,7 +544,7 @@ bool _3CInterface::buildInitialConstraints() {
 
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
-  if (!GlobalProgramInfo.link()) {
+  if (!GlobalProgramInfo->link()) {
     errs() << "Linking failed!\n";
     HadNonDiagnosticError = true;
     return isSuccessfulSoFar(); // False, of course, but follow the pattern.
@@ -536,7 +552,7 @@ bool _3CInterface::buildInitialConstraints() {
 
   // 2. Gather constraints.
   ConstraintBuilderConsumer CB =
-      ConstraintBuilderConsumer(GlobalProgramInfo, nullptr);
+      ConstraintBuilderConsumer(*GlobalProgramInfo, nullptr);
   for (auto &TU : ASTs)
     CB.HandleTranslationUnit(TU->getASTContext());
   if (!isSuccessfulSoFar())
@@ -552,91 +568,106 @@ bool _3CInterface::solveConstraints() {
   assert(ConstraintsBuilt && "Constraints not yet built. We need to call "
                              "build constraint before trying to solve them.");
   // 3. Solve constraints.
-  if (Verbose)
+  if (_3COpts.Verbose)
     errs() << "Solving constraints\n";
 
-  if (DumpIntermediate)
-    GlobalProgramInfo.dump();
+  if (_3COpts.DumpIntermediate)
+    GlobalProgramInfo->dump();
 
-  auto &PStats = GlobalProgramInfo.getPerfStats();
+  auto &PStats = GlobalProgramInfo->getPerfStats();
 
   PStats.startConstraintSolverTime();
-  runSolver(GlobalProgramInfo, FilePaths);
+  runSolver(*GlobalProgramInfo, FilePaths);
   PStats.endConstraintSolverTime();
 
-  if (Verbose)
+  if (_3COpts.Verbose)
     errs() << "Constraints solved\n";
 
-  if (WarnRootCause)
-    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+  if (_3COpts.WarnRootCause) {
+    assert(CStateisclear == true);
+    GlobalProgramInfo->computeInterimConstraintState(FilePaths);
+  }
 
-  if (DumpIntermediate)
-    dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
+  if (_3COpts.DumpIntermediate)
+    dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, *GlobalProgramInfo);
 
-  if (AllTypes) {
-    if (DebugArrSolver)
-      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
+
+  if (_3COpts.AllTypes) {
+    // Add declared bounds for all constant sized arrays. This needs to happen
+    // after constraint solving because the bound added depends on whether the
+    // array is NTARR or ARR.
+    GlobalProgramInfo->getABoundsInfo().addConstantArrayBounds(
+      *GlobalProgramInfo);
+
+    if (_3COpts.DebugArrSolver)
+      GlobalProgramInfo->getABoundsInfo().dumpAVarGraph(
           "arr_bounds_initial.dot");
+
+    // Infer lower bounds for pointers that are not valid lower bounds.
+    // The result of this inference is required for length inference, so
+    // this call must be before the subsequent call to performFlowAnalysis.
+    GlobalProgramInfo->getABoundsInfo().inferLowerBounds(*&GlobalProgramInfo);
 
     // Propagate initial data-flow information for Array pointers from
     // bounds declarations.
-    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+    GlobalProgramInfo->getABoundsInfo().performFlowAnalysis(*&GlobalProgramInfo);
 
     // 4. Infer the bounds based on calls to malloc and calloc
     AllocBasedBoundsInference ABBI =
-        AllocBasedBoundsInference(GlobalProgramInfo, nullptr);
+        AllocBasedBoundsInference(*GlobalProgramInfo, nullptr);
     for (auto &TU : ASTs)
       ABBI.HandleTranslationUnit(TU->getASTContext());
     if (!isSuccessfulSoFar())
       return false;
 
     // Propagate the information from allocator bounds.
-    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+    GlobalProgramInfo->getABoundsInfo().performFlowAnalysis(*&GlobalProgramInfo);
   }
 
   // 5. Run intermediate tool hook to run visitors that need to be executed
   // after constraint solving but before rewriting.
-  IntermediateToolHook ITH = IntermediateToolHook(GlobalProgramInfo, nullptr);
+  IntermediateToolHook ITH = IntermediateToolHook(*GlobalProgramInfo, nullptr);
   for (auto &TU : ASTs)
     ITH.HandleTranslationUnit(TU->getASTContext());
   if (!isSuccessfulSoFar())
     return false;
 
-  if (AllTypes) {
+  if (_3COpts.AllTypes) {
+
     // Propagate data-flow information for Array pointers.
-    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+    GlobalProgramInfo->getABoundsInfo().performFlowAnalysis(*&GlobalProgramInfo, true);
 
     /*if (DebugArrSolver)
-      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
+      GlobalProgramInfo->getABoundsInfo().dumpAVarGraph(
           "arr_bounds_final.dot");*/
   }
 
   /*if (DumpStats) {
-    GlobalProgramInfo.printStats(FilePaths, llvm::errs(), true);
-    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+    GlobalProgramInfo->printStats(FilePaths, llvm::errs(), true);
+    GlobalProgramInfo->computeInterimConstraintState(FilePaths);
     std::error_code Ec;
     llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
     if (!OutputJson.has_error()) {
-      GlobalProgramInfo.printStats(FilePaths, OutputJson, false, true);
+      GlobalProgramInfo->printStats(FilePaths, OutputJson, false, true);
       OutputJson.close();
     }
     std::string AggregateStats = StatsOutputJson + ".aggregate.json";
     llvm::raw_fd_ostream AggrJson(AggregateStats, Ec);
     if (!AggrJson.has_error()) {
-      GlobalProgramInfo.printAggregateStats(FilePaths, AggrJson);
+      GlobalProgramInfo->printAggregateStats(FilePaths, AggrJson);
       AggrJson.close();
     }
 
     llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
     if (!WildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printStats(WildPtrInfo);
+      GlobalProgramInfo->getInterimConstraintState().printStats(WildPtrInfo);
       WildPtrInfo.close();
     }
 
     llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
     if (!PerWildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printRootCauseStats(
-          PerWildPtrInfo, GlobalProgramInfo.getConstraints());
+      GlobalProgramInfo->getInterimConstraintState().printRootCauseStats(
+          PerWildPtrInfo, GlobalProgramInfo->getConstraints());
       PerWildPtrInfo.close();
     }
   }*/
@@ -648,46 +679,47 @@ bool _3CInterface::writeAllConvertedFilesToDisk() {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
   // 6. Rewrite the input files.
-  RewriteConsumer RC = RewriteConsumer(GlobalProgramInfo);
+  RewriteConsumer RC = RewriteConsumer(*GlobalProgramInfo);
   for (auto &TU : ASTs)
     RC.HandleTranslationUnit(TU->getASTContext());
 
-  GlobalProgramInfo.getPerfStats().endTotalTime();
-  GlobalProgramInfo.getPerfStats().startTotalTime();
+  GlobalProgramInfo->getPerfStats().endTotalTime();
+  GlobalProgramInfo->getPerfStats().startTotalTime();
   return isSuccessfulSoFar();
 }
 
 bool _3CInterface::dumpStats() {
-  if (AllTypes && DebugArrSolver) {
-    GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
+  if (_3COpts.AllTypes && _3COpts.DebugArrSolver) {
+    GlobalProgramInfo->getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
   }
 
-  if (DumpStats) {
-    GlobalProgramInfo.printStats(FilePaths, llvm::errs(), true);
-    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+  if (_3COpts.DumpStats) {
+    GlobalProgramInfo->printStats(FilePaths, llvm::errs(), true);
+    assert(CStateisclear == true);
+    GlobalProgramInfo->computeInterimConstraintState(FilePaths);
     std::error_code Ec;
-    llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
+    llvm::raw_fd_ostream OutputJson(_3COpts.StatsOutputJson, Ec);
     if (!OutputJson.has_error()) {
-      GlobalProgramInfo.printStats(FilePaths, OutputJson, false, true);
+      GlobalProgramInfo->printStats(FilePaths, OutputJson, false, true);
       OutputJson.close();
     }
-    std::string AggregateStats = StatsOutputJson + ".aggregate.json";
+    std::string AggregateStats = _3COpts.StatsOutputJson + ".aggregate.json";
     llvm::raw_fd_ostream AggrJson(AggregateStats, Ec);
     if (!AggrJson.has_error()) {
-      GlobalProgramInfo.printAggregateStats(FilePaths, AggrJson);
+      GlobalProgramInfo->printAggregateStats(FilePaths, AggrJson);
       AggrJson.close();
     }
 
-    llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
+    llvm::raw_fd_ostream WildPtrInfo(_3COpts.WildPtrInfoJson, Ec);
     if (!WildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printStats(WildPtrInfo);
+      GlobalProgramInfo->getInterimConstraintState().printStats(WildPtrInfo);
       WildPtrInfo.close();
     }
 
-    llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
+    llvm::raw_fd_ostream PerWildPtrInfo(_3COpts.PerWildPtrInfoJson, Ec);
     if (!PerWildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printRootCauseStats(
-          PerWildPtrInfo, GlobalProgramInfo.getConstraints());
+      GlobalProgramInfo->getInterimConstraintState().printRootCauseStats(
+          PerWildPtrInfo, GlobalProgramInfo->getConstraints());
       PerWildPtrInfo.close();
     }
   }
@@ -695,37 +727,60 @@ bool _3CInterface::dumpStats() {
 }
 
 ConstraintsInfo &_3CInterface::getWildPtrsInfo() {
-  return GlobalProgramInfo.getInterimConstraintState();
+  return GlobalProgramInfo->getInterimConstraintState();
 }
 
+void _3CInterface::invalidateAllConstraintsWithReason(
+    Constraint *ConstraintToRemove) {
+  // Get the reason for the current constraint.
+  std::string ConstraintRsn = ConstraintToRemove->getReasonText();
+  Constraints::ConstraintSet ToRemoveConstraints;
+  Constraints &CS = GlobalProgramInfo->getConstraints();
+  // Remove all constraints that have the reason.
+  CS.removeAllConstraintsOnReason(ConstraintRsn, ToRemoveConstraints);
+
+  // Free up memory by deleting all the removed constraints.
+  for (auto *ToDelCons : ToRemoveConstraints) {
+    assert(dyn_cast<Geq>(ToDelCons) && "We can only delete Geq constraints.");
+    Geq *TCons = dyn_cast<Geq>(ToDelCons);
+    auto *Vatom = dyn_cast<VarAtom>(TCons->getLHS());
+    assert(Vatom != nullptr && "Equality constraint without VarAtom as LHS");
+    VarAtom *VS = CS.getOrCreateVar(Vatom->getLoc(), "q", VarAtom::V_Other);
+    VS->getAllConstraints().erase(TCons);
+    delete (ToDelCons);
+  }
+}
+
+// This function is designed to be thread-safe for concurrent invocation
+// by the user from vscode. The mutex ensures that data races are prevented.
 bool _3CInterface::makeSinglePtrNonWild(ConstraintKey TargetPtr) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   CVars RemovePtrs;
   RemovePtrs.clear();
 
-  auto &PtrDisjointSet = GlobalProgramInfo.getInterimConstraintState();
-  auto &CS = GlobalProgramInfo.getConstraints();
+  auto &PtrDisjointSet = GlobalProgramInfo->getInterimConstraintState();
+  auto &CS = GlobalProgramInfo->getConstraints();
 
-  // Get all the current WILD pointers.
   CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
 
-  // Delete the constraint that make the provided targetPtr WILD.
+  // Delete the constraint that makes the target non-wild
   VarAtom *VA = CS.getOrCreateVar(TargetPtr, "q", VarAtom::V_Other);
-  Geq NewE(VA, CS.getWild());
+  Geq NewE(VA, CS.getWild(), ReasonLoc());
   Constraint *OriginalConstraint = *CS.getConstraints().find(&NewE);
   CS.removeConstraint(OriginalConstraint);
   VA->getAllConstraints().erase(OriginalConstraint);
-  delete (OriginalConstraint);
+
+  delete(OriginalConstraint);
 
   // Reset the constraint system.
   CS.resetEnvironment();
 
   // Solve the constraints.
-  //assert (CS == GlobalProgramInfo.getConstraints());
-  runSolver(GlobalProgramInfo, FilePaths);
+  runSolver(*GlobalProgramInfo, FilePaths);
 
   // Compute new disjoint set.
-  GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+  assert(CStateisclear == true);
+  GlobalProgramInfo->computeInterimConstraintState(FilePaths);
 
   // Get new WILD pointers.
   CVars &NewWildPtrs = PtrDisjointSet.AllWildAtoms;
@@ -738,41 +793,25 @@ bool _3CInterface::makeSinglePtrNonWild(ConstraintKey TargetPtr) {
   return !RemovePtrs.empty();
 }
 
-void _3CInterface::invalidateAllConstraintsWithReason(
-    Constraint *ConstraintToRemove) {
-  // Get the reason for the current constraint.
-  std::string ConstraintRsn = ConstraintToRemove->getReason();
-  Constraints::ConstraintSet ToRemoveConstraints;
-  Constraints &CS = GlobalProgramInfo.getConstraints();
-  // Remove all constraints that have the reason.
-  CS.removeAllConstraintsOnReason(ConstraintRsn, ToRemoveConstraints);
-
-  // Free up memory by deleting all the removed constraints.
-  for (auto *ToDelCons : ToRemoveConstraints) {
-    assert(dyn_cast<Geq>(ToDelCons) && "We can only delete Geq constraints.");
-    Geq *TCons = dyn_cast<Geq>(ToDelCons);
-    auto *Vatom = dyn_cast<VarAtom>(TCons->getLHS());
-    assert(Vatom != nullptr && "Equality constraint with out VarAtom as LHS");
-    VarAtom *VS = CS.getOrCreateVar(Vatom->getLoc(), "q", VarAtom::V_Other);
-    VS->getAllConstraints().erase(TCons);
-    delete (ToDelCons);
-  }
-}
-
+// This function, like makeSinglePtrNonWild, requires the same level of
+// thread-safety to support concurrent invocation by the user from vscode.
 bool _3CInterface::invalidateWildReasonGlobally(ConstraintKey PtrKey) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
   CVars RemovePtrs;
   RemovePtrs.clear();
 
-  auto &PtrDisjointSet = GlobalProgramInfo.getInterimConstraintState();
-  auto &CS = GlobalProgramInfo.getConstraints();
+  auto &PtrDisjointSet = GlobalProgramInfo->getInterimConstraintState();
+  auto &CS = GlobalProgramInfo->getConstraints();
 
   CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   // Delete ALL the constraints that have the same given reason.
   VarAtom *VA = CS.getOrCreateVar(PtrKey, "q", VarAtom::V_Other);
-  Geq NewE(VA, CS.getWild());
+  // Here we use Geq even though a constraint can never be > WILD.
+  // This is done to simplify the code by using already exising constraint
+  // rather than creating a new one just for equating to WILD.
+  Geq NewE(VA, CS.getWild(), ReasonLoc());
   Constraint *OriginalConstraint = *CS.getConstraints().find(&NewE);
   invalidateAllConstraintsWithReason(OriginalConstraint);
 
@@ -780,10 +819,11 @@ bool _3CInterface::invalidateWildReasonGlobally(ConstraintKey PtrKey) {
   CS.resetEnvironment();
 
   // Solve the constraints.
-  runSolver(GlobalProgramInfo, FilePaths);
+  runSolver(*GlobalProgramInfo, FilePaths);
 
   // Recompute the WILD pointer disjoint sets.
-  GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+  assert(CStateisclear == true);
+  GlobalProgramInfo->computeInterimConstraintState(FilePaths);
 
   // Computed the number of removed pointers.
   CVars &NewWildPtrs = PtrDisjointSet.AllWildAtoms;
@@ -794,3 +834,11 @@ bool _3CInterface::invalidateWildReasonGlobally(ConstraintKey PtrKey) {
 
   return !RemovePtrs.empty();
 }
+
+void _3CInterface::resetInterface() {
+  if(GlobalProgramInfo)
+    delete (GlobalProgramInfo);
+  GlobalProgramInfo = new ProgramInfo();
+}
+
+

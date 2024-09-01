@@ -3529,6 +3529,10 @@ private:
   bool isGNUAsmQualifier(const Token &TokAfterAsm) const;
   GNUAsmQualifiers::AQ getGNUAsmQualifier(const Token &Tok) const;
   bool parseGNUAsmQualifierListOpt(GNUAsmQualifiers &AQ);
+  bool isMacroCheckedCKeyword(tok::TokenKind Kind);
+  std::pair<bool, TypeArgVector> ParseGenericMacroTypeArgumentList(SourceLocation Loc);
+  ExprResult ParseGenericMacroFunctionApplication(ExprResult Res,
+                                                  SourceLocation Loc);
 };
 
 }  // end namespace clang

@@ -26,7 +26,7 @@ int *foo() {
 }
 //CHECK: _Ptr<int> foo(void) {
 //CHECK: _Ptr<int> y = &sy;
-//CHECK: _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y);
+//CHECK: _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, bounds(unknown)), y);
 
 int *bar() {
   int sx = 3, sy = 4, *x = &sx, *y = &sy;
@@ -36,4 +36,4 @@ int *bar() {
 }
 //CHECK: _Ptr<int> bar(void) {
 //CHECK: _Ptr<int> y = &sy;
-//CHECK: _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y) + 2;
+//CHECK: _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, bounds(unknown)), y) + 2;

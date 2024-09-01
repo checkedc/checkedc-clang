@@ -37,6 +37,7 @@ struct node {
 struct list {
 
   Node *head;
+  //CHECK: _Ptr<Node> head;
 };
 
 Node *createnode(int data);
@@ -46,7 +47,7 @@ Node *createnode(int data) {
   //CHECK: _Ptr<Node> createnode(int data) {
 
   Node *newNode = malloc(sizeof(Node));
-  //CHECK: _Ptr<Node> newNode =  malloc<Node>(sizeof(Node));
+  //CHECK: _Ptr<Node> newNode = malloc<Node>(sizeof(Node));
 
   if (!newNode) {
 
@@ -80,6 +81,7 @@ void display(List *list) {
   //CHECK: void display(_Ptr<List> list) {
 
   Node *current = list->head;
+  //CHECK: _Ptr<Node> current = list->head;
 
   if (list->head == NULL)
 
@@ -95,8 +97,10 @@ void add(int data, List *list) {
   //CHECK: void add(int data, _Ptr<List> list) {
 
   Node *current = NULL;
+  //CHECK: _Ptr<Node> current = NULL;
 
   if (list->head == NULL) {
+    //CHECK: if (list->head == NULL) _Checked {
 
     list->head = createnode(data);
 
@@ -107,6 +111,7 @@ void add(int data, List *list) {
     current = list->head;
 
     while (current->next != NULL) {
+      //CHECK: while (current->next != NULL) _Checked {
 
       current = current->next;
     }
@@ -119,10 +124,13 @@ void delete (int data, List *list) {
   //CHECK: void delete (int data, _Ptr<List> list) {
 
   Node *current = list->head;
+  //CHECK: _Ptr<Node> current = list->head;
 
   Node *previous = current;
+  //CHECK: _Ptr<Node> previous = current;
 
   while (current != NULL) {
+    //CHECK: while (current != NULL) _Checked {
 
     if (current->data == data) {
 
@@ -147,12 +155,16 @@ void reverse(List *list) {
   //CHECK: void reverse(_Ptr<List> list) {
 
   Node *reversed = NULL;
+  //CHECK: _Ptr<Node> reversed = NULL;
 
   Node *current = list->head;
+  //CHECK: _Ptr<Node> current = list->head;
 
   Node *temp = NULL;
+  //CHECK: _Ptr<Node> temp = NULL;
 
   while (current != NULL) {
+    //CHECK: while (current != NULL) _Checked {
 
     temp = current;
 
@@ -167,13 +179,16 @@ void reverse(List *list) {
 }
 
 void destroy(List *list) {
-  //CHECK: void destroy(_Ptr<List> list) { 
+  //CHECK: void destroy(_Ptr<List> list) {
 
   Node *current = list->head;
+  //CHECK: _Ptr<Node> current = list->head;
 
   Node *next = current;
+  //CHECK: _Ptr<Node> next = current;
 
   while (current != NULL) {
+    //CHECK: while (current != NULL) _Checked {
     next = current->next;
     free(current);
     current = next;

@@ -104,15 +104,15 @@ int *mul2(int *x) {
 }
 
 int *sus(int (*)(int), int (*)(int));
-//CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int)> y) : itype(_Ptr<int>);
-//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int)> y) : count(5);
+//CHECK_NOALL: int *sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : itype(_Ptr<int>);
+//CHECK_ALL: _Array_ptr<int> sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : count(5);
 
 int *foo() {
-  //CHECK_NOALL: _Ptr<int> foo(void) {
-  //CHECK_ALL: _Array_ptr<int> foo(void) : count(5) {
+  //CHECK_NOALL: _Ptr<int> foo(void) _Checked {
+  //CHECK_ALL: _Array_ptr<int> foo(void) : count(5) _Checked {
 
   int (*x)(int) = add1;
-  //CHECK: int (*x)(int) = add1;
+  //CHECK: _Ptr<int (int)> x = add1;
   int (*y)(int) = sub1;
   //CHECK: _Ptr<int (int)> y = sub1;
   int *z = sus(x, y);
@@ -123,11 +123,11 @@ int *foo() {
 }
 
 int *bar() {
-  //CHECK_NOALL: _Ptr<int> bar(void) {
-  //CHECK_ALL: _Array_ptr<int> bar(void) : count(5) {
+  //CHECK_NOALL: _Ptr<int> bar(void) _Checked {
+  //CHECK_ALL: _Array_ptr<int> bar(void) : count(5) _Checked {
 
   int (*x)(int) = add1;
-  //CHECK: int (*x)(int) = add1;
+  //CHECK: _Ptr<int (int)> x = add1;
   int (*y)(int) = sub1;
   //CHECK: _Ptr<int (int)> y = sub1;
   int *z = sus(x, y);
@@ -138,8 +138,8 @@ int *bar() {
 }
 
 int *sus(int (*x)(int), int (*y)(int)) {
-  //CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int)> y) : itype(_Ptr<int>) {
-  //CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int)> y) : count(5) {
+  //CHECK_NOALL: int *sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : itype(_Ptr<int>) {
+  //CHECK_ALL: _Array_ptr<int> sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : count(5) {
 
   x = (int (*)(int))5;
   //CHECK: x = (int (*)(int))5;

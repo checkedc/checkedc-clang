@@ -105,15 +105,15 @@ int *mul2(int *x) {
 }
 
 int *sus(int (*)(int), int (*)(int));
-//CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int)> y) : itype(_Ptr<int>);
-//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int)> y) : count(5);
+//CHECK_NOALL: int *sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : itype(_Ptr<int>);
+//CHECK_ALL: _Array_ptr<int> sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : count(5);
 
 int *foo() {
   //CHECK_NOALL: _Ptr<int> foo(void) {
   //CHECK_ALL: _Array_ptr<int> foo(void) : count(5) {
 
   int (*x)(int) = add1;
-  //CHECK: int (*x)(int) = add1;
+  //CHECK: _Ptr<int (int)> x = add1;
   int (*y)(int) = mul2;
   //CHECK: int (*y)(int) = mul2;
   int *z = sus(x, y);
@@ -128,20 +128,21 @@ int *bar() {
   //CHECK_ALL: _Array_ptr<int> bar(void) {
 
   int (*x)(int) = add1;
-  //CHECK: int (*x)(int) = add1;
+  //CHECK: _Ptr<int (int)> x = add1;
   int (*y)(int) = mul2;
   //CHECK: int (*y)(int) = mul2;
   int *z = sus(x, y);
   //CHECK_NOALL: int *z = sus(x, _Assume_bounds_cast<_Ptr<int (int)>>(y));
-  //CHECK_ALL: _Array_ptr<int> z = sus(x, _Assume_bounds_cast<_Ptr<int (int)>>(y));
+  //CHECK_ALL: _Array_ptr<int> __3c_lower_bound_z : count(5) = sus(x, _Assume_bounds_cast<_Ptr<int (int)>>(y));
+  //CHECK_ALL: _Array_ptr<int> z : bounds(__3c_lower_bound_z, __3c_lower_bound_z + 5) = __3c_lower_bound_z;
 
   z += 2;
   return z;
 }
 
 int *sus(int (*x)(int), int (*y)(int)) {
-  //CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int)> y) : itype(_Ptr<int>) {
-  //CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int)> y) : count(5) {
+  //CHECK_NOALL: int *sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : itype(_Ptr<int>) {
+  //CHECK_ALL: _Array_ptr<int> sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : count(5) {
 
   x = (int (*)(int))5;
   //CHECK: x = (int (*)(int))5;
