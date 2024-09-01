@@ -15,6 +15,9 @@
 #include "FindSymbols.h"
 #include "GlobalCompilationDatabase.h"
 #include "Protocol.h"
+#ifdef LSP3C
+#include "clang/3C/3C.h"
+#endif
 #include "Transport.h"
 #include "support/Context.h"
 #include "support/MemoryTree.h"
@@ -38,7 +41,11 @@ class SymbolIndex;
 /// MessageHandler binds the implemented LSP methods (e.g. onInitialize) to
 /// corresponding JSON-RPC methods ("initialize").
 /// The server also supports $/cancelRequest (MessageHandler provides this).
+#ifdef LSP3C
+class ClangdLSPServer : private ClangdServer::Callbacks, public ClangdServer::_3CLSPCallBack {
+#else
 class ClangdLSPServer : private ClangdServer::Callbacks {
+#endif
 public:
   struct Options : ClangdServer::Options {
     /// Supplies configuration (overrides ClangdServer::ContextProvider).
@@ -66,7 +73,11 @@ public:
   };
 
   ClangdLSPServer(Transport &Transp, const ThreadsafeFS &TFS,
+#ifdef LSP3C
+                  const ClangdLSPServer::Options &Opts,_3CInterface &_3CInterface);
+#else
                   const ClangdLSPServer::Options &Opts);
+#endif
   /// The destructor blocks on any outstanding background tasks.
   ~ClangdLSPServer();
 
@@ -78,7 +89,10 @@ public:
 
   /// Profiles resource-usage.
   void profile(MemoryTree &MT) const;
-
+#ifdef LSP3C
+  void _3CisDone(std::string FileName, bool ClearDiags = false) override;
+  void sendMessage(std::string Msg) override;
+#endif
 private:
   // Implement ClangdServer::Callbacks.
   void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
@@ -162,6 +176,9 @@ private:
   /// This is a clangd extension. Provides a json tree representing memory usage
   /// hierarchy.
   void onMemoryUsage(Callback<MemoryTree>);
+#ifdef LSP3C
+  void onRun3c(Callback<llvm::Optional<_3CStats>>);
+#endif
 
   std::vector<Fix> getFixes(StringRef File, const clangd::Diagnostic &D);
 
@@ -318,6 +335,9 @@ private:
   llvm::Optional<OverlayCDB> CDB;
   // The ClangdServer is created by the "initialize" LSP method.
   llvm::Optional<ClangdServer> Server;
+#ifdef LSP3C
+  _3CInterface &_3CInter;
+#endif
 };
 } // namespace clangd
 } // namespace clang

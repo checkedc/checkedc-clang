@@ -1946,8 +1946,11 @@ QualType Sema::BuildQualifiedType(QualType T, SourceLocation Loc,
         ~(DeclSpec::TQ_const | DeclSpec::TQ_volatile | DeclSpec::TQ_atomic);
 
   // Convert from DeclSpec::TQ to Qualifiers::TQ by just dropping TQ_atomic and
-  // TQ_unaligned;
-  unsigned CVR = CVRAU & ~(DeclSpec::TQ_atomic | DeclSpec::TQ_unaligned);
+  // TQ_unaligned and the checked qualifiers;
+  unsigned CVR = CVRAU & ~(DeclSpec::TQ_atomic |
+                           DeclSpec::TQ_unaligned | DeclSpec::TQ_CheckedPtr |
+                                DeclSpec::TQ_CheckedArrayPtr |
+                                DeclSpec::TQ_CheckedNtArrayPtr);
 
   // C11 6.7.3/5:
   //   If the same qualifier appears more than once in the same
@@ -3139,7 +3142,10 @@ void Sema::diagnoseIgnoredQualifiers(unsigned DiagID, unsigned Quals,
                                      SourceLocation VolatileQualLoc,
                                      SourceLocation RestrictQualLoc,
                                      SourceLocation AtomicQualLoc,
-                                     SourceLocation UnalignedQualLoc) {
+                                     SourceLocation UnalignedQualLoc,
+                                     SourceLocation CheckedPtrLoc,
+                                     SourceLocation CheckedArrayLoc,
+                                     SourceLocation CheckedNtArrayLoc) {
   if (!Quals)
     return;
 
@@ -3147,12 +3153,15 @@ void Sema::diagnoseIgnoredQualifiers(unsigned DiagID, unsigned Quals,
     const char *Name;
     unsigned Mask;
     SourceLocation Loc;
-  } const QualKinds[5] = {
+  } const QualKinds[8] = {
     { "const", DeclSpec::TQ_const, ConstQualLoc },
     { "volatile", DeclSpec::TQ_volatile, VolatileQualLoc },
     { "restrict", DeclSpec::TQ_restrict, RestrictQualLoc },
     { "__unaligned", DeclSpec::TQ_unaligned, UnalignedQualLoc },
-    { "_Atomic", DeclSpec::TQ_atomic, AtomicQualLoc }
+    { "_Atomic", DeclSpec::TQ_atomic, AtomicQualLoc },
+    { "_Single", DeclSpec::TQ_CheckedPtr, CheckedPtrLoc },
+    { "_Array", DeclSpec::TQ_CheckedArrayPtr, CheckedArrayLoc },
+    { "_Nt_array", DeclSpec::TQ_CheckedNtArrayPtr, CheckedNtArrayLoc }
   };
 
   SmallString<32> QualStr;
@@ -4965,9 +4974,47 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         }
       }
 
-      T = S.BuildPointerType(T, CheckedPointerKind::Unchecked, DeclType.Loc, Name);
-      if (DeclType.Ptr.TypeQuals)
-        T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
+      if (DeclType.Ptr.TypeQuals) {
+        CheckedPointerKind CheckedPointerKind = CheckedPointerKind::Unchecked;
+        TypeSpecifierType TS = TypeSpecifierType::TST_arrayPtr;
+
+        // With checkedc-macro support, DeclQualifiers control the pointer type.
+        // Hence we build it up here
+        unsigned CheckedQuals = DeclType.Ptr.TypeQuals &
+                                (DeclSpec::TQ_CheckedPtr |
+                                 DeclSpec::TQ_CheckedArrayPtr
+                                 | DeclSpec::TQ_CheckedNtArrayPtr);
+        // Conflicting checked-c macro qualifiers are not allowed
+        bool ConflictingQuals = false;
+
+        if (CheckedQuals & DeclSpec::TQ_CheckedPtr) {
+          CheckedPointerKind = CheckedPointerKind::Ptr;
+        }
+        if (CheckedQuals & DeclSpec::TQ_CheckedArrayPtr) {
+          if (CheckedPointerKind != CheckedPointerKind::Unchecked) {
+            ConflictingQuals = true;
+          }
+          CheckedPointerKind = CheckedPointerKind::Array;
+        }
+        if (CheckedQuals & DeclSpec::TQ_CheckedNtArrayPtr) {
+          if (CheckedPointerKind != CheckedPointerKind::Unchecked) {
+            ConflictingQuals = true;
+          }
+          CheckedPointerKind = CheckedPointerKind::NtArray;
+        }
+
+        if (ConflictingQuals) {
+          S.Diag(DeclType.Loc, diag::err_conflicting_checked_pointer_type_qual);
+        } else {
+          T = S.BuildPointerType(T, CheckedPointerKind, DeclType.Loc, Name);
+          T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
+        }
+      }
+      else
+      {
+        T = S.BuildPointerType(T, CheckedPointerKind::Unchecked,
+                               DeclType.Loc, Name);
+      }
       break;
     case DeclaratorChunk::Reference: {
       // Verify that we're not building a reference to pointer to function with

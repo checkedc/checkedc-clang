@@ -11325,6 +11325,9 @@ def err_bounds_type_annotation_lost_checking : Error<
    "cannot redeclare a function that has a checked argument or argument "
    "bounds to have no prototype">;
 
+ def err_conflicting_checked_pointer_type_qual : Error<
+   "conflicting qualifiers on checked pointer type">;
+
  def note_previous_bounds_decl : Note<
    "previous %select{bounds|interop type}0 declaration is here">;
 

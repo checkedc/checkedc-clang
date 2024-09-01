@@ -9515,7 +9515,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
         RHSType->isUncheckedArrayType())) {
     QualType RHSInteropType = GetCheckedCRValueInteropType(RHS);
     if (!RHSInteropType.isNull())
-      RHSType = RHSInteropType;
+      RHSType = Context.getCanonicalType(RHSInteropType).getUnqualifiedType();
   }
 
   // Common case: no conversion required.

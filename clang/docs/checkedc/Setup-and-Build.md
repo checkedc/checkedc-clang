@@ -2,18 +2,24 @@
 
 Note: The automation scripts used to build and test the Checked C compiler have
 now been moved to their own
-[repo](https://github.com/microsoft/checkedc-automation). We use CMake with
+[repo](https://github.com/checkedc/checkedc-automation). We use CMake with
 Ninja for both Linux and Windows builds.
 
 ## Setting up your machine
 
 See the clang [Getting started guide](http://clang.llvm.org/get_started.html)
-for information on how to set up your machine.
+for information on how to set up your machine.  For Windows machines,
+follow the steps below instead.
 
 For Linux, install CMake 3.8 or later. For Windows, CMake is bundled as part of
 your Visual Studio install.
 
-### Developing on Windows
+If you want to run tests, you will need a Python version between 3.7 and 3.11
+installed.  Python 3.12 contains changes that break our old version of the `lit`
+testing tool.
+
+
+### Setting up a Windows machine
 
 We recommend that you use a 64-bit version of Windows. We have found that the
 32-bit hosted Visual Studio linker tends to run out of memory when linking clang
@@ -22,25 +28,14 @@ instead, which will require a 64-bit version of Windows too.
 
 Prerequisites:
 
-- Visual Studio 2017 or later, Python (version 2.7), and versions of UNIX
-command-line tools. We recommend using Visual Studio 2019. In the event you
-already have a Visual Studio 2017 installed and wish to upgrade to VS 2019,
-execute the following steps with the currently installed VS:
-  - Go to Tools -> Get Tools and Features (this opens the VS installer)
-  - Go to Individual Components
-  - Scroll to the “SDKs, libraries, and frameworks” section (near the bottom of
-  the list)
-  - Check “C++ ATL for latest v142 build tools (x86 and x64)”
-  - Install
+- Visual Studio 2022, Python (version 3.7), and versions of UNIX
+command-line tools.
 
 - Install UNIX command-line tools via
-[GnuWin32](https://sourceforge.net/projects/getgnuwin32/postdownload)
-  - In cmd prompt, cd to the download dir and run:
-  - download.bat
-  - install.bat C:\GnuWin32
-  - set PATH=C:\GnuWin32\bin;%PATH%
+[Cygwin](https://www.cygwin.com/).   Install the `Base` package.
+Add the `bin` directory in your `Cygwin` install directory to to your system path.
 
-- If Ninja is not already available on your machine, you can download it from
+- If Ninja is not already installed on your machine, you can download it from
 [here](https://github.com/ninja-build/ninja/releases). Remember to set path to
 the ninja executable.
 
@@ -48,7 +43,7 @@ In order to limit the amount of build parallelism with Visual Studio:
 - Debug->Options->Projects and Solutions->VC++ Project Settings
 - Set `Maximum Number of concurrent C++ compilations` to 3, if your development
 machine has 1 GByte of memory or more per core. If not, see the
-[Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
+[Wiki page](https://github.com/checkedc/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 to figure out what number to use. By default, 0 causes it to be the number of
 available CPU cores on your machine, which is too much. You should also to go to
 Debug->Options->Projects and Solutions->Build and Run and set the maximum number
@@ -70,7 +65,7 @@ LLVM uses Git for distributed source code control. It is mirrored by a Git
 repository on Github: [llvm project](https://github.com/llvm/llvm-project)
 
 The code for the Checked C version of LLVM/Clang lives in the following
-repository: [Checked C clang repo](https://github.com/Microsoft/checkedc-clang).
+repository: [Checked C clang repo](https://github.com/checkedc/checkedc-clang).
 It is licensed under the
 [University of Illinois/NCSAlicense](https://opensource.org/licenses/NCSA).
 See the file LICENSE.TXT in for complete details of licensing.
@@ -83,14 +78,14 @@ have been code reviewed and passed testing.
 changes for Checked C to the baseline branches.
 
 There are tests in three locations: the
-[Checked C repo](https://github.com/Microsoft/checkedc), the
-[Checked C clang repo](https://github.com/Microsoft/checkedc-clang), and the
-[Checked C LLVM Test Suite](http://github.com/Microsft/checkedc-llvm-test-suite).
-The [Checked C repo](https://github.com/Microsoft/checkedc) tests are language
+[Checked C repo](https://github.com/checkedc/checkedc), the
+[Checked C clang repo](https://github.com/checkedc/checkedc-clang), and the
+[Checked C LLVM Test Suite](http://github.com/checkedc/checkedc-llvm-test-suite).
+The [Checked C repo](https://github.com/checkedc/checkedc) tests are language
 conformance tests, so they are placed with the specification, not with the
 compiler. The Checked C repo tests are licensed under the
 [MIT license](https://opensource.org/licenses/MIT). The
-[Checked C LLVM Test Suite](http://github.com/Microsft/checkedc-llvm-test-suite)
+[Checked C LLVM Test Suite](http://github.com/checkedc/checkedc-llvm-test-suite)
 is a fork of the
 [LLVM test suite mirror](https://github.com/llvm-mirror/test-suite). The LLVM
 test suite is for extended testing and includes applications and benchmarks.
@@ -100,7 +95,7 @@ We do not recommend that developers install sources for it or the Checked C
 version by default. The test suite is meant to be run as part of automated
 integration testing or for changes that require extensive testing, not as part
 of day-to-day development. For developers who need to install it, information is
-[here](https://github.com/Microsoft/checkedc-llvm-test-suite/blob/master/README.md).
+[here](https://github.com/checkedc/checkedc-llvm-test-suite/blob/master/README.md).
 
 ## Checkout and Build Instructions for Checked C Compiler
 
@@ -121,14 +116,14 @@ directory as \<WORK_DIR\>.
 2. Clone the `checkedc-clang` repository:
 
    ```
-   git clone https://github.com/Microsoft/checkedc-clang src
+   git clone https://github.com/checkedc/checkedc-llvm-project src
    ```
 
-3. The Checked C language tests live in a folder within `llvm/project`. Change
-to the  `src/llvm/projects/checkedc-wrapper` directory and clone the Checked C
+3. The Checked C language header files and tests are stored in a folder within
+`llvm/project`. Change to the  `src/llvm/projects/checkedc-wrapper` directory and clone the Checked C
 repo:
    ```
-   git clone https://github.com/Microsoft/checkedc
+   git clone https://github.com/checkedc/checkedc
    ```
 
 4. **\[OPTIONAL\]** Install `ccache` to speed up the compiler build on Linux and
@@ -156,24 +151,30 @@ is a sibling of your LLVM source tree, like \<WORK_DIR\>/build.
 6. Execute the following `cmake` command in the build directory:
 
    ```
-   cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang   // Required to enable Clang build
+   cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON  -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON  <WORK_DIR>/src/llvm
+   ```
+   Here is an explanation of the options:
+   ```
+   -DLLVM_ENABLE_PROJECTS=clang   // Required to enable Clang build
    -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install     // Directory where the compiler will be
                                                  // installed when "ninja install" is executed. 
    -DCMAKE_BUILD_TYPE=Release                    // Alternate values: Debug, RelWithDebInfo,
                                                  // MinSizeRel.
    -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF.
-   -DLLVM_CCACHE_BUILD=ON                        // OPTIONAL. If this definition exists, ccache
-                                                 // will be used to speed up builds.
    -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON              // OPTIONAL. This definition is required to
                                                  // build a package for installation on other
                                                  // machines.
-   -DLLVM_TARGETS_TO_BUILD="X86"                 // By default, CMake will produce a build
-                                                 // system that builds code generators for all
-                                                 // LLVM-supported architectures. Specify
-                                                 // architecture to decrease build/link times.
    -DLLVM_LIT_ARGS=-v                            // Arguments to pass to the test framework
    <WORK_DIR>/src/llvm
    ```
+   Here are some options that you can add.  On Linux, you can use ccache to speed up the build:
+1. ```
+   -DLLVM_CCACHE_BUILD=ON
+    ```
+   If you want to speed up build times, you can build a version of clang that only takes one architecture:
+   ```
+   -DLLVM_TARGETS_TO_BUILD="X86"
+    ```
 
 7. After executing the `cmake` command as above, build the compiler as follows:
 
@@ -185,12 +186,13 @@ is a sibling of your LLVM source tree, like \<WORK_DIR\>/build.
    ninja clean      // This command cleans the build directory.
    ```
 
-   ​
+### Instructions for Windows
 
-### Instruction for Windows (Command shell)
 
-1. Choose any directory as your working directory. We will refer to to this
-directory as \<WORK_DIR\>.
+1. Start a Visual Studio `x64 Native Tools Command Prompt`
+
+2. Choose any directory as your working directory. We will refer to to this
+directory as \<WORK_DIR\>.  In your Visual Studio Command Prompt:
 
    ```
    cd <WORK_DIR>
@@ -201,15 +203,15 @@ directory as \<WORK_DIR\>.
 Unix/Linux directions. Otherwise, follow these directions:
 
    ```
-   git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang src
+   git clone -c core.autocrlf=false https://github.com/checkedc/checkedc-llvm-project src
    ```
 
-3. The Checked C language tests live in a folder within `llvm\project`. Change
-to the `src\llvm\projects\checkedc-wrapper` directory and clone the Checked C
+3. The Checked C language header files and tests are stored in a folder within `llvm\project`. 
+Change to the `src\llvm\projects\checkedc-wrapper` directory and clone the Checked C
 repo:
 
    ```
-   git clone https://github.com/Microsoft/checkedc
+   git clone https://github.com/checkedc/checkedc
    ```
 
 4. LLVM and Clang use CMake, which is a meta-build system generator. It
@@ -222,41 +224,13 @@ exclude the build directory from anti-virus scanning. On Windows 10, go to
       cd <WORK_DIR>\build
       ```
 
-5. In a Windows command shell, execute the commands given below. NOTE: In the
-last command, supply the argument `x64` to build the X64 version of `clang`, or
-the argument `x86` to build the X86 version of clang, or the argument `x86_64`
-to build the X86 version of clang that executes on X64 Windows.
+5. Execute the following `cmake` command:
+```
+   cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON  -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON  <WORK_DIR>\srcllvm
+```
+For additional options, see the instructions for Linux.
 
-      ```
-      set TOP=<WORK_DIR>
-      cd %TOP%\build
-      set PATH="C:\GnuWin32\bin";%PATH%
-      @call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-      ```
-
-6. Execute the following `cmake` command in the same command shell created above
-in the `<WORK_DIR>\build` directory:
-
-      ```
-      cmake -G Ninja -DLLVM_ENABLE_PROJECTS=clang   // Required to enable Clang build
-      -DCMAKE_INSTALL_PREFIX=<WORK_DIR>/install     // Directory where the compiler will be
-                                                    // installed when "ninja install" is executed. 
-      -DCMAKE_BUILD_TYPE=Release                    // Alternate values: Debug, RelWithDebInfo,
-                                                    // MinSizeRel.
-      -DLLVM_ENABLE_ASSERTIONS=ON                   // Alternate value: OFF.
-      -DLLVM_USE_CRT_RELEASE=MT
-      -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON              // OPTIONAL. This definition is required to
-                                                    // build a package for installation on other
-                                                    // machines.
-      -DLLVM_TARGETS_TO_BUILD="X86"                 // By default, CMake will produce a build
-                                                    // system that builds code generators for all
-                                                    // LLVM-supported architectures.Specify
-                                                    // architecture to decrease build/link times.
-      -DLLVM_LIT_ARGS=-v                            // Arguments to pass to the test framework
-      <WORK_DIR>/src/llvm
-      ```
-
-7. After executing the `cmake` command as above, build the compiler as follows
+6. After executing the `cmake` command as above, build the compiler as follows
 (in the same command shell as above):
 
    ```
@@ -267,22 +241,18 @@ in the `<WORK_DIR>\build` directory:
    ninja clean      // This command cleans the build directory.
    ```
 
-
-
-
 ### Instruction for Windows (Visual Studio)
 
-For day-to-day development, we recommend building from Visual Studio. This will
-improve your productivity significantly because it will give you all the
-capabilities of Visual Studio for navigating the code base, code browsing, and
-Intellisense.
+On Windows, you can use Visual Studio for developemt.  It has support
+for navigating the code base, code browsing, Intellisense,
+and symbolic debugging.
 
 #### Visual Studio
 After you have followed the earlier instructions to set up the build system:
 - Start Visual Studio->Open a Local Folder.
-- To build llvm and clang: Open the src/llvm directory (because this contains
+- To build llvm and clang: Open the src\llvm directory (because this contains
 the llvm CMakeLists file).
-- To build only clang: Open the src/clang directory (because this contains the
+- To build only clang: Open the src\clang directory (because this contains the
 clang CMakeLists file).
 
 To configure:

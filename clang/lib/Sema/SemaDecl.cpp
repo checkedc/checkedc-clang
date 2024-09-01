@@ -5289,6 +5289,12 @@ Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
       Diag(DS.getAtomicSpecLoc(), DiagID) << "_Atomic";
     if (DS.getTypeQualifiers() & DeclSpec::TQ_unaligned)
       Diag(DS.getUnalignedSpecLoc(), DiagID) << "__unaligned";
+    if (DS.getTypeQualifiers() & DeclSpec::TQ_CheckedPtr)
+      Diag(DS.getRestrictSpecLoc(), DiagID) << "_Single";
+    if (DS.getTypeQualifiers() & DeclSpec::TQ_CheckedArrayPtr)
+      Diag(DS.getRestrictSpecLoc(), DiagID) << "_Array";
+    if (DS.getTypeQualifiers() & DeclSpec::TQ_CheckedNtArrayPtr)
+      Diag(DS.getRestrictSpecLoc(), DiagID) << "_Nt_array";
   }
 
   // Warn about ignored type attributes, for example:

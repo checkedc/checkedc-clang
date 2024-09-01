@@ -21,37 +21,26 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
-typedef std::tuple<clang::Stmt *, clang::Decl *> StmtDecl;
-typedef std::map<PersistentSourceLoc, StmtDecl> SourceToDeclMapType;
-typedef std::pair<SourceToDeclMapType, VariableDecltoStmtMap>
-    MappingResultsType;
+typedef std::map<PersistentSourceLoc, clang::Decl *> SourceToDeclMapType;
 
 class MappingVisitor : public clang::RecursiveASTVisitor<MappingVisitor> {
 public:
   MappingVisitor(std::set<PersistentSourceLoc> S, clang::ASTContext &C)
       : SourceLocs(S), Context(C) {}
 
-  bool VisitDeclStmt(clang::DeclStmt *S);
-
   bool VisitDecl(clang::Decl *D);
 
-  MappingResultsType getResults() {
-    return std::pair<std::map<PersistentSourceLoc, StmtDecl>,
-                     VariableDecltoStmtMap>(PSLtoSDT, DeclToDeclStmt);
-  }
+  const SourceToDeclMapType &getResults() { return PSLtoSDT; }
 
 private:
-  // A map from a PersistentSourceLoc to a tuple describing a statement, decl
-  // or type.
+  // A map from a PersistentSourceLoc to a Decl at that location.
   SourceToDeclMapType PSLtoSDT;
   // The set of PersistentSourceLoc's this instance of MappingVisitor is tasked
-  // with re-instantiating as either a Stmt, Decl or Type.
+  // with re-instantiating as a Decl.
   std::set<PersistentSourceLoc> SourceLocs;
   // The ASTContext for the particular AST that the MappingVisitor is
   // traversing.
   clang::ASTContext &Context;
-  // A mapping of individual Decls to the DeclStmt that contains them.
-  VariableDecltoStmtMap DeclToDeclStmt;
 };
 
 #endif

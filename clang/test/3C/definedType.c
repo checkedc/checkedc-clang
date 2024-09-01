@@ -57,6 +57,8 @@ baz **f[1];
 // CHECK_ALL: _Ptr<_Ptr<baz>> f _Checked[1] = {((void *)0)};
 baz (*g)[1];
 // CHECK_ALL: _Ptr<baz _Checked[1]> g = ((void *)0);
+baz *(*g2)[1];
+// CHECK_ALL: _Ptr<_Ptr<baz> _Checked[1]> g2 = ((void *)0);
 baz h[1][1];
 // CHECK_ALL: baz h _Checked[1] _Checked[1];
 

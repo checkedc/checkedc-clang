@@ -32,7 +32,7 @@ void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
   if (auto *VA2 = clang::dyn_cast<VarAtom>(A2))
     assert(CS.getVar(VA2->getLoc()) == VA2);
 
-  addEdge(A2, A1, C->isSoft());
+  addEdge(A2, A1, C->isSoft(), C);
 }
 
 std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getNodeLabel(

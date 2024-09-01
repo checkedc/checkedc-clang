@@ -108,7 +108,8 @@ int **sus(int *x, int *y) {
   //CHECK: x = (int *)5;
   int **z = calloc(5, sizeof(int *));
   //CHECK_NOALL: int **z = calloc<int *>(5, sizeof(int *));
-  //CHECK_ALL: _Array_ptr<_Ptr<int>> z = calloc<_Ptr<int>>(5, sizeof(int *));
+  //CHECK_ALL: _Array_ptr<_Ptr<int>> __3c_lower_bound_z : count(5) = calloc<_Ptr<int>>(5, sizeof(int *));
+  //CHECK_ALL: _Array_ptr<_Ptr<int>> z : bounds(__3c_lower_bound_z, __3c_lower_bound_z + 5) = __3c_lower_bound_z;
   int *(*mul2ptr)(int *) = mul2;
   //CHECK: _Ptr<_Ptr<int> (_Ptr<int>)> mul2ptr = mul2;
   int i;

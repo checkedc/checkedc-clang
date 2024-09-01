@@ -62,6 +62,21 @@ void test4() {
   // CHECK: _Ptr<_Ptr<int> (void)> n = 0;
 }
 
+// Test the partial workaround in getDeclSourceRangeWithAnnotations for a
+// compiler bug where DeclaratorDecl::getSourceRange gives the wrong answer for
+// certain checked pointer types. Previously, if the variable had an
+// initializer, 3C used the start of the initializer as the end location of the
+// rewrite, which had the side effect of working around the bug for all
+// variables with an initializer (such as `m` above). Any variable with an
+// affected type and no initializer would trigger the bug; apparently we never
+// noticed because 3C unnecessarily adds initializers to global variables
+// (https://github.com/correctcomputation/checkedc-clang/issues/741). Now, for
+// uniformity, 3C always uses DeclaratorDecl::getSourceRange to get the range
+// excluding any initializer, so it needs a workaround specifically for the bug.
+// See getDeclSourceRangeWithAnnotations for more information.
+_Ptr<int *(void)> gm;
+// CHECK: _Ptr<_Ptr<int> (void)> gm = ((void *)0);
+
 void test5(_Ptr<int *> a, _Ptr<int *> b, _Ptr<_Ptr<int>> c, int **d) {
   // CHECK: void test5(_Ptr<_Ptr<int>> a, _Ptr<int *> b : itype(_Ptr<_Ptr<int>>), _Ptr<_Ptr<int>> c, _Ptr<_Ptr<int>> d) {
   *b = 1;

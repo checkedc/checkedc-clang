@@ -20,8 +20,9 @@ class TypeVariableEntry {
 public:
   // Note: does not initialize TyVarType!
   TypeVariableEntry() : IsConsistent(false), TypeParamConsVar(nullptr) {}
-  TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs,
-                    bool ForceInconsistent = false)
+  TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs
+                    , bool ForceInconsistent = false
+                    , ConstraintVariable *IdentCV = nullptr)
       : TypeParamConsVar(nullptr) {
     // We'll need a name to provide the type arguments during rewriting, so no
     // anonymous types are allowed.
@@ -30,16 +31,21 @@ public:
                    !isTypeAnonymous(Ty->getPointeeOrArrayElementType());
     TyVarType = Ty;
     ArgConsVars = CVs;
+    GenArgumentCV = IdentCV;
   }
 
   bool getIsConsistent() const;
+  // Note: undefined behaviour if `getIsConsistent` is false
   QualType getType();
+  // Note: undefined behaviour if `getIsConsistent` is false
   std::set<ConstraintVariable *> &getConstraintVariables();
   ConstraintVariable *getTypeParamConsVar();
+  ConstraintVariable *getGenArgCV();
 
   void insertConstraintVariables(std::set<ConstraintVariable *> &CVs);
   void setTypeParamConsVar(ConstraintVariable *CV);
-  void updateEntry(QualType Ty, std::set<ConstraintVariable *> &CVs);
+  void updateEntry(QualType Ty, std::set<ConstraintVariable *> &CVs,
+                   ConstraintVariable *IdentCV);
 
 private:
   // Is this type variable instantiated consistently. True when all uses have
@@ -53,11 +59,18 @@ private:
 
   // Collection of constraint variables generated for all uses of the type
   // variable. Also should not be used when IsConsistent is false.
+  // TODO: accessor methods don't enforce this?
   std::set<ConstraintVariable *> ArgConsVars;
 
   // A single constraint variable for solving the checked type of the type
   // variable. It is constrained GEQ all elements of ArgConsVars.
   ConstraintVariable *TypeParamConsVar;
+
+  // If an argument is a single identifier, store the constraint variable
+  // to recognize changes in type from inferred generics. Null otherwise.
+  // Meaningless if `TypeParamConsVar` has a basetype other than void, and
+  // when we have generic index constraints, those should be favored over this
+  ConstraintVariable *GenArgumentCV;
 };
 
 // Stores the instantiated type for each type variables. This map has
@@ -65,6 +78,7 @@ private:
 // typed parameter. The values in the map are another maps from type variable
 // index in the called function's parameter list to the type the type variable
 // becomes (or null if it is not used consistently).
+// TODO: use a better map implementation?
 typedef std::map<CallExpr *, std::map<unsigned int, TypeVariableEntry>>
     TypeVariableMapT;
 
@@ -86,8 +100,9 @@ public:
   bool VisitCastExpr(CastExpr *CE);
   bool VisitCallExpr(CallExpr *CE);
 
-  void getConsistentTypeParams(CallExpr *CE, std::set<unsigned int> &Types);
-  void setProgramInfoTypeVars();
+  void getConsistentTypeParams(CallExpr *CE,
+                               std::set<unsigned int> &Types) override;
+  void setProgramInfoTypeVars() override;
 
 private:
   ASTContext *Context;
@@ -95,8 +110,8 @@ private:
   ConstraintResolver CR;
   TypeVariableMapT TVMap;
 
-  void insertBinding(CallExpr *CE, const int TyIdx, QualType Ty, CVarSet &CVs,
-                     bool ForceInconsistent = false);
+  void insertBinding(CallExpr *CE, const int TyIdx, QualType Ty,
+                     CVarSet &CVs, ConstraintVariable *IdentCV = nullptr);
 };
 
 bool typeArgsProvided(CallExpr *Call);

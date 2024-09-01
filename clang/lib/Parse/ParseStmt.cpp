@@ -291,7 +291,6 @@ Retry:
 
     return StmtRes;
   }
-
   case tok::kw_if:                  // C99 6.8.4.1: if-statement
     return ParseIfStatement(TrailingElseLoc);
   case tok::kw_switch:              // C99 6.8.4.2: switch-statement
@@ -2726,15 +2725,19 @@ WhereClause *Parser::ParseWhereClause() {
 WhereClause *Parser::ParseWhereClauseHelper() {
   SourceLocation WhereLoc = Tok.getLocation();
 
-  // Consume the "_Where" token.
-  if (ExpectAndConsume(tok::kw__Where)) {
-    SkipUntil(tok::semi, StopBeforeMatch);
-    return nullptr;
-  }
+  //keep consuming kw__Where until we reach the '(' token.
+  ExpectAndConsume(tok::kw__Where);
 
   WhereClause *WClause = Actions.ActOnWhereClause(WhereLoc);
   if (!WClause)
     return nullptr;
+
+  // Consume the '(' token and track the count of left parentheses
+  int LeftParenCount = 0;
+  while (Tok.is(tok::l_paren)) {
+    ConsumeParen(); // Consume the '(' token
+    ++LeftParenCount;
+  }
 
   // Parse each where clause fact. We want to issue diagnostics for as many
   // parsing errors a possible. So we do not break on the first error.
@@ -2749,5 +2752,17 @@ WhereClause *Parser::ParseWhereClauseHelper() {
 
   if (IsError)
     return nullptr;
+
+  // Consume the ')' token and ensure proper balancing of parentheses
+  while (Tok.is(tok::r_paren) && LeftParenCount > 0) {
+    ConsumeParen(); // Consume the ')' token
+    --LeftParenCount;
+  }
+
+  if (LeftParenCount != 0) {
+    Diag(Tok.getLocation(), diag::err_unbalanced_parentheses_in_where_clause);
+    return nullptr;
+  }
+
   return WClause;
 }

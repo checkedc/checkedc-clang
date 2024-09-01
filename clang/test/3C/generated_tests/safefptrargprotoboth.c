@@ -105,15 +105,15 @@ int *mul2(int *x) {
 }
 
 int *sus(int (*)(int), int (*)(int));
-//CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int)> y) : itype(_Ptr<int>);
-//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int)> y);
+//CHECK_NOALL: int *sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : itype(_Ptr<int>);
+//CHECK_ALL: _Array_ptr<int> sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y);
 
 int *foo() {
-  //CHECK_NOALL: _Ptr<int> foo(void) {
-  //CHECK_ALL: _Array_ptr<int> foo(void) {
+  //CHECK_NOALL: _Ptr<int> foo(void) _Checked {
+  //CHECK_ALL: _Array_ptr<int> foo(void) _Checked {
 
   int (*x)(int) = add1;
-  //CHECK: int (*x)(int) = add1;
+  //CHECK: _Ptr<int (int)> x = add1;
   int (*y)(int) = sub1;
   //CHECK: _Ptr<int (int)> y = sub1;
   int *z = sus(x, y);
@@ -125,10 +125,10 @@ int *foo() {
 
 int *bar() {
   //CHECK_NOALL: int *bar(void) : itype(_Ptr<int>) {
-  //CHECK_ALL: _Array_ptr<int> bar(void) {
+  //CHECK_ALL: _Array_ptr<int> bar(void) _Checked {
 
   int (*x)(int) = add1;
-  //CHECK: int (*x)(int) = add1;
+  //CHECK: _Ptr<int (int)> x = add1;
   int (*y)(int) = sub1;
   //CHECK: _Ptr<int (int)> y = sub1;
   int *z = sus(x, y);
@@ -140,14 +140,15 @@ int *bar() {
 }
 
 int *sus(int (*x)(int), int (*y)(int)) {
-  //CHECK_NOALL: int *sus(int (*x)(int), _Ptr<int (int)> y) : itype(_Ptr<int>) {
-  //CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int)> y) {
+  //CHECK_NOALL: int *sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) : itype(_Ptr<int>) {
+  //CHECK_ALL: _Array_ptr<int> sus(int ((*x)(int)) : itype(_Ptr<int (int)>), _Ptr<int (int)> y) {
 
   x = (int (*)(int))5;
   //CHECK: x = (int (*)(int))5;
   int *z = calloc(5, sizeof(int));
   //CHECK_NOALL: int *z = calloc<int>(5, sizeof(int));
-  //CHECK_ALL: _Array_ptr<int> z = calloc<int>(5, sizeof(int));
+  //CHECK_ALL: _Array_ptr<int> __3c_lower_bound_z : count(5) = calloc<int>(5, sizeof(int));
+  //CHECK_ALL: _Array_ptr<int> z : bounds(__3c_lower_bound_z, __3c_lower_bound_z + 5) = __3c_lower_bound_z;
   int i;
   for (i = 0; i < 5; i++) {
     //CHECK_NOALL: for (i = 0; i < 5; i++) {

@@ -312,7 +312,10 @@ public:
     TQ_unaligned   = 8,
     // This has no corresponding Qualifiers::TQ value, because it's not treated
     // as a qualifier in our type system.
-    TQ_atomic      = 16
+    TQ_atomic      = 16,
+    TQ_CheckedPtr = 32,
+    TQ_CheckedArrayPtr = 64,
+    TQ_CheckedNtArrayPtr = 128
   };
 
   /// ParsedSpecifiers - Flags to query which specifiers were applied.  This is
@@ -353,7 +356,7 @@ private:
   unsigned ConstrainedAuto : 1;
 
   // type-qualifiers
-  unsigned TypeQualifiers : 5;  // Bitwise OR of TQ.
+  unsigned TypeQualifiers : 8;  // Bitwise OR of TQ.
 
   // function-specifier
   unsigned FS_inline_specified : 1;
@@ -412,7 +415,7 @@ private:
   SourceLocation TSTNameLoc;
   SourceRange TypeofParensRange;
   SourceLocation TQ_constLoc, TQ_restrictLoc, TQ_volatileLoc, TQ_atomicLoc,
-      TQ_unalignedLoc;
+      TQ_unalignedLoc,TQ_CheckedPtrLoc, TQ_CheckedArrayPtrLoc, TQ_CheckedNtArrayPtrLoc;
   SourceLocation FS_inlineLoc, FS_virtualLoc, FS_explicitLoc, FS_noreturnLoc;
   SourceLocation FS_explicitCloseParenLoc;
   SourceLocation FS_forceinlineLoc;
@@ -594,6 +597,13 @@ public:
   SourceLocation getAtomicSpecLoc() const { return TQ_atomicLoc; }
   SourceLocation getUnalignedSpecLoc() const { return TQ_unalignedLoc; }
   SourceLocation getPipeLoc() const { return TQ_pipeLoc; }
+  SourceLocation getCheckedPtrSpecLoc() const { return TQ_CheckedPtrLoc; }
+  SourceLocation getCheckedArrayPtrSpecLoc() const {
+    return TQ_CheckedArrayPtrLoc;
+  }
+  SourceLocation getCheckedNtArrayPtrSpecLoc() const {
+    return TQ_CheckedNtArrayPtrLoc;
+  }
 
   /// Clear out all of the type qualifiers.
   void ClearTypeQualifiers() {
@@ -604,8 +614,18 @@ public:
     TQ_atomicLoc = SourceLocation();
     TQ_unalignedLoc = SourceLocation();
     TQ_pipeLoc = SourceLocation();
+    TQ_CheckedPtrLoc = SourceLocation();
+    TQ_CheckedArrayPtrLoc = SourceLocation();
+    TQ_CheckedNtArrayPtrLoc = SourceLocation();
   }
 
+  void ClearCheckedTypeQualifiers() {
+    TypeQualifiers = TypeQualifiers & ~(
+        TQ_CheckedPtr | TQ_CheckedArrayPtr | TQ_CheckedNtArrayPtr);
+    TQ_CheckedPtrLoc = SourceLocation();
+    TQ_CheckedArrayPtrLoc = SourceLocation();
+    TQ_CheckedNtArrayPtrLoc = SourceLocation();
+  }
   // function-specifier
   bool isInlineSpecified() const {
     return FS_inline_specified | FS_forceinline_specified;
@@ -1289,8 +1309,9 @@ struct DeclaratorChunk {
   ParsedAttributesView AttrList;
 
   struct PointerTypeInfo {
-    /// The type qualifiers: const/volatile/restrict/unaligned/atomic.
-    unsigned TypeQuals : 5;
+    /// The type qualifiers: const/volatile/restrict/unaligned/atomic/checkedptr
+    /// checkedarrayptr/ checkedntarrayptr.
+    unsigned TypeQuals : 8;
 
     /// The location of the const-qualifier, if any.
     SourceLocation ConstQualLoc;
@@ -1307,6 +1328,14 @@ struct DeclaratorChunk {
     /// The location of the __unaligned-qualifier, if any.
     SourceLocation UnalignedQualLoc;
 
+    /// The location of the _Checked-qualifier, if any.
+    SourceLocation CheckedPtrLoc;
+
+    /// The location of the _Ptr-qualifier, if any.
+    SourceLocation CheckedArrayPtrLoc;
+
+    /// The location of the _Nt_array_ptr-qualifier, if any.
+    SourceLocation CheckedNtArrayPtrLoc;
     void destroy() {
     }
   };
@@ -1695,7 +1724,10 @@ struct DeclaratorChunk {
                                     SourceLocation VolatileQualLoc,
                                     SourceLocation RestrictQualLoc,
                                     SourceLocation AtomicQualLoc,
-                                    SourceLocation UnalignedQualLoc) {
+                                    SourceLocation UnalignedQualLoc,
+                                    SourceLocation CheckedPtrLoc,
+                                    SourceLocation CheckedArrayPtrLoc,
+                                    SourceLocation CheckedNtArrayPtrLoc) {
     DeclaratorChunk I;
     I.Kind                = Pointer;
     I.Loc                 = Loc;
@@ -1706,6 +1738,9 @@ struct DeclaratorChunk {
     I.Ptr.RestrictQualLoc = RestrictQualLoc;
     I.Ptr.AtomicQualLoc   = AtomicQualLoc;
     I.Ptr.UnalignedQualLoc = UnalignedQualLoc;
+    I.Ptr.CheckedPtrLoc = CheckedPtrLoc;
+    I.Ptr.CheckedArrayPtrLoc = CheckedArrayPtrLoc;
+    I.Ptr.CheckedNtArrayPtrLoc = CheckedNtArrayPtrLoc;
     return I;
   }
 

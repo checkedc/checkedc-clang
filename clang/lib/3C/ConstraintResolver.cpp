@@ -21,21 +21,20 @@ ConstraintResolver::~ConstraintResolver() {}
 void ConstraintResolver::constraintAllCVarsToWild(const CVarSet &CSet,
                                                   const std::string &Rsn,
                                                   Expr *AtExpr) {
-  PersistentSourceLoc Psl;
-  PersistentSourceLoc *PslP = nullptr;
+  PersistentSourceLoc PSL;
   if (AtExpr != nullptr) {
-    Psl = PersistentSourceLoc::mkPSL(AtExpr, *Context);
-    PslP = &Psl;
+    PSL = PersistentSourceLoc::mkPSL(AtExpr, *Context);
   }
+  auto Reason = ReasonLoc(Rsn, PSL);
   auto &CS = Info.getConstraints();
 
   for (const auto &A : CSet) {
-    if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-      PVC->constrainToWild(CS, Rsn, PslP);
+    if (auto *PVC = dyn_cast<PVConstraint>(A))
+      PVC->constrainToWild(CS, Reason);
     else {
-      FVConstraint *FVC = dyn_cast<FVConstraint>(A);
+      auto *FVC = dyn_cast<FVConstraint>(A);
       assert(FVC != nullptr);
-      FVC->constrainToWild(CS, Rsn, PslP);
+      FVC->constrainToWild(CS, Reason);
     }
   }
 }
@@ -65,11 +64,11 @@ CVarSet ConstraintResolver::handleDeref(CVarSet T) {
 // of indirection (when the constraint is PVConstraint), or return the
 // constraint unchanged (when the constraint is a function constraint).
 CVarSet ConstraintResolver::addAtomAll(CVarSet CVS, ConstAtom *PtrTyp,
-                                       Constraints &CS) {
+                                       ReasonLoc &Rsn, Constraints &CS) {
   CVarSet Result;
   for (auto *CV : CVS) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-      Result.insert(PVConstraint::addAtomPVConstraint(PVC, PtrTyp, CS));
+      Result.insert(PVConstraint::addAtomPVConstraint(PVC, PtrTyp, Rsn,CS));
     } else {
       Result.insert(CV);
     }
@@ -106,8 +105,9 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
 
   ConstAtom *Ret = CS.getPtr();
   Expr *E;
-  if (std::find(AllocatorFunctions.begin(), AllocatorFunctions.end(),
-                FuncName) != AllocatorFunctions.end() ||
+  if (std::find(_3COpts.AllocatorFunctions.begin(),
+                _3COpts.AllocatorFunctions.end(),
+                FuncName) != _3COpts.AllocatorFunctions.end() ||
       FuncName.compare("malloc") == 0)
     E = CE->getArg(0);
   else {
@@ -141,7 +141,7 @@ CVarSet ConstraintResolver::getInvalidCastPVCons(CastExpr *E) {
   PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
   std::string Rsn =
       "Cast from " + SrcType.getAsString() + " to " + DstType.getAsString();
-  P->constrainToWild(Info.getConstraints(), Rsn, &PL);
+  P->constrainToWild(Info.getConstraints(), ReasonLoc(Rsn, PL));
   return {P};
 }
 
@@ -149,6 +149,28 @@ inline CSetBkeyPair pairWithEmptyBkey(const CVarSet &Vars) {
   BKeySet EmptyBSet;
   EmptyBSet.clear();
   return std::make_pair(Vars, EmptyBSet);
+}
+
+// Get the return type of the function from the TypeVars, that is, from
+// the local instantiation of a generic function. Or the regular return
+// constraint if it's not generic
+ConstraintVariable *localReturnConstraint(
+    FVConstraint *FV,
+    ProgramInfo::CallTypeParamBindingsT TypeVars,
+    Constraints &CS,
+    ProgramInfo &Info) {
+  int TyVarIdx = FV->getExternalReturn()->getGenericIndex();
+  // Check if local type vars are available
+  if (TypeVars.find(TyVarIdx) != TypeVars.end() &&
+      TypeVars[TyVarIdx].isConsistent()) {
+    ConstraintVariable *CV = TypeVars[TyVarIdx].getConstraint(
+            Info.getConstraints().getVariables());
+    if (FV->getExternalReturn()->hasBoundsKey())
+      CV->setBoundsKey(FV->getExternalReturn()->getBoundsKey());
+    return CV;
+  } else {
+    return FV->getExternalReturn();
+  }
 }
 
 // Returns a pair of set of ConstraintVariables and set of BoundsKey
@@ -162,9 +184,10 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
     auto &CS = Info.getConstraints();
     QualType TypE = E->getType();
     E = E->IgnoreParens();
+    auto ExprPSL = PersistentSourceLoc::mkPSL(E,*Context);
 
     // Non-pointer (int, char, etc.) types have a special base PVConstraint.
-    if (TypE->isRecordType() || TypE->isArithmeticType()) {
+    if (isNonPtrType(TypE)) {
       if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
         // If we have a DeclRef, the PVC can get a meaningful name
         return pairWithEmptyBkey(getBaseVarPVConstraint(DRE));
@@ -222,7 +245,8 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
             SubTypE->isVoidPointerType()) &&
           !isCastSafe(TypE, SubTypE)) {
         CVarSet WildCVar = getInvalidCastPVCons(IE);
-        constrainConsVarGeq(CVs.first, WildCVar, CS, nullptr, Safe_to_Wild,
+        auto Rsn = ReasonLoc("Unsafe cast",ExprPSL);
+        constrainConsVarGeq(CVs.first, WildCVar, CS, Rsn, Safe_to_Wild,
                             false, &Info);
         Ret = std::make_pair(WildCVar, CVs.second);
       } else {
@@ -235,11 +259,12 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       // Is cast internally safe? Return WILD if not.
       // If the cast is NULL, it will otherwise seem invalid, but we want to
       // handle it as usual so the type in the cast can be rewritten.
+      auto Rsn = ReasonLoc("Explicit cast", ExprPSL);
       if (!isNULLExpression(ECE, *Context) && TypE->isPointerType() &&
-          !isCastSafe(TypE, TmpE->getType())) {
+          !isCastSafe(TypE, TmpE->getType()) && !isCastofGeneric(ECE)) {
         CVarSet Vars = getExprConstraintVarsSet(TmpE);
         Ret = pairWithEmptyBkey(getInvalidCastPVCons(ECE));
-        constrainConsVarGeq(Vars, Ret.first, CS, nullptr, Safe_to_Wild, false,
+        constrainConsVarGeq(Vars, Ret.first, CS, Rsn, Safe_to_Wild, false,
                             &Info);
         // NB: Expression ECE itself handled in
         // ConstraintBuilder::FunctionVisitor.
@@ -253,7 +278,7 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
         // constraining GEQ these vars would be the cast always be WILD.
         if (!isNULLExpression(ECE, *Context)) {
           PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(ECE, *Context);
-          constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL, Same_to_Same,
+          constrainConsVarGeq(P, Vars, Info.getConstraints(), Rsn, Same_to_Same,
                               false, &Info);
         }
       }
@@ -355,14 +380,22 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
           // does permit taking the address of an _Array_ptr when the array
           // pointer has no declared bounds. With this constraint added however,
           // 3C will not generate such code.
-          for (auto *CV : T.first)
-            if (auto *PCV = dyn_cast<PVConstraint>(CV))
+          for (auto *CV : T.first) {
+            if (auto *PCV = dyn_cast<PVConstraint>(CV)) {
               // On the other hand, CheckedC does let you take the address of
               // constant sized arrays.
-              if (!PCV->getArrPresent())
-                PCV->constrainOuterTo(CS, CS.getPtr(), true);
+              if (!PCV->isConstantArr()) {
+                auto Rsn = ReasonLoc(
+                    "Operand of address-of has PTR lower bound", ExprPSL);
+                PCV->constrainOuterTo(CS, CS.getPtr(), Rsn, true);
+              }
+            }
+          }
           // Add a VarAtom to UOExpr's PVConstraint, for &.
-          Ret = std::make_pair(addAtomAll(T.first, CS.getPtr(), CS), T.second);
+          auto Rsn = ReasonLoc(
+              "Result of address-of has PTR lower bound",ExprPSL);
+          Ret = std::make_pair(addAtomAll(T.first, CS.getPtr(),
+                                          Rsn, CS), T.second);
         }
         break;
       }
@@ -403,6 +436,10 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       CVarSet ReturnCVs;
       BKeySet ReturnBSet = EmptyBSet;
 
+      ProgramInfo::CallTypeParamBindingsT TypeVars;
+      if (Info.hasTypeParamBindings(CE, Context))
+        TypeVars = Info.getTypeParamBindings(CE, Context);
+
       // Here, we need to look up the target of the call and return the
       // constraints for the return value of that function.
       QualType ExprType = E->getType();
@@ -418,31 +455,34 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
 
         for (ConstraintVariable *C : Tmp.first) {
           if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
-            ReturnCVs.insert(FV->getExternalReturn());
+            ReturnCVs.insert(localReturnConstraint(FV,TypeVars,CS,Info));
           } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
             if (FVConstraint *FV = PV->getFV())
-              ReturnCVs.insert(FV->getExternalReturn());
+              ReturnCVs.insert(localReturnConstraint(FV,TypeVars,CS,Info));
           }
         }
       } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
         /* Allocator call */
         if (isFunctionAllocator(std::string(FD->getName()))) {
-          bool DidInsert = false;
           IsAllocator = true;
-          if (CE->getNumArgs() > 0) {
+          ConstraintVariable *CV = nullptr;
+          if (TypeVars.find(0) != TypeVars.end() &&
+              TypeVars[0].isConsistent()) {
+            CV = TypeVars[0].getConstraint(
+              Info.getConstraints().getVariables());
+          } else if (CE->getNumArgs() > 0) {
             QualType ArgTy;
             std::string FuncName = FD->getNameAsString();
-            ConstAtom *A;
-            A = analyzeAllocExpr(CE, CS, ArgTy, FuncName, Context);
+            ConstAtom *A = analyzeAllocExpr(CE, CS, ArgTy, FuncName, Context);
             if (A) {
               std::string N(FD->getName());
               N = "&" + N;
               ExprType = Context->getPointerType(ArgTy);
               PVConstraint *PVC = new PVConstraint(ExprType, nullptr, N, Info,
                                                    *Context, nullptr, 0);
-              PVC->constrainOuterTo(CS, A, true);
-              ReturnCVs.insert(PVC);
-              DidInsert = true;
+              PVC->constrainOuterTo(CS, A,
+                       ReasonLoc(ALLOCATOR_REASON, ExprPSL), true);
+              CV = PVC;
               if (FuncName.compare("realloc") == 0) {
                 // We will constrain the first arg to the return of
                 // realloc, below
@@ -452,11 +492,27 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
               }
             }
           }
-          if (!DidInsert) {
+          if (CV == nullptr) {
             std::string Rsn = "Unsafe call to allocator function.";
             PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
             ReturnCVs.insert(PVConstraint::getWildPVConstraint(
-                Info.getConstraints(), Rsn, &PL));
+                Info.getConstraints(), ReasonLoc(Rsn, PL)));
+          } else {
+            // The ConstraintVariable generated for allocator functions don't
+            // have associated BoundsKeys. This is problem for lower bound
+            // inference, because, without a BoundsKey, the algorithm cannot
+            // detect that the allocator represents a possible lower bound. If
+            // there is another possible lower bound, the conflict is not
+            // detected. To avoid this, we fill the bounds key with the bounds
+            // key for the allocators declaration.
+            // TODO: This is another place where fully de-specializing
+            //       allocators will simplify code.
+            CVarOption FuncCV = Info.getVariable(FD, Context);
+            assert(FuncCV.hasValue() && "Function without constraint variable.");
+            FVConstraint *FVC = cast<FVConstraint>(&FuncCV.getValue());
+            CV->setBoundsKey(FVC->getExternalReturn()->getBoundsKey());
+
+            ReturnCVs.insert(CV);
           }
 
           /* Normal function call */
@@ -465,17 +521,19 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
           assert(CV.hasValue() && "Function without constraint variable.");
           /* Direct function call */
           if (FVConstraint *FVC = dyn_cast<FVConstraint>(&CV.getValue()))
-            ReturnCVs.insert(FVC->getExternalReturn());
+            ReturnCVs.insert(localReturnConstraint(FVC,TypeVars,CS,Info));
           /* Call via function pointer */
           else {
             PVConstraint *Tmp = dyn_cast<PVConstraint>(&CV.getValue());
             assert(Tmp != nullptr);
             if (FVConstraint *FVC = Tmp->getFV())
-              ReturnCVs.insert(FVC->getExternalReturn());
+              ReturnCVs.insert(localReturnConstraint(FVC,TypeVars,CS,Info));
             else {
               // No FVConstraint -- make WILD.
-              auto *TmpFV = new FVConstraint();
-              ReturnCVs.insert(TmpFV);
+              std::string Rsn = "Can't get return variable of function call.";
+              PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
+              ReturnCVs.insert(
+                  PVConstraint::getWildPVConstraint(CS, ReasonLoc(Rsn, PL)));
             }
           }
         }
@@ -503,7 +561,8 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
             if (PCV->hasBoundsKey())
               NewCV->setBoundsKey(PCV->getBoundsKey());
           } else {
-            NewCV = CV->getCopy(CS);
+            auto Rsn = ReasonLoc("Function return R-value", ExprPSL);
+            NewCV = CV->getCopy(Rsn, CS);
           }
         } else {
           // Allocator functions are treated specially, so they do not have
@@ -511,25 +570,26 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
           NewCV = CV;
         }
 
-        auto PSL = PersistentSourceLoc::mkPSL(CE, *Context);
         // Make the bounds key context sensitive.
         if (NewCV->hasBoundsKey()) {
           auto CSensBKey =
-              ABI.getCtxSensCEBoundsKey(PSL, NewCV->getBoundsKey());
+              ABI.getCtxSensCEBoundsKey(ExprPSL, NewCV->getBoundsKey());
           NewCV->setBoundsKey(CSensBKey);
         }
         if (NewCV != CV) {
           // If the call is in a macro, use Same_to_Same to force checked type
           // equality and avoid ever needing to insert a cast inside a macro.
+          auto Rsn = ReasonLoc("Macro call", ExprPSL);
           ConsAction CA = Rewriter::isRewritable(CE->getExprLoc())
                               ? Safe_to_Wild
                               : Same_to_Same;
-          constrainConsVarGeq(NewCV, CV, CS, &PSL, CA, false, &Info);
+          constrainConsVarGeq(NewCV, CV, CS, Rsn, CA, false, &Info);
         }
         TmpCVs.insert(NewCV);
         // If this is realloc, constrain the first arg to flow to the return
+        auto Rsn = ReasonLoc("Flow from realloc", ExprPSL);
         if (!ReallocFlow.empty()) {
-          constrainConsVarGeq(NewCV, ReallocFlow, Info.getConstraints(), &PSL,
+          constrainConsVarGeq(NewCV, ReallocFlow, Info.getConstraints(), Rsn,
                               Wild_to_Safe, false, &Info);
         }
       }
@@ -549,7 +609,9 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       if (ILE->getType()->isArrayType()) {
         // Array initialization is similar AddrOf, so the same pattern is
         // used where a new indirection is added to constraint variables.
-        Ret = std::make_pair(addAtomAll(CVars.first, CS.getArr(), CS),
+        auto Rsn = ReasonLoc("Array initialization", ExprPSL);
+        Ret = std::make_pair(addAtomAll(CVars.first, CS.getArr(),
+                                        Rsn, CS),
                              CVars.second);
       } else {
         // This branch should only be taken on compound literal expressions
@@ -570,7 +632,8 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       PVConstraint *P = getRewritablePVConstraint(CLE);
 
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
-      constrainConsVarGeq(P, Vars.first, Info.getConstraints(), &PL,
+      auto Rsn = ReasonLoc("Compound literal", PL);
+      constrainConsVarGeq(P, Vars.first, Info.getConstraints(), Rsn,
                           Same_to_Same, false, &Info);
 
       CVarSet T = {P};
@@ -583,7 +646,8 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       // We create a new constraint variable and constraint it to an Nt_array.
 
       PVConstraint *P = new PVConstraint(Str, Info, *Context);
-      P->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there.
+      P->constrainOuterTo(CS, CS.getNTArr(),
+                          ReasonLoc(STRING_LITERAL_REASON,ExprPSL)); // NB: ARR already there.
 
       BoundsKey TmpKey = ABI.getRandomBKey();
       P->setBoundsKey(TmpKey);
@@ -611,10 +675,10 @@ CSetBkeyPair ConstraintResolver::getExprConstraintVars(Expr *E) {
       auto *P = new PVConstraint(VarArg, Info, *Context);
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
       std::string Rsn = "Accessing VarArg parameter";
-      P->constrainToWild(Info.getConstraints(), Rsn, &PL);
+      P->constrainToWild(Info.getConstraints(), ReasonLoc(Rsn, PL));
       Ret = pairWithEmptyBkey({P});
     } else {
-      if (Verbose) {
+      if (_3COpts.Verbose) {
         llvm::errs() << "WARNING! Initialization expression ignored: ";
         E->dump(llvm::errs(), *Context);
         llvm::errs() << "\n";
@@ -652,16 +716,17 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   CSetBkeyPair L = getExprConstraintVars(LHS);
   CSetBkeyPair R = getExprConstraintVars(RHS);
   bool HandleBoundsKey = L.second.empty() && R.second.empty();
-  constrainConsVarGeq(L.first, R.first, Info.getConstraints(), &PL, CAction,
+  auto Rsn = ReasonLoc("Local Assignment", PL);
+  constrainConsVarGeq(L.first, R.first, Info.getConstraints(), Rsn, CAction,
                       false, &Info, HandleBoundsKey);
 
   // Handle pointer arithmetic.
   auto &ABI = Info.getABoundsInfo();
-  ABI.handlePointerAssignment(TSt, LHS, RHS, Context, this);
+  ABI.handlePointerAssignment(LHS, RHS, Context, this);
 
   // Only if all types are enabled and these are not pointers, then track
   // the assignment.
-  if (AllTypes) {
+  if (_3COpts.AllTypes) {
     if ((!containsValidCons(L.first) && !containsValidCons(R.first)) ||
         !HandleBoundsKey) {
       ABI.handleAssignment(LHS, L.first, L.second, RHS, R.first, R.second,
@@ -673,11 +738,11 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
 void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
                                               Expr *RHS, ConsAction CAction,
                                               bool IgnoreBnds) {
-  PersistentSourceLoc PL, *PLPtr = nullptr;
+  PersistentSourceLoc PSL;
   if (TSt != nullptr) {
-    PL = PersistentSourceLoc::mkPSL(TSt, *Context);
-    PLPtr = &PL;
+    PSL = PersistentSourceLoc::mkPSL(TSt, *Context);
   }
+  auto Rsn = ReasonLoc("Local Assignment", PSL);
   // Get the in-context local constraints.
   CVarOption V = Info.getVariable(D, Context);
   auto RHSCons = getExprConstraintVars(RHS);
@@ -685,8 +750,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
 
   if (V.hasValue())
     constrainConsVarGeq(&V.getValue(), RHSCons.first, Info.getConstraints(),
-                        PLPtr, CAction, false, &Info, HandleBoundsKey);
-  if (AllTypes && !IgnoreBnds) {
+                        Rsn, CAction, false, &Info, HandleBoundsKey);
+  if (_3COpts.AllTypes && !IgnoreBnds) {
     if (!HandleBoundsKey || (!(V.hasValue() && isValidCons(&V.getValue())) &&
                              !containsValidCons(RHSCons.first))) {
       auto &ABI = Info.getABoundsInfo();
@@ -696,11 +761,15 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   }
 }
 
+bool ConstraintResolver::isNonPtrType(QualType &TE) {
+  return TE->isRecordType() || TE->isArithmeticType() || TE->isVectorType();
+}
+
 CVarSet ConstraintResolver::pvConstraintFromType(QualType TypE) {
   assert("Pointer type CVs should be obtained through getExprConstraintVars." &&
          !TypE->isPointerType());
   CVarSet Ret;
-  if (TypE->isRecordType() || TypE->isArithmeticType())
+  if (isNonPtrType(TypE))
     Ret.insert(PVConstraint::getNonPtrPVConstraint(Info.getConstraints()));
   else
     llvm::errs() << "Warning: Returning non-base, non-wild type";
@@ -711,8 +780,8 @@ CVarSet ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
   if (Info.hasPersistentConstraints(Decl, Context))
     return Info.getPersistentConstraintsSet(Decl, Context);
 
-  assert(Decl->getType()->isRecordType() ||
-         Decl->getType()->isArithmeticType());
+  auto T = Decl->getType();
+  assert(isNonPtrType(T));
 
   CVarSet Ret;
   auto DN = Decl->getDecl()->getName();
@@ -736,13 +805,45 @@ CVarSet ConstraintResolver::getCalleeConstraintVars(CallExpr *CE) {
   return FVCons;
 }
 
+// This serves as an exception to the unsafety of casting from void*.
+// In most cases, CheckedC can handle generic casts, so we can ignore them.
+// CheckedC can't handle allocators without checked headers, so we add them
+// to this exception for when we're dealing with small examples.
+bool ConstraintResolver::isCastofGeneric(CastExpr *C) {
+  Expr *SE = C->getSubExpr();
+  if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(SE))
+    SE = CE->getSubExpr();
+  if (auto *CE = dyn_cast_or_null<CallExpr>(SE)) {
+    // Check for built-in allocators, in case the standard headers are not used.
+    // This is a required exception, because allocators return void*, and casts
+    // from it are unsafe. We assume the cast is appropriate. With checked
+    // headers clang can figure out if it is safe.
+    if (auto *DD = dyn_cast_or_null<DeclaratorDecl>(CE->getCalleeDecl())) {
+      std::string Name = DD->getNameAsString();
+      if (isFunctionAllocator(Name))
+        return true;
+    }
+    // Check for a generic function call.
+    CVarSet CVS = getCalleeConstraintVars(CE);
+    // If there are multiple constraints in the expression we
+    // can't guarantee safety, so only return true if the
+    // cast is directly on a function call.
+    if (CVS.size() == 1) {
+      if (auto *FVC = dyn_cast<FVConstraint>(*CVS.begin())) {
+        return FVC->getGenericParams() > 0;
+      }
+    }
+  }
+  return false;
+}
+
 // Construct a PVConstraint for an expression that can safely be used when
 // rewriting the expression later on. This is done by making the constraint WILD
 // if the expression is inside a macro.
 PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
   PVConstraint *P = new PVConstraint(E, Info, *Context);
   auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
-  Info.constrainWildIfMacro(P, E->getExprLoc(), &PSL);
+  Info.constrainWildIfMacro(P, E->getExprLoc(), ReasonLoc(MACRO_REASON, PSL));
   return P;
 }
 

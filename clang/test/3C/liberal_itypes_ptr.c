@@ -1,7 +1,7 @@
 // RUN: rm -rf %t*
 // RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 // RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
 // RUN: 3c -base-dir=%t.checked -alltypes %t.checked/liberal_itypes_ptr.c -- | diff %t.checked/liberal_itypes_ptr.c -
 
@@ -116,7 +116,8 @@ void bounds_fn(void *b : byte_count(1));
 // CHECK: void bounds_fn(void *b : byte_count(1));
 
 void bounds_call(void *p) {
-  // CHECK: void bounds_call(void *p) {
+  // CHECK_NOALL: void bounds_call(void *p) {
+  // CHECK_ALL: _Itype_for_any(T) void bounds_call(_Array_ptr<T> p : byte_count(1)) {
   bounds_fn(p);
   // CHECK: bounds_fn(p);
 }

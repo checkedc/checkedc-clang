@@ -30,7 +30,7 @@ int *wildBody(int x) {
 };
 
 int *fnPtrParamUnsafe(int (*)(int,int), int(*)(int*));
-// CHECK: int *fnPtrParamUnsafe(int (*fn)(int, int), _Ptr<int (_Ptr<int>)>) : itype(_Ptr<int>);
+// CHECK: int *fnPtrParamUnsafe(int ((*fn)(int, int)) : itype(_Ptr<int (int, int)>), _Ptr<int (_Ptr<int>)>) : itype(_Ptr<int>);
 
 int *fnPtrParamSafe(int (*)(int,int));
 // CHECK: int *fnPtrParamSafe(_Ptr<int (int, int)> fn) : itype(_Ptr<int>);

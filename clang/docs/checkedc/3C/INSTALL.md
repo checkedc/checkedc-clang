@@ -19,18 +19,15 @@ fiddly](#mac-os-x), but we have managed it so far.
 
 ## Basics
 
-As described [here](README.md#which-checkedc-clang-repository-to-use),
-you can use either
-https://github.com/correctcomputation/checkedc-clang or
-https://github.com/microsoft/checkedc-clang (or, of course, a
+Start by cloning [checkedc](https://github.com/checkedc/checkedc-llvm-project) repo (or, of course, a
 third-party fork, though we can't be responsible for that). Assuming
 you have already cloned one of these repositories, run the following
-(from the `checkedc-clang` directory or whatever you named your clone)
+(from the `checkedc-llvm-project` directory or whatever you named your clone)
 for a basic build:
 
 ```
 # Get a copy of the Checked C system headers. Use Microsoft's
-# "checkedc" repository regardless of which "checkedc-clang"
+# "checkedc" repository regardless of which "checkedc-llvm-project"
 # repository you use.
 git clone https://github.com/microsoft/checkedc llvm/projects/checkedc-wrapper/checkedc
 

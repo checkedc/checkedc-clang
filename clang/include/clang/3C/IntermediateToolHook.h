@@ -25,7 +25,7 @@ class IntermediateToolHook : public ASTConsumer {
 public:
   explicit IntermediateToolHook(ProgramInfo &I, clang::ASTContext *C)
       : Info(I) {}
-  virtual void HandleTranslationUnit(ASTContext &Context);
+  void HandleTranslationUnit(ASTContext &Context) override;
 
 private:
   ProgramInfo &Info;

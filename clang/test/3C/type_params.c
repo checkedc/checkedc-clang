@@ -175,7 +175,7 @@ void *example1(void *ptr, unsigned int size) {
 // Issue #349. Check that the parameter doesn't inherit the double pointer
 // argument within do_doubleptr
 _Itype_for_any(T) void incoming_doubleptr(void *ptr : itype(_Array_ptr<T>)) {
-  // CHECK_ALL: _Itype_for_any(T) void incoming_doubleptr(void *ptr : itype(_Array_ptr<T>)) {
+  // CHECK_ALL: _Itype_for_any(T) void incoming_doubleptr(void *ptr : itype(_Array_ptr<T>) count(5)) {
   return;
 }
 
@@ -184,4 +184,13 @@ void do_doubleptr(int count) {
   // CHECK_ALL: _Array_ptr<_Ptr<int>> arr : count(count) = malloc<_Ptr<int>>(sizeof(int *) * count);
   incoming_doubleptr(arr);
   // CHECK_ALL: incoming_doubleptr<_Ptr<int>>(arr);
+}
+
+// make sure adding this function doesn't infer
+// with the type of the previous one
+// Though it does currently add the `count(5)`
+// to the param of incomming_doubleptr
+void interfere_doubleptr(void) {
+  float fl _Checked[5][5] = {};
+  incoming_doubleptr(fl);
 }

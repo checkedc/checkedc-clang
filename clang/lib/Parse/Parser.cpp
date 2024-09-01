@@ -1254,9 +1254,9 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   if (Tok.isNot(tok::l_brace) &&
       (!getLangOpts().CPlusPlus ||
        (Tok.isNot(tok::colon) && Tok.isNot(tok::kw_try) &&
-        Tok.isNot(tok::equal)))) {
+        Tok.isNot(tok::equal) && !isMacroCheckedCKeyword(Tok.getKind())))) {
     if (getLangOpts().CheckedC) {
-      if (Tok.is(tok::colon))
+      if (Tok.is(tok::colon) || isMacroCheckedCKeyword(Tok.getKind()))
         Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
       else if (Tok.is(tok::kw__Bundled))
         Diag(Tok, diag::err_fn_body_cannot_be_bundled_blk);

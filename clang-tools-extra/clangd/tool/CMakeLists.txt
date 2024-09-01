@@ -39,3 +39,35 @@ target_link_libraries(clangd
   clangdSupport
   ${CLANGD_XPC_LIBS}
   )
+
+add_clang_tool(3Cclangd
+        ClangdMain.cpp
+        Check.cpp
+        $<TARGET_OBJECTS:obj.clangDaemonTweaks>
+        )
+
+clang_target_link_libraries(3Cclangd
+        PRIVATE
+        clangAST
+        clangBasic
+        clang3C
+        clangFormat
+        clangFrontend
+        clangLex
+        clangSema
+        clangTooling
+        clangToolingCore
+        clangToolingRefactoring
+        clangToolingSyntax
+        )
+
+target_link_libraries(3Cclangd
+        PRIVATE
+        clangTidy
+
+        3cClangDaemon
+        clangdRemoteIndex
+        clangdSupport
+        ${CLANGD_XPC_LIBS}
+        )
+target_compile_definitions(3Cclangd PUBLIC LSP3C=1)

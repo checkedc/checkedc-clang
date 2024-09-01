@@ -798,6 +798,9 @@ SourceLocation Parser::SkipExtendedMicrosoftTypeAttributes() {
     case tok::kw___unaligned:
     case tok::kw___sptr:
     case tok::kw___uptr:
+    case tok::kw__Single:
+    case tok::kw__Array:
+    case tok::kw__Nt_array:
       EndLoc = ConsumeToken();
       break;
     default:
@@ -1942,8 +1945,9 @@ bool Parser::ParseWhereClauseOnDecl(Decl *D) {
     Diag(Tok, diag::err_invalid_decl_where_clause);
     return false;
   }
+  WhereClause *WClause;
+  WClause = ParseWhereClause();
 
-  WhereClause *WClause = ParseWhereClause();
   if (!WClause)
     return false;
 
@@ -2029,8 +2033,11 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           // It is easy to misplace it.  Handle the case where the return bounds
           // expression is misplaced for a complex function declarator.
           // Diagnosis this, suggest a fix, and bail out.
-          if (Tok.is(tok::colon)) {
-            Token Next = NextToken();
+          if (Tok.is(tok::colon) || isMacroCheckedCKeyword(Tok.getKind())) {
+            Token Next = Tok;
+            if (Next.is(tok::colon))
+              Next = NextToken();
+
             if (StartsBoundsExpression(Next) ||
                 StartsInteropTypeAnnotation(Next)) {
               Diag(Tok.getLocation(),
@@ -2397,6 +2404,15 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
       ConsumeToken();
 
       if (ParseBoundsAnnotations(D, BoundsColonLoc, Annots)) {
+        SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
+        ThisVarDecl->setInvalidDecl();
+      }
+    }
+    else if (Tok.is(tok::kw__Bounds) || Tok.is(tok::kw__Any) ||
+             Tok.is(tok::kw__Byte_count) || Tok.is(tok::kw__Count) ||
+             Tok.is(tok::kw__Itype)) {
+      // parse the bounds annotations
+      if (ParseBoundsAnnotations(D, Tok.getLocation(), Annots)) {
         SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
         ThisVarDecl->setInvalidDecl();
       }
@@ -4195,7 +4211,18 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_restrict, Loc, PrevSpec, DiagID,
                                  getLangOpts());
       break;
-
+    case tok::kw__Single:
+      isInvalid = DS.SetTypeQual(DeclSpec::TQ_CheckedPtr, Loc, PrevSpec, DiagID,
+                                 getLangOpts());
+      break;
+    case tok::kw__Array:
+      isInvalid = DS.SetTypeQual(DeclSpec::TQ_CheckedArrayPtr, Loc, PrevSpec, DiagID,
+                                 getLangOpts());
+      break;
+    case tok::kw__Nt_array:
+      isInvalid = DS.SetTypeQual(DeclSpec::TQ_CheckedNtArrayPtr, Loc, PrevSpec, DiagID,
+                                 getLangOpts());
+      break;
     // C++ typename-specifier:
     case tok::kw_typename:
       if (TryAnnotateTypeOrScopeToken()) {
@@ -4424,7 +4451,8 @@ void Parser::ParseStructDeclaration(
     // The bounds expression must be parsed in a deferred fashion because it
     // can refer to members declared after this member.
     SourceLocation Loc = Tok.getLocation();
-    if (TryConsumeToken(tok::colon)) {
+    if (TryConsumeToken(tok::colon)||
+        isMacroCheckedCKeyword(Tok.getKind())) {
       if (getLangOpts().CheckedC && (StartsBoundsExpression(Tok) ||
           StartsInteropTypeAnnotation(Tok))) {
         BoundsAnnotations BA;
@@ -5311,6 +5339,11 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw__Nt_array_ptr:
   case tok::kw__Ptr:
 
+  // Checked C macro versions of pointer types
+  case tok::kw__Single:
+  case tok::kw__Array:
+  case tok::kw__Nt_array:
+
   // Checked C existential types
   case tok::kw__Exists:
   case tok::kw__Unpack:
@@ -5399,6 +5432,9 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw_volatile:
   case tok::kw_restrict:
   case tok::kw__Sat:
+  case tok::kw__Single: //macro version of kw__Ptr
+  case tok::kw__Array: //macro version of kw__Array_ptr
+  case tok::kw__Nt_array: //macro version of kw__Nt_array_ptr
 
     // Debugger support.
   case tok::kw___unknown_anytype:
@@ -5443,7 +5479,6 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw__Ptr:
   case tok::kw__Array_ptr:
   case tok::kw__Nt_array_ptr:
-
     return true;
 
   case tok::kw_private:
@@ -5572,7 +5607,9 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw_volatile:
   case tok::kw_restrict:
   case tok::kw__Sat:
-
+  case tok::kw__Single:
+  case tok::kw__Array:
+  case tok::kw__Nt_array:
     // function-specifier
   case tok::kw_inline:
   case tok::kw_virtual:
@@ -5885,6 +5922,18 @@ void Parser::ParseTypeQualifierListOpt(
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_restrict, Loc, PrevSpec, DiagID,
                                  getLangOpts());
       break;
+    case tok::kw__Single:
+        isInvalid = DS.SetTypeQual(DeclSpec::TQ_CheckedPtr, Loc, PrevSpec, DiagID,
+                                   getLangOpts());
+        break;
+    case tok::kw__Array:
+        isInvalid = DS.SetTypeQual(DeclSpec::TQ_CheckedArrayPtr, Loc, PrevSpec, DiagID,
+                                   getLangOpts());
+        break;
+    case tok::kw__Nt_array:
+        isInvalid = DS.SetTypeQual(DeclSpec::TQ_CheckedNtArrayPtr, Loc, PrevSpec, DiagID,
+                                   getLangOpts());
+        break;
     case tok::kw__Atomic:
       if (!AtomicAllowed)
         goto DoneWithTypeQuals;
@@ -6163,7 +6212,10 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
       D.AddTypeInfo(DeclaratorChunk::getPointer(
                         DS.getTypeQualifiers(), Loc, DS.getConstSpecLoc(),
                         DS.getVolatileSpecLoc(), DS.getRestrictSpecLoc(),
-                        DS.getAtomicSpecLoc(), DS.getUnalignedSpecLoc()),
+                        DS.getAtomicSpecLoc(), DS.getUnalignedSpecLoc(),
+                        DS.getCheckedPtrSpecLoc(),
+                        DS.getCheckedArrayPtrSpecLoc(),
+                        DS.getCheckedNtArrayPtrSpecLoc()),
                     std::move(DS.getAttributes()), SourceLocation());
     else
       // Remember that we parsed a Block type, and remember the type-quals.
@@ -7032,12 +7084,18 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   // Return bounds expressions are delay parsed because they can refer to _Return_value,
   // which uses the return type.  The return type is still unknown at this point.
   std::unique_ptr<CachedTokens> DeferredBoundsToks = nullptr;
-  if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
-    const Token &NextTok = GetLookAheadToken(1);
+  if (getLangOpts().CheckedC && (Tok.is(tok::colon)
+                                 || isMacroCheckedCKeyword(Tok.getKind()))) {
+    Token NextTok = Tok;
+    if (Tok.is(tok::colon)) {
+      NextTok = GetLookAheadToken(1);
+    }
+
     if (StartsBoundsExpression(NextTok) ||
       StartsInteropTypeAnnotation(NextTok)) {
       BoundsColonLoc = Tok.getLocation();
-      ConsumeToken();
+      if (Tok.is(tok::colon))
+        ConsumeToken();
       Actions.SetDeferredBoundsCallBack(this, ParseBoundsCallback);
       std::unique_ptr<CachedTokens> AllocToks { new CachedTokens };
       DeferredBoundsToks = std::move(AllocToks);
@@ -7336,7 +7394,8 @@ void Parser::ParseParameterDeclarationClause(
       // the identifier should be null.
       if (!ParmDeclarator.isInvalidType() && !ParmDeclarator.hasName()) {
         if (Tok.getIdentifierInfo() &&
-            Tok.getIdentifierInfo()->isKeyword(getLangOpts())) {
+            Tok.getIdentifierInfo()->isKeyword(getLangOpts())
+            && !isMacroCheckedCKeyword(Tok.getKind())) {
           Diag(Tok, diag::err_keyword_as_parameter) << PP.getSpelling(Tok);
           // Consume the keyword.
           ConsumeToken();
@@ -7348,13 +7407,16 @@ void Parser::ParseParameterDeclarationClause(
       // Handle Checked C where clause, bounds expression or bounds-safe
       // interface type annotation.
       if (getLangOpts().CheckedC) {
-        if (!Tok.isOneOf(tok::colon, tok::kw__Where))
+        if (!Tok.isOneOf(tok::colon, tok::kw__Where) &&
+            !isMacroCheckedCKeyword(Tok.getKind()))
 	  // There is no bounds expression, type annotation or where clause.
 	  // Set the default bounds expression, if any.
           Actions.ActOnEmptyBoundsDecl(Param);
         else {
           SourceLocation BoundsColonLoc = Tok.getLocation();
-          if (!StartsWhereClause(Tok))
+          auto BoundsTokKind = Tok.getKind();
+          if (!StartsWhereClause(Tok) &&
+              !isMacroCheckedCKeyword(Tok.getKind()))
             ConsumeToken();
           BoundsAnnotations Annots;
           // Bounds expressions are delay parsed because they can refer to

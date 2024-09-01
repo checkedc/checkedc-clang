@@ -639,7 +639,21 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R,
   llvm::json::ObjectMapper O(Params, P);
   return O && O.map("changes", R.changes);
 }
+#ifdef LSP3C
+bool fromJSON(const llvm::json::Value &Params, _3CManualFix &CCM,llvm::json::Path P) {
+  llvm::json::ObjectMapper O(Params,P);
+  CCM.ptrID = (*Params.getAsObject()->getInteger("ptrID"));
+  return O;
+}
 
+llvm::json::Value toJSON(const _3CManualFix &WE) {
+  return llvm::json::Object{{"ptrID", std::move(WE.ptrID)}};
+}
+const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS =
+    "3c.onlyThisPtr";
+const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_FOR_ALL =
+    "3c.applyAllPtr";
+#endif
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
     "clangd.applyFix";
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_TWEAK =
@@ -660,6 +674,15 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R,
   if (R.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK)
     return Args && Args->size() == 1 &&
            fromJSON(Args->front(), R.tweakArgs, P.field("arguments").index(0));
+
+#ifdef LSP3C
+  if (R.command == ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS ||
+      R.command == ExecuteCommandParams::_3C_APPLY_FOR_ALL) {
+    return Args && Args->size() == 1 &&
+           fromJSON(Args->front(), R._3CFix,
+                    P.field("arguments").index(0));
+  }
+#endif
   return false; // Unrecognized command.
 }
 
@@ -732,6 +755,10 @@ llvm::json::Value toJSON(const Command &C) {
     Cmd["arguments"] = {*C.workspaceEdit};
   if (C.tweakArgs)
     Cmd["arguments"] = {*C.tweakArgs};
+#ifdef LSP3C
+  if(C._3CFix)
+    Cmd["arguments"] = {*C._3CFix};
+#endif
   return std::move(Cmd);
 }
 
@@ -1392,7 +1419,20 @@ llvm::json::Value toJSON(const ASTNode &N) {
     Result["range"] = *N.range;
   return Result;
 }
+#ifdef LSP3C
+bool fromJSON(const llvm::json::Value &Params, _3CParams &R,
+              llvm::json::Path P) {
+  llvm::json::ObjectMapper O(Params, P);
+  return O && O.map("textDocument", R.textDocument);
+}
 
+llvm::json::Value toJSON(const _3CStats &ST) {
+  llvm::json::Object Reply{
+    {"details",ST.Details}
+  };
+  return Reply;
+}
+#endif
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const ASTNode &Root) {
   std::function<void(const ASTNode &, unsigned)> Print = [&](const ASTNode &N,
                                                              unsigned Level) {

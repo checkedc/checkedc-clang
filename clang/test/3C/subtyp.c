@@ -25,7 +25,7 @@ void baz() {
   //CHECK: int *x = (int *)5;
   foo(x);
   //CHECK_NOALL: foo(x);
-  //CHECK_ALL: foo(_Assume_bounds_cast<_Nt_array_ptr<int>>(x, byte_count(0)));
+  //CHECK_ALL: foo(_Assume_bounds_cast<_Nt_array_ptr<int>>(x, bounds(unknown)));
 }
 void force(int *x) {}
 //CHECK: void force(_Ptr<int> x) _Checked {}

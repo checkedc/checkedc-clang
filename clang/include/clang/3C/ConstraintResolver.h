@@ -42,6 +42,8 @@ public:
 
   CVarSet getCalleeConstraintVars(CallExpr *CE);
 
+  bool isCastofGeneric(CastExpr *C);
+
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
   void constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
@@ -69,15 +71,18 @@ private:
 
   CVarSet getInvalidCastPVCons(CastExpr *E);
 
-  // Update a PVConstraint with one additional level of indirection
-  PVConstraint *addAtom(PVConstraint *PVC, ConstAtom *NewA, Constraints &CS);
-  CVarSet addAtomAll(CVarSet CVS, ConstAtom *PtrTyp, Constraints &CS);
+  CVarSet addAtomAll(CVarSet CVS, ConstAtom *PtrTyp,
+                     ReasonLoc &Rsn, Constraints &CS);
   CVarSet pvConstraintFromType(QualType TypE);
 
   CSetBkeyPair getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
   CVarSet getBaseVarPVConstraint(DeclRefExpr *Decl);
 
   PVConstraint *getRewritablePVConstraint(Expr *E);
+
+
+  bool isNonPtrType(QualType &TE);
+
 };
 
 #endif // LLVM_CLANG_3C_CONSTRAINTRESOLVER_H
