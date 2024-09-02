@@ -1,7 +1,7 @@
 # Contributing to 3C
 
 Issues and pull requests related to 3C should be submitted to 
-[checkedc](https://github.com/checkedc/checkedc-llvm-project) repo.
+[checkedc](https://github.com/checkedc/checkedc-clang) repo.
 
 ## Issues
 
