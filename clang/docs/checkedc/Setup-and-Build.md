@@ -72,7 +72,7 @@ See the file LICENSE.TXT in for complete details of licensing.
 
 The LLVM/Clang repo has two branches:
 
-- master: the main development branch  for Checked C. All changes committed here
+- main: the main development branch  for Checked C. All changes committed here
 have been code reviewed and passed testing.
 - baseline: these are pristine copies of the Github mirrors. Do not commit
 changes for Checked C to the baseline branches.
@@ -87,7 +87,7 @@ compiler. The Checked C repo tests are licensed under the
 [MIT license](https://opensource.org/licenses/MIT). The
 [Checked C LLVM Test Suite](http://github.com/checkedc/checkedc-llvm-test-suite)
 is a fork of the
-[LLVM test suite mirror](https://github.com/llvm-mirror/test-suite). The LLVM
+[LLVM test suite mirror](https://github.com/llvm/llvm-test-suite). The LLVM
 test suite is for extended testing and includes applications and benchmarks.
 Some of these benchmarks have been modified to use Checked C extensions.
 
@@ -95,7 +95,7 @@ We do not recommend that developers install sources for it or the Checked C
 version by default. The test suite is meant to be run as part of automated
 integration testing or for changes that require extensive testing, not as part
 of day-to-day development. For developers who need to install it, information is
-[here](https://github.com/checkedc/checkedc-llvm-test-suite/blob/master/README.md).
+[here](https://github.com/checkedc/checkedc-llvm-test-suite/blob/main/README.md).
 
 ## Checkout and Build Instructions for Checked C Compiler
 
@@ -116,7 +116,7 @@ directory as \<WORK_DIR\>.
 2. Clone the `checkedc-clang` repository:
 
    ```
-   git clone https://github.com/checkedc/checkedc-llvm-project src
+   git clone https://github.com/checkedc/checkedc-clang src
    ```
 
 3. The Checked C language header files and tests are stored in a folder within
@@ -203,7 +203,7 @@ directory as \<WORK_DIR\>.  In your Visual Studio Command Prompt:
 Unix/Linux directions. Otherwise, follow these directions:
 
    ```
-   git clone -c core.autocrlf=false https://github.com/checkedc/checkedc-llvm-project src
+   git clone -c core.autocrlf=false https://github.com/checkedc/checkedc-clang src
    ```
 
 3. The Checked C language header files and tests are stored in a folder within `llvm\project`. 
@@ -293,5 +293,5 @@ directory to the build directory, and run
 
 Most developers can ignore this section. We periodically update the Checked C
 source code to newer versions of the source code for LLVM/Clang. The directions
-for the process of updating the baseline and master branches to newer versions
+for the process of updating the baseline and main branches to newer versions
 of LLVM/Clang are [here](Update-to-latest-LLVM-sources.md).
