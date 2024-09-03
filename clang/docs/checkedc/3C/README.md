@@ -26,15 +26,15 @@ found [here](https://3clsp.github.io/).
 ## What 3C users should know about the development process
 
 The development of Checked C exclusively takes place in the repository
-located at https://github.com/checkedc/checkedc-llvm-project. 3C is included
+located at https://github.com/checkedc/checkedc-clang. 3C is included
 in the Checked C codebase. Initially 3C development was led by [Correct
 Computation, Inc.](https://correctcomputation.com/). As of now, 3C is
-integrated into [checkedc](https://github.com/checkedc/checkedc-llvm-project)
-checkedc-llvm-project repo and all furthur development will be in
-[checked](https://github.com/checkedc/checkedc-llvm-project) repo.
+integrated into [checkedc](https://github.com/checkedc/checkedc-clang)
+checkedc-clang repo and all furthur development will be in
+[checked](https://github.com/checkedc/checkedc-clang) repo.
 
 Issues and pull requests related to 3C should be submitted to 
-[checkedc](https://github.com/checkedc/checkedc-llvm-project)
+[checkedc](https://github.com/checkedc/checkedc-clang)
 repository; see [CONTRIBUTING.md](CONTRIBUTING.md) for more
 information.
 
@@ -44,4 +44,4 @@ establish its public presence and processes.
 As noted in the [setup instructions](INSTALL.md#basics), both 3C and
 the Checked C compiler depend on the Checked C system headers, which
 Microsoft maintains in [a subdirectory of a separate repository named
-`checkedc`](https://github.com/microsoft/checkedc/tree/master/include).
+`checkedc`](https://github.com/microsoft/checkedc/tree/main/include).
