@@ -2,12 +2,6 @@
 /// Perform several driver tests for OpenMP offloading
 ///
 
-<<<<<<< HEAD
-=======
-// https://PR46644
-
-// REQUIRES: clang-driver
->>>>>>> main
 // REQUIRES: x86-registered-target
 // REQUIRES: powerpc-registered-target
 // REQUIRES: nvptx-registered-target

@@ -271,14 +271,9 @@ void PostfixOperators(int *a, struct S b, struct S *c) {
 
   (int [4]){1, 2, 3, 4, };
   // CHECK: ImplicitCastExpr
-<<<<<<< HEAD
-  // CHECK-NEXT: CompoundLiteralExpr 0x{{[^ ]*}} <col:3, col:25> 'int[4]' lvalue
+  // CHECK: CHKCBindTemporaryExpr 0x{{[^ ]*}} <col:3, col:25> 'int[4]' lvalue
+  // CHECK: CompoundLiteralExpr 0x{{[^ ]*}} <col:3, col:25> 'int[4]' lvalue
   // CHECK-NEXT: InitListExpr 0x{{[^ ]*}} <col:12, col:25> 'int[4]'
-=======
-  // CHECK: CHKCBindTemporaryExpr 0x{{[^ ]*}} <col:3, col:25> 'int [4]' lvalue
-  // CHECK: CompoundLiteralExpr 0x{{[^ ]*}} <col:3, col:25> 'int [4]' lvalue
-  // CHECK-NEXT: InitListExpr 0x{{[^ ]*}} <col:12, col:25> 'int [4]'
->>>>>>> main
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:13> 'int' 1
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:16> 'int' 2
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:19> 'int' 3

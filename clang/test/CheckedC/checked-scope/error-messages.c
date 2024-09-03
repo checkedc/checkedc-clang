@@ -88,7 +88,7 @@ typedef int arrty[10];
 // Make sure original (unadjusted) parameter array type is used in note.
 extern void f23(arrty p) _Checked { // expected-note {{parameter declared here}}
   p = 0; // expected-error {{parameter used in a checked scope must have a checked type or a bounds-safe interface}} \
-         // expected-note {{'arrty' (aka 'int [10]') is not allowed in a checked scope}}
+         // expected-note {{'arrty' (aka 'int[10]') is not allowed in a checked scope}}
 }
 
 // For function types that are adjusted, make sure the adjusted type is used 
@@ -102,7 +102,7 @@ extern void f25(void) {
   _Array_ptr<int[10]> p = 0;  // expected-note {{local variable declared here}}
   _Checked{
     p - 0; // expected-error {{local variable used in a checked scope must have a pointer, array or function type that uses only checked types or parameter/return types with bounds-safe interfaces}} \
-                      // expected-note {{'int [10]' is not allowed in a checked scope}}
+                      // expected-note {{'int[10]' is not allowed in a checked scope}}
   }
 }
 
