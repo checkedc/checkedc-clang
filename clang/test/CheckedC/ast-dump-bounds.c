@@ -94,7 +94,7 @@ int *g_arr6 : itype(_Array_ptr<int>) count(5);
 int g_arr7[5] : itype(int _Checked[5]);
 
 // CHECK-NEXT: VarDecl
-// CHECK: g_arr7 'int [5]'
+// CHECK: g_arr7 'int[5]'
 // CHECK-NEXT CountBoundsExpr =
 // CHECK: Element
 // CHECK-NEXT: IntegerLiteral
@@ -436,7 +436,7 @@ struct S1 {
   int arr6[5] : itype(int _Checked[5]);
 
   // CHECK: FieldDecl
-  // CHECK: arr6 'int [5]'
+  // CHECK: arr6 'int[5]'
   // CHECK-NEXT: CountBoundsExpr
   // CHECK: Element
   // CHECK-NEXT: IntegerLiteral

@@ -1,7 +1,7 @@
 // Tests that implementation-specific definitions of NULL can be used
 // in checked scopes.
 
-// RUN: %clang_cc1 -verify -fcheckedc-extension -Wno-unused-value %s
+// RUN: %clang_cc1 -verify -fcheckedc-extension -Wno-unused-value -Wno-void-ptr-dereference %s
 // expected-no-diagnostics
 
 _Checked _Ptr<int> f(void) {
