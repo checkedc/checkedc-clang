@@ -16,7 +16,6 @@ from __future__ import print_function
 
 import argparse
 import collections
-import distutils.spawn
 import json
 import os
 import re
@@ -151,7 +150,7 @@ def config():
   args = common.parse_commandline_args(parser)
   infer_dependent_args(args)
 
-  if not distutils.spawn.find_executable(args.clang):
+  if not args.clang:
     print('Please specify --llvm-bin or --clang', file=sys.stderr)
     sys.exit(1)
 
