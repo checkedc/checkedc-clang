@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -166,7 +167,7 @@ def config():
     common.warn('Could not determine clang builtins directory, some tests '
                 'might not update correctly.')
 
-  if not distutils.spawn.find_executable(args.opt):
+  if not shutil.which(args.opt):
     # Many uses of this tool will not need an opt binary, because it's only
     # needed for updating a test that runs clang | opt | FileCheck. So we
     # defer this error message until we find that opt is actually needed.
