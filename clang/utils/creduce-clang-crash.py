@@ -18,7 +18,7 @@ import pipes
 import shlex
 import tempfile
 import shutil
-from distutils.spawn import find_executable
+from shutil import which
 
 verbose = False
 creduce_cmd = None
@@ -42,12 +42,12 @@ def check_cmd(cmd_name, cmd_dir, cmd_path=None):
   if cmd_path:
     # Make the path absolute so the creduce test can be run from any directory.
     cmd_path = os.path.abspath(cmd_path)
-    cmd = find_executable(cmd_path)
+    cmd = which(cmd_path)
     if cmd:
       return cmd
     sys.exit("ERROR: executable `%s` not found" % (cmd_path))
 
-  cmd = find_executable(cmd_name, path=cmd_dir)
+  cmd = which(cmd_name, path=cmd_dir)
   if cmd:
     return cmd
 
