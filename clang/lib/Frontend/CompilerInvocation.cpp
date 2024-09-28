@@ -3420,9 +3420,6 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   if (!Opts.CheckedC)
     GenerateArg(Args, OPT_fno_checkedc_extension, SA);
 
-  if (Opts._3C)
-    GenerateArg(Args, OPT_f3c_tool, SA);
-
   if (Opts.Blocks && !(Opts.OpenCL && Opts.OpenCLVersion == 200))
     GenerateArg(Args, OPT_fblocks, SA);
 
@@ -3827,42 +3824,6 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
   if (Args.hasArg(OPT_fno_checkedc_extension))
     Opts.CheckedC = false;
-
-  if (Args.hasArg(OPT_f3c_tool))
-    Opts._3C = true;
-
-  if (Args.hasArg(OPT_fdump_inferred_bounds))
-    Opts.DumpInferredBounds = true;
-
-  if (Args.hasArg(OPT_finject_verifier_calls))
-    Opts.InjectVerifierCalls = true;
-
-  if (Args.hasArg(OPT_funchecked_pointers_dynamic_check))
-    Opts.UncheckedPointersDynamicCheck = true;
-
-  if (Args.hasArg(OPT_fdump_extracted_comparison_facts))
-    Opts.DumpExtractedComparisonFacts = true;
-
-  if (Args.hasArg(OPT_fdump_widened_bounds))
-    Opts.DumpWidenedBounds = true;
-
-  if (Args.hasArg(OPT_fdump_widened_bounds_dataflow_sets))
-    Opts.DumpWidenedBoundsDataflowSets = true;
-
-  if (Args.hasArg(OPT_fdump_boundsvars))
-    Opts.DumpBoundsVars = true;
-
-  if (Args.hasArg(OPT_fdump_boundssiblingfields))
-    Opts.DumpBoundsSiblingFields = true;
-
-  if (Args.hasArg(OPT_fdump_preorder_ast))
-    Opts.DumpPreorderAST = true;
-
-  if (Args.hasArg(OPT_fdump_checking_state))
-    Opts.DumpCheckingState = true;
-
-  if (Args.hasArg(OPT_fdump_synthesized_members))
-    Opts.DumpSynthesizedMembers = true;
 
   Opts.Blocks = Args.hasArg(OPT_fblocks) || (Opts.OpenCL
     && Opts.OpenCLVersion == 200);

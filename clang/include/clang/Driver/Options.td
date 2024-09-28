@@ -1398,7 +1398,8 @@ defm addrsig : BoolFOption<"addrsig",
   BothFlags<[CoreOption], " an address-significance table">>;
 defm blocks : OptInCC1FFlag<"blocks", "Enable the 'blocks' language feature", "", "", [CoreOption]>;
 def f3c_tool : Flag<["-"], "f3c-tool">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Enable 3C tool mode (supposed to be run by tools that needs only AST)">;
+  HelpText<"Enable 3C tool mode (supposed to be run by tools that needs only AST)">,
+  MarshallingInfoFlag<LangOpts<"_3C">>;
 def fbootclasspath_EQ : Joined<["-"], "fbootclasspath=">, Group<f_Group>;
 defm borland_extensions : BoolFOption<"borland-extensions",
   LangOpts<"Borland">, DefaultFalse,
@@ -1415,27 +1416,38 @@ def fcheckedc_extension : Flag<["-"], "fcheckedc-extension">, Group<f_Group>, Fl
 def fno_checkedc_extension : Flag<["-"], "fno-checkedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
    HelpText<"Do not accept Checked C extension for C">;
 def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump extracted comparison facts">;
+  HelpText<"Dump extracted comparison facts">,
+  MarshallingInfoFlag<LangOpts<"DumpExtractedComparisonFacts">>;
 def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump widened bounds">;
+  HelpText<"Dump widened bounds">,
+  MarshallingInfoFlag<LangOpts<"DumpWidenedBounds">>;
 def fdump_widened_bounds_dataflow_sets : Flag<["-"], "fdump-widened-bounds-dataflow-sets">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump dataflow sets computed by the bounds widening analysis">;
+  HelpText<"Dump dataflow sets computed by the bounds widening analysis">,
+  MarshallingInfoFlag<LangOpts<"DumpWidenedBoundsDataflowSets">>;
 def fdump_boundsvars : Flag<["-"], "fdump-boundsvars">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump bounds vars">;
+  HelpText<"Dump bounds vars">,
+  MarshallingInfoFlag<LangOpts<"DumpBoundsVars">>;
 def fdump_boundssiblingfields : Flag<["-"], "fdump-boundssiblingfields">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump bounds sibling fields">;
+  HelpText<"Dump bounds sibling fields">,
+  MarshallingInfoFlag<LangOpts<"DumpBoundsSiblingFields">>;
 def fdump_preorder_ast : Flag<["-"], "fdump-preorder-ast">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump the preorder AST">;
+  HelpText<"Dump the preorder AST">,
+  MarshallingInfoFlag<LangOpts<"DumpPreorderAST">>;
 def fdump_checking_state : Flag<["-"], "fdump-checking-state">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump the state during bounds checking">;
+  HelpText<"Dump the state during bounds checking">,
+  MarshallingInfoFlag<LangOpts<"DumpCheckingState">>;
 def fdump_synthesized_members : Flag<["-"], "fdump-synthesized-members">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump synthesized member AbstractSets">;
+  HelpText<"Dump synthesized member AbstractSets">,
+  MarshallingInfoFlag<LangOpts<"DumpSynthesizedMembers">>;
 def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump inferred Checked C bounds for assignments and declarations">;
+  HelpText<"Dump inferred Checked C bounds for assignments and declarations">,
+  MarshallingInfoFlag<LangOpts<"DumpInferredBounds">>;
 def finject_verifier_calls : Flag<["-"], "finject-verifier-calls">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Injects calls to VERIFIER_assume and VERIFIER_error in the bitcode">;
+  HelpText<"Injects calls to VERIFIER_assume and VERIFIER_error in the bitcode">,
+  MarshallingInfoFlag<LangOpts<"InjectVerifierCalls">>;
 def funchecked_pointers_dynamic_check : Flag<["-"], "funchecked-pointers-dynamic-check">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Adds dynamic checks for unchecked pointers">;
+  HelpText<"Adds dynamic checks for unchecked pointers">,
+  MarshallingInfoFlag<LangOpts<"UncheckedPointersDynamicCheck">>;
 def fclang_abi_compat_EQ : Joined<["-"], "fclang-abi-compat=">, Group<f_clang_Group>,
   Flags<[CC1Option]>, MetaVarName<"<version>">, Values<"<major>.<minor>,latest">,
   HelpText<"Attempt to match the ABI of Clang <version>">;
