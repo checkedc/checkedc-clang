@@ -55,7 +55,7 @@ void f3(int a _Where a == 1, a == 1); // expected-error {{unknown type name 'a'}
 
 void f4(int a _Where a == 1, b == 1); // expected-error {{unknown type name 'b'}} expected-error {{expected ')'}} expected-note {{to match this '('}}
 
-void f5(int a _Where a,a); // expected-error {{redefinition of parameter 'a'}} expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}} expected-warning {{type specifier missing, defaults to 'int'}} expected-note {{previous declaration is here}}
+void f5(int a _Where a,a); // expected-error {{redefinition of parameter 'a'}} expected-error {{invalid expression in where clause, expected bounds declaration or equality expression}} expected-error {{type specifier missing, defaults to 'int'}} expected-note {{previous declaration is here}}
 
 void f6(_Where 1 == 0); // expected-error {{expected parameter declarator}} expected-error {{expected ')'}} expected-note {{to match this '('}}
 

@@ -49,14 +49,14 @@ void f4(void) {
   i = global_arr1[-1];     // expected-error {{out-of-bounds memory access}} \
                            // expected-warning {{array index -1 is before the beginning of the array}}
   i = global_arr1[11];     // expected-error {{out-of-bounds memory access}} \
-                           // expected-warning {{array index 11 is past the end of the array (which contains 10 elements)}}                            
+                           // expected-warning {{array index 11 is past the end of the array (that has type 'int _Checked[10]')}}
   i = *(global_arr1 - 1);  // expected-error {{out-of-bounds memory access}} 
   i = *(global_arr1 + 11); // expected-error {{out-of-bounds memory access}} 
   i = *(global_arr1 + 0);
   global_arr1[-1] = i;     // expected-error {{out-of-bounds memory access}} \
                            // expected-warning {{array index -1 is before the beginning of the array}}
   global_arr1[11] = i;     // expected-error {{out-of-bounds memory access}} \
-                           // expected-warning {{array index 11 is past the end of the array (which contains 10 elements)}}                            
+                           // expected-warning {{array index 11 is past the end of the array (that has type 'int _Checked[10]')}}
   *(global_arr1 - 1) = i;  // expected-error {{out-of-bounds memory access}} 
   *(global_arr1 + 11) = i; // expected-error {{out-of-bounds memory access}} 
   *(global_arr1 + 0) = i;

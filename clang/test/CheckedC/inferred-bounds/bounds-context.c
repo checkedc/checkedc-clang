@@ -625,7 +625,7 @@ void source_bounds1(array_ptr<int> a: count(1)) {
   // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
   // CHECK-NEXT:       IntegerLiteral {{.*}} 2
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:       CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:       CHKCBindTemporaryExpr {{.*}} 'char[4]'
   // CHECK-NEXT:         StringLiteral {{.*}} "abc"
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
@@ -644,10 +644,10 @@ void source_bounds1(array_ptr<int> a: count(1)) {
   // CHECK: Bounds:
   // CHECK-NEXT: RangeBoundsExpr
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:     BoundsValueExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} 'char[4]'
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:       BoundsValueExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:       BoundsValueExpr {{.*}} 'char[4]'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 3
   // CHECK-NEXT: LValue Expression:
   // CHECK-NEXT: DeclRefExpr {{.*}} 'a' '_Array_ptr<int>'

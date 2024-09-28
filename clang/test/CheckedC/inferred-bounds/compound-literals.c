@@ -30,9 +30,9 @@ void f1(_Array_ptr<int> a : count(2), _Array_ptr<int[1]> b : count(1)) {
   // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '='
   // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
   // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <ArrayToPointerDecay> BoundsSafeInterface
-  // CHECK: `-CHKCBindTemporaryExpr {{0x[0-9a-f]+}} {{.*}} 'int [2]' lvalue
-  // CHECK: `-CompoundLiteralExpr {{0x[0-9a-f]+}} {{.*}} 'int [2]' lvalue
-  // CHECK: `-InitListExpr {{0x[0-9a-f]+}} {{.*}} 'int [2]'
+  // CHECK: `-CHKCBindTemporaryExpr {{0x[0-9a-f]+}} {{.*}} 'int[2]' lvalue
+  // CHECK: `-CompoundLiteralExpr {{0x[0-9a-f]+}} {{.*}} 'int[2]' lvalue
+  // CHECK: `-InitListExpr {{0x[0-9a-f]+}} {{.*}} 'int[2]'
   // CHECK: |-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 0
   // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
   // CHECK: Target Bounds:
@@ -46,38 +46,38 @@ void f1(_Array_ptr<int> a : count(2), _Array_ptr<int[1]> b : count(1)) {
   // CHECK: RHS Bounds:
   // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
   // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' <ArrayToPointerDecay>
-  // CHECK: | `-BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int [2]' lvalue _BoundTemporary {{0x[0-9a-f]+}}
+  // CHECK: | `-BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int[2]' lvalue _BoundTemporary {{0x[0-9a-f]+}}
   // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' '+'
   // CHECK:  |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' <ArrayToPointerDecay>
-  // CHECK:  | `-BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int [2]' lvalue _BoundTemporary {{0x[0-9a-f]+}}
+  // CHECK:  | `-BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int[2]' lvalue _BoundTemporary {{0x[0-9a-f]+}}
   // CHECK:  `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 2
 
   // Target LHS bounds: bounds(b, b + 1)
   // Inferred RHS bounds: bounds(temp((int[1]{ 0, 1, 2 })), temp(int[1]{ 0, 1, 2 }) + 1)
   b = &(int[1]){ 0, 1, 2 };
-  // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int [1]>' '='
-  // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int [1]>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int [1]>'
-  // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int [1]>' <BitCast>
+  // CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int[1]>' '='
+  // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int[1]>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int[1]>'
+  // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int[1]>' <BitCast>
   // CHECK:  `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int (*)[1]' prefix '&' cannot overflow
-  // CHECK:  `-CHKCBindTemporaryExpr {{0x[0-9a-f]+}} {{.*}} 'int [1]' lvalue
-  // CHECK:  `-CompoundLiteralExpr {{0x[0-9a-f]+}} {{.*}} 'int [1]' lvalue
-  // CHECK:  `-InitListExpr {{0x[0-9a-f]+}} {{.*}} 'int [1]'
+  // CHECK:  `-CHKCBindTemporaryExpr {{0x[0-9a-f]+}} {{.*}} 'int[1]' lvalue
+  // CHECK:  `-CompoundLiteralExpr {{0x[0-9a-f]+}} {{.*}} 'int[1]' lvalue
+  // CHECK:  `-InitListExpr {{0x[0-9a-f]+}} {{.*}} 'int[1]'
   // CHECK:  `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 0
   // CHECK: Target Bounds:
   // CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
-  // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int [1]>' <LValueToRValue>
-  // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int [1]>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int [1]>'
-  // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int [1]>' '+'
-  // CHECK:  |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int [1]>' <LValueToRValue>
-  // CHECK:  | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int [1]>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int [1]>'
+  // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int[1]>' <LValueToRValue>
+  // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int[1]>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int[1]>'
+  // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int[1]>' '+'
+  // CHECK:  |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int[1]>' <LValueToRValue>
+  // CHECK:  | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int[1]>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int[1]>'
   // CHECK:  `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
   // CHECK: RHS Bounds:
   // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
   // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' <ArrayToPointerDecay>
-  // CHECK: | `-BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int [1]' lvalue _BoundTemporary {{0x[0-9a-f]+}}
+  // CHECK: | `-BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int[1]' lvalue _BoundTemporary {{0x[0-9a-f]+}}
   // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' '+'
   // CHECK:  |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' <ArrayToPointerDecay>
-  // CHECK:  | `-BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int [1]' lvalue _BoundTemporary {{0x[0-9a-f]+}}
+  // CHECK:  | `-BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int[1]' lvalue _BoundTemporary {{0x[0-9a-f]+}}
   // CHECK:  `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 }
 

@@ -47,7 +47,7 @@ void f1(_Nt_array_ptr<char> p : bounds(p, p + i), int i,
 // CHECK:     q: bounds(q, q + j)
 // CHECK:     r: bounds(r, r + 2)
 
-// CHECK:   Stmt: char r_Nt_checked[3] = "ab";
+// CHECK:   Stmt: char r _Nt_checked[3] = "ab";
 // CHECK:   In:
 // CHECK:     p: bounds(p, p + i)
 // CHECK:     q: bounds(q, q + j)

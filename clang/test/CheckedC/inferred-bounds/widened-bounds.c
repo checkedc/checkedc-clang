@@ -219,7 +219,7 @@ void f5() {
 // CHECK: Block: B8 (Entry), Pred: Succ: B7
 
 // CHECK: Block: B7, Pred: B8, Succ: B6, B1
-// CHECK:   Widened bounds before stmt: char p_Nt_checked[] : count(0) = "abc";
+// CHECK:   Widened bounds before stmt: char p _Nt_checked[] : count(0) = "abc";
 // CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: p[0]
@@ -272,7 +272,7 @@ void f6(int i) {
 // CHECK: Block: B6 (Entry), Pred: Succ: B5
 
 // CHECK: Block: B5, Pred: B6, Succ: B4, B1
-// CHECK:   Widened bounds before stmt: char p_Nt_checked[] : bounds(p + i, p) = "abc";
+// CHECK:   Widened bounds before stmt: char p _Nt_checked[] : bounds(p + i, p) = "abc";
 // CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: p[0]
@@ -326,7 +326,7 @@ void f7(char p _Nt_checked[] : count(0)) {
 // CHECK:   Widened bounds before stmt: a = 2
 // CHECK:     p: bounds(p, p + 0)
 
-// CHECK:   Widened bounds before stmt: char q_Nt_checked[] : count(0) = "a";
+// CHECK:   Widened bounds before stmt: char q _Nt_checked[] : count(0) = "a";
 // CHECK:     p: bounds(p, p + 0)
 
 // CHECK:   Widened bounds before stmt: 0[q]
@@ -698,7 +698,7 @@ void f13() {
 // CHECK: Block: B10 (Entry), Pred: Succ: B9
 
 // CHECK: Block: B9, Pred: B10, Succ: B8, B1
-// CHECK:   Widened bounds before stmt: char p_Nt_checked[] : count(1) = "a";
+// CHECK:   Widened bounds before stmt: char p _Nt_checked[] : count(1) = "a";
 // CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: p[0]
@@ -766,7 +766,7 @@ void f14(int i) {
 // CHECK: Block: B8 (Entry), Pred: Succ: B7
 
 // CHECK: Block: B7, Pred: B8, Succ: B6, B1
-// CHECK:   Widened bounds before stmt: char p_Nt_checked[] : bounds(p, p + i) = "a";
+// CHECK:   Widened bounds before stmt: char p _Nt_checked[] : bounds(p, p + i) = "a";
 // CHECK:     <no widening>
 
 // CHECK:   Widened bounds before stmt: (1 + i)[p]
@@ -1013,16 +1013,16 @@ void f18() {
 // CHECK: Block: B14 (Entry), Pred: Succ: B13
 
 // CHECK: Block: B13, Pred: B14, Succ: B12, B10
-// CHECK:   Widened bounds before stmt: char p_Nt_checked[] = "a";
+// CHECK:   Widened bounds before stmt: char p _Nt_checked[] = "a";
 
-// CHECK:   Widened bounds before stmt: char q_Nt_checked[] = "ab";
+// CHECK:   Widened bounds before stmt: char q _Nt_checked[] = "ab";
 // CHECK:     p: bounds(p, p + 1)
 
-// CHECK:   Widened bounds before stmt: char r_Nt_checked[] : count(0) = "ab";
+// CHECK:   Widened bounds before stmt: char r _Nt_checked[] : count(0) = "ab";
 // CHECK:     p: bounds(p, p + 1)
 // CHECK:     q: bounds(q, q + 2)
 
-// CHECK:   Widened bounds before stmt: char s_Nt_checked[] : count(1) = "ab";
+// CHECK:   Widened bounds before stmt: char s _Nt_checked[] : count(1) = "ab";
 // CHECK:     p: bounds(p, p + 1)
 // CHECK:     q: bounds(q, q + 2)
 // CHECK:     r: bounds(r, r + 0)
@@ -1383,7 +1383,7 @@ void f21() {
 // CHECK: Block: B12 (Entry), Pred: Succ: B11
 
 // CHECK: Block: B11, Pred: B12, Succ: B10
-// CHECK:   Widened bounds before stmt: char p_Nt_checked[] : count(0) = "abc";
+// CHECK:   Widened bounds before stmt: char p _Nt_checked[] : count(0) = "abc";
 // CHECK:     <no widening>
 
 // CHECK: Block: B10, Pred: B2, B11, Succ: B9, B1

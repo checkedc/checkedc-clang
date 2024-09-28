@@ -8,6 +8,6 @@
 // RUN: %clang -cc1 -verify -fcheckedc-extension %s
 
 void f(void) {
-  int *a = ({ 0; });  // expected-warning {{ integer to pointer conversion }}
+  int *a = ({ 0; });  // expected-error {{incompatible integer to pointer conversion}}
 }
 
