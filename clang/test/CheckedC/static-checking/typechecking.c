@@ -21,7 +21,7 @@
 // f100, so this seems OK to accept.
 _Ptr<int> f100(int a, int b);
 
-_Ptr<int> f100(a, b)
+_Ptr<int> f100(a, b)  // expected-warning {{a function definition without a prototype is deprecated}}
      int a;
      int b; {
   return 0;

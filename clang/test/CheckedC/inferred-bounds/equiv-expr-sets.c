@@ -10,7 +10,7 @@
 // of an implicit LValueToRValue cast. For example, the comment "Updated EquivExprs: { { x, y } }" should be
 // read as "Updated EquivExprs: { { LValueToRValue(x), LValueToRValue(y) } }".
 //
-// RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s
+// RUN: %clang_cc1 -Wno-unused-value -Wno-int-conversion -fdump-checking-state %s | FileCheck %s
 
 #include <stdchecked.h>
 
@@ -47,7 +47,7 @@ void binary1(int i, nt_array_ptr<char> c) {
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'c'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'char[4]'
   // CHECK-NEXT:       StringLiteral {{.*}} "abc"
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }

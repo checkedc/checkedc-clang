@@ -269,7 +269,7 @@ void f8(void) {
   "abc";
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char[4]'
   // CHECK-NEXT:     StringLiteral {{.*}} "abc"
   // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
@@ -277,9 +277,9 @@ void f8(void) {
   (int []){ 0, 1, 2 };
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'int [3]'
-  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int [3]'
-  // CHECK-NEXT:       InitListExpr {{.*}} 'int [3]'
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'int[3]'
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int[3]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'int[3]'
   // CHECK-NEXT:         IntegerLiteral {{.*}} 0
   // CHECK-NEXT:         IntegerLiteral {{.*}} 1
   // CHECK-NEXT:         IntegerLiteral {{.*}} 2
@@ -289,9 +289,9 @@ void f8(void) {
   &(double []){ 2.72 };
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '&'
-  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'double [1]'
-  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'double [1]'
-  // CHECK-NEXT:       InitListExpr {{.*}} 'double [1]'
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'double[1]'
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'double[1]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'double[1]'
   // CHECK-NEXT:         FloatingLiteral 0{{.*}} 'double' 2.72
   // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }

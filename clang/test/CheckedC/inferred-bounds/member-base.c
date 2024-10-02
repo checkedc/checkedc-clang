@@ -678,7 +678,7 @@ int f30(struct S arr _Checked[][10] : count(len), int i, int j, int len) {
   int x = arr[i++][j].f;
 
 // CHECK: MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S':'struct S' lvalue
+// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S' lvalue
 // CHECK:   |-Bounds
 // CHECK:   | `-RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
 // CHECK:   |   |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S _Checked[10]>':'_Array_ptr<struct S _Checked[10]>' <LValueToRValue>
@@ -704,7 +704,7 @@ void f31(struct S arr _Checked[][11] : count(len), int i, int j, int len) {
   arr[i++][j].f = 314;
 
 // CHECK: MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S':'struct S' lvalue
+// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S' lvalue
 // CHECK:   |-Bounds
 // CHECK:   | `-RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
 // CHECK:   |   |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S _Checked[11]>':'_Array_ptr<struct S _Checked[11]>' <LValueToRValue>
@@ -728,7 +728,7 @@ void f32(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
   _Ptr<int> p = &(arr[i][j].f);
 
 // CHECK: MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S':'struct S' lvalue
+// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S' lvalue
 // CHECK:   |-Bounds
 // CHECK:   | `-RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
 // CHECK:   |   |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' <LValueToRValue>

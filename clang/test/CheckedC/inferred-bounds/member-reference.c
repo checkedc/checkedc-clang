@@ -110,7 +110,7 @@ void f2(struct S1 a3) {
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'struct S1':'struct S1' lvalue ParmVar {{0x[0-9a-f]+}} 'a3' 'struct S1':'struct S1'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <ArrayToPointerDecay>
-// CHECK:     `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'global_arr1' 'int [5]'
+// CHECK:     `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int[5]' lvalue Var {{0x[0-9a-f]+}} 'global_arr1' 'int[5]'
 // CHECK: Target Bounds:
 // CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
@@ -126,10 +126,10 @@ void f2(struct S1 a3) {
 // CHECK: RHS Bounds:
 // CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' <ArrayToPointerDecay>
-// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'global_arr1' 'int [5]'
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int[5]' lvalue Var {{0x[0-9a-f]+}} 'global_arr1' 'int[5]'
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' '+'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *':'int *' <ArrayToPointerDecay>
-// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'global_arr1' 'int [5]'
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int[5]' lvalue Var {{0x[0-9a-f]+}} 'global_arr1' 'int[5]'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
 }
 
@@ -220,7 +220,7 @@ void f10(struct Interop_S1 a1, struct Interop_S2 b2,
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} <col:30> 'int' 5
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} <col:35, col:38> '_Array_ptr<int>' <BitCast>
 // CHECK:   `-ImplicitCastExpr {{0x[0-9a-f]+}} <col:35, col:38> 'int *' <ArrayToPointerDecay>
-// CHECK:     `-MemberExpr {{0x[0-9a-f]+}} <col:35, col:38> 'int [5]' lvalue .arr {{0x[0-9a-f]+}}
+// CHECK:     `-MemberExpr {{0x[0-9a-f]+}} <col:35, col:38> 'int[5]' lvalue .arr {{0x[0-9a-f]+}}
 // CHECK:       `-DeclRefExpr {{0x[0-9a-f]+}} <col:35> 'struct Interop_S2':'struct Interop_S2' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct Interop_S2':'struct Interop_S2'
 // CHECK: Declared Bounds:
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
@@ -228,11 +228,11 @@ void f10(struct Interop_S1 a1, struct Interop_S2 b2,
 // CHECK: Initializer Bounds:
 // CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <ArrayToPointerDecay>
-// CHECK: | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int [5]' lvalue .arr {{0x[0-9a-f]+}}
+// CHECK: | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int[5]' lvalue .arr {{0x[0-9a-f]+}}
 // CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'struct Interop_S2':'struct Interop_S2' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct Interop_S2':'struct Interop_S2'
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' '+'
 // CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <ArrayToPointerDecay>
-// CHECK:   | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int [5]' lvalue .arr {{0x[0-9a-f]+}}
+// CHECK:   | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int[5]' lvalue .arr {{0x[0-9a-f]+}}
 // CHECK:   |   `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'struct Interop_S2':'struct Interop_S2' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct Interop_S2':'struct Interop_S2'
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
 
@@ -300,7 +300,7 @@ _Checked void f11(struct Interop_S1 a1, struct Interop_S2 b2,
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} <col:24, col:31> 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} <col:30> 'int' 5
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} <col:35, col:38> '_Array_ptr<int>' <ArrayToPointerDecay> BoundsSafeInterface
-// CHECK:   `-MemberExpr {{0x[0-9a-f]+}} <col:35, col:38> 'int [5]' lvalue .arr {{0x[0-9a-f]+}}
+// CHECK:   `-MemberExpr {{0x[0-9a-f]+}} <col:35, col:38> 'int[5]' lvalue .arr {{0x[0-9a-f]+}}
 // CHECK:     `-DeclRefExpr {{0x[0-9a-f]+}} <col:35> 'struct Interop_S2':'struct Interop_S2' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct Interop_S2':'struct Interop_S2'
 // CHECK: Declared Bounds:
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
@@ -308,11 +308,11 @@ _Checked void f11(struct Interop_S1 a1, struct Interop_S2 b2,
 // CHECK: Initializer Bounds:
  // CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <ArrayToPointerDecay> BoundsSafeInterface
-// CHECK: | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int [5]' lvalue .arr {{0x[0-9a-f]+}}
+// CHECK: | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int[5]' lvalue .arr {{0x[0-9a-f]+}}
 // CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'struct Interop_S2':'struct Interop_S2' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct Interop_S2':'struct Interop_S2'
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '+'
 // CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <ArrayToPointerDecay> BoundsSafeInterface
-// CHECK:   | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int [5]' lvalue .arr {{0x[0-9a-f]+}}
+// CHECK:   | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int[5]' lvalue .arr {{0x[0-9a-f]+}}
 // CHECK:   |   `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'struct Interop_S2':'struct Interop_S2' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct Interop_S2':'struct Interop_S2'
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
 

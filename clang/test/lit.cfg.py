@@ -139,8 +139,8 @@ if config.clang_staticanalyzer:
         config.available_features.add('z3')
 
 def is_there(name):
-    from distutils.spawn import find_executable
-    return find_executable(name) is not None
+    from shutil import which
+    return which(name) is not None
 
 if is_there("seahorn"):
     config.available_features.add('seahorn')

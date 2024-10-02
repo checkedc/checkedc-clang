@@ -648,7 +648,7 @@ void f82(_Ptr<int> d, size_t a) {
                                                               // expected-note {{expected argument bounds are 'bounds((_Array_ptr<char>)b, (_Array_ptr<char>)b + *d * sizeof(_Ptr<int>))'}} \
                                                               // expected-note {{inferred bounds are 'bounds(b, b + a)'}} \
                                                               // expected-warning {{cannot prove argument meets declared bounds for 2nd parameter}} \
-                                                              // expected-note {{expected argument bounds are 'bounds((_Array_ptr<char>)(_Array_ptr<_Ptr<int> const>)c, (_Array_ptr<char>)(_Array_ptr<_Ptr<int> const>)c + *d * sizeof(_Ptr<int>))'}} \
+                                                              // expected-note {{expected argument bounds are 'bounds((_Array_ptr<char>)(_Array_ptr<const _Ptr<int>>)c, (_Array_ptr<char>)(_Array_ptr<const _Ptr<int>>)c + *d * sizeof(_Ptr<int>))'}} \
                                                               // expected-note {{inferred bounds are 'bounds(c, c + a)'}}
 }
 
@@ -869,7 +869,7 @@ _Unchecked void f99(int *p : count(i), // expected-note 8 {{(expanded) declared 
 
   // The type of the RHS expression p - (_Array_ptr<int>)q is int *, so a
   // checked pointer is not assigned to p here.
-  p -= (_Array_ptr<int>)q; // expected-warning {{incompatible integer to pointer conversion assigning to 'int *'}}
+  p -= (_Array_ptr<int>)q; // expected-error {{incompatible integer to pointer conversion assigning to 'int *'}}
 
   // For statements where a checked pointer is assigned to p, validate the
   // bounds of p.

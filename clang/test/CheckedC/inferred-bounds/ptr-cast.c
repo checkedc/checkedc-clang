@@ -155,7 +155,7 @@ void f5(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
 // CHECK: |   |-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' prefix '&'
 // CHECK: |   | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: |   |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S':'struct S' lvalue
+// CHECK: |   |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S' lvalue
 // CHECK: |   |     |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
 // CHECK: |   |     | `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S _Checked[12]' lvalue
 // CHECK: |   |     |   |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' <LValueToRValue>
@@ -167,7 +167,7 @@ void f5(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
 // CHECK: |   `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' '+'
 // CHECK: |     |-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' prefix '&'
 // CHECK: |     | `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: |     |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S':'struct S' lvalue
+// CHECK: |     |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S' lvalue
 // CHECK: |     |     |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
 // CHECK: |     |     | `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S _Checked[12]' lvalue
 // CHECK: |     |     |   |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' <LValueToRValue>
@@ -180,7 +180,7 @@ void f5(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
 // CHECK: `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' prefix '&'
 // CHECK:   `-ParenExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue
 // CHECK:     `-MemberExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK:       `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S':'struct S' lvalue
+// CHECK:       `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S' lvalue
 // CHECK:         |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
 // CHECK:         | `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'struct S _Checked[12]' lvalue
 // CHECK:         |   |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' <LValueToRValue>
