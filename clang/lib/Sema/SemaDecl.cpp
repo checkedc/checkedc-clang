@@ -14914,15 +14914,6 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
   if (getLangOpts().CheckedC && !getLangOpts()._3C)
     CheckTopLevelBoundsDecls(var);
 
-  // All the following checks are C++ only.
-  if (!getLangOpts().CPlusPlus) {
-    // If this variable must be emitted, add it as an initializer for the
-    // current module.
-    if (Context.DeclMustBeEmitted(var) && !ModuleScopes.empty())
-      Context.addModuleInitializer(ModuleScopes.back().Module, var);
-    return;
-  }
-
   QualType type = var->getType();
 
   if (var->hasAttr<BlocksAttr>())
