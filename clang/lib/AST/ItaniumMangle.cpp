@@ -5144,6 +5144,7 @@ recurse:
     mangleType(USN->getTypeSourceInfo()->getType());
 
     Out << "E";
+    break;
   }
   case Expr::PackExprClass:
     llvm_unreachable("Don't know how to mangle pack expressions");
